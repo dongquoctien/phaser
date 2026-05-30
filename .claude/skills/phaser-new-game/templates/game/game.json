@@ -1,0 +1,10 @@
+{
+  "title": "__GAME_TITLE__",
+  "description": "",
+  "tags": [],
+  "_thumb_help": "Optional pixel-art thumbnail for the hub. Draw it with the pixel-art skill (Sweetie-16 hexes, equal-length rows). Omit `thumb` entirely to use the default arcade-cabinet glyph. Example below — delete _thumb_help and uncomment to use:",
+  "_thumb_example": {
+    "grid": ["....", ".kk.", ".kk.", "...."],
+    "map": { ".": null, "k": "#73eff7" }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "title": "Flappy Bird",
+  "description": "Tap or press space to flap through the gaps. One mistake ends the run — how far can you go?",
+  "tags": ["arcade", "reflex", "endless"],
+  "thumb": {
+    "grid": [
+      "..................",
+      "......kkkkkk......",
+      "....kkyyyyyykk....",
+      "...khhyyyyyyeek...",
+      "..khhyyyyyyyeeek..",
+      "..kyyyyyyyyyeepkk.",
+      "..kyyyyyyyyyyykooo",
+      "..kyywwyyyyyykorr.",
+      "..kyywwyyyyysyk.o.",
+      "..kyyyyyyysssyk...",
+      "...kyyssssssyk....",
+      "...kksssssskk.....",
+      ".....kkkkkkk......",
+      ".................."
+    ],
+    "map": {
+      ".": null,
+      "k": "#1a1c2c",
+      "y": "#ffcd75",
+      "h": "#fdf9b4",
+      "s": "#fd7c3a",
+      "e": "#f4f4f4",
+      "p": "#1a1c2c",
+      "o": "#ef7d57",
+      "r": "#b13e53",
+      "w": "#fd7c3a"
+    }
+  }
+}
