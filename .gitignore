@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-preview/
+*.local
+.DS_Store
+.vite/
+.playwright-mcp/
+# transient verification screenshots (game cover.png committed by hand is NOT ignored)
+hub-*.png
+*-menu.png
+*-gameplay.png
