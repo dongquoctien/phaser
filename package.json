@@ -17,7 +17,10 @@
     "preview:gold-miner": "vite preview --config games/gold-miner/vite.config.mjs games/gold-miner",
     "dev:survivor": "vite --config games/survivor/vite.config.mjs games/survivor",
     "build:survivor": "vite build --config games/survivor/vite.config.mjs games/survivor",
-    "preview:survivor": "vite preview --config games/survivor/vite.config.mjs games/survivor"
+    "preview:survivor": "vite preview --config games/survivor/vite.config.mjs games/survivor",
+    "dev:frog-crossing": "vite --config games/frog-crossing/vite.config.mjs games/frog-crossing",
+    "build:frog-crossing": "vite build --config games/frog-crossing/vite.config.mjs games/frog-crossing",
+    "preview:frog-crossing": "vite preview --config games/frog-crossing/vite.config.mjs games/frog-crossing"
   },
   "devDependencies": {
     "phaser": "^4.1.0",

@@ -1,0 +1,7 @@
+Sound effects from Kenney (https://kenney.nl) — Interface Sounds + Impact Sounds.
+License: Creative Commons CC0 (public domain). No attribution required, but credited here.
+
+hop.ogg    — bong_001              (Interface Sounds)
+splash.ogg — impactGlass_heavy_000 (Impact Sounds)
+crash.ogg  — impactMining_000      (Impact Sounds)
+score.ogg  — confirmation/positive (Interface Sounds)
