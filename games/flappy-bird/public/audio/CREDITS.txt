@@ -1,0 +1,6 @@
+Sound effects from Kenney (https://kenney.nl) — Interface Sounds + Impact Sounds.
+License: Creative Commons CC0 (public domain). Credited here.
+
+flap.ogg  — select_001          (Interface Sounds)
+score.ogg — confirmation_001     (Interface Sounds)
+hit.ogg   — impactPunch_heavy_000 (Impact Sounds)

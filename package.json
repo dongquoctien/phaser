@@ -14,7 +14,10 @@
     "preview:flappy-bird": "vite preview --config games/flappy-bird/vite.config.mjs games/flappy-bird",
     "dev:gold-miner": "vite --config games/gold-miner/vite.config.mjs games/gold-miner",
     "build:gold-miner": "vite build --config games/gold-miner/vite.config.mjs games/gold-miner",
-    "preview:gold-miner": "vite preview --config games/gold-miner/vite.config.mjs games/gold-miner"
+    "preview:gold-miner": "vite preview --config games/gold-miner/vite.config.mjs games/gold-miner",
+    "dev:survivor": "vite --config games/survivor/vite.config.mjs games/survivor",
+    "build:survivor": "vite build --config games/survivor/vite.config.mjs games/survivor",
+    "preview:survivor": "vite preview --config games/survivor/vite.config.mjs games/survivor"
   },
   "devDependencies": {
     "phaser": "^4.1.0",

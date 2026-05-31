@@ -17,6 +17,14 @@ export const TextureKeys = {
   Ground: 'ground',
 } as const;
 
+export const AudioKeys = {
+  Flap: 'flap',
+  Score: 'score',
+  Hit: 'hit',
+} as const;
+export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
+
 export const RegistryKeys = {
   Best: 'best', // persisted high score in the game registry
+  Muted: 'muted',
 } as const;

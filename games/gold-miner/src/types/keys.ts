@@ -19,6 +19,15 @@ export const TextureKeys = {
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 
+export const AudioKeys = {
+  Drop: 'drop',
+  Grab: 'grab',
+  Score: 'score',
+  Win: 'win',
+} as const;
+export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
+
 export const RegistryKeys = {
   Best: 'best',
+  Muted: 'muted',
 } as const;

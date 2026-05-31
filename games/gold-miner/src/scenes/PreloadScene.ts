@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { bakeSprite, SWEETIE16_HEX as H, type PixelGrid } from '../../../../src/pixel';
-import { SceneKeys, TextureKeys } from '../types/keys';
+import { SceneKeys, TextureKeys, AudioKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
 // Generates every texture procedurally with the shared pixel helper (Sweetie-16,
@@ -12,12 +12,10 @@ export class PreloadScene extends Phaser.Scene {
 
   preload(): void {
     this.drawProgressBar();
-    // A tiny data-URI keeps the loader's progress/complete events firing so the
-    // bar behaves like a real preload even with no external files.
-    this.load.image(
-      '__pixel',
-      'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
-    );
+    // CC0 SFX from Kenney (see public/audio/CREDITS.txt).
+    for (const key of Object.values(AudioKeys)) {
+      this.load.audio(key, `audio/${key}.ogg`);
+    }
   }
 
   create(): void {
