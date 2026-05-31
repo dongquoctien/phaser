@@ -1,0 +1,30 @@
+{
+  "title": "Survivor",
+  "description": "Twin-stick survivor — move with the joystick, auto-fire at the swarm, grab XP gems, level up and stack skills. How long can you last?",
+  "tags": ["survivor", "action", "roguelite"],
+  "thumb": {
+    "grid": [
+      "................",
+      "......kkkk......",
+      ".....kssssk.....",
+      ".....kswwsk.....",
+      ".....kssssk.....",
+      "...kkkssssskk...",
+      "..kssssssssbbbk.",
+      "..kssssssssbbbk.",
+      "..kssssssssskk..",
+      "...kssssssssk...",
+      "....kssssssk....",
+      "....ksk..ksk....",
+      "....kk....kk....",
+      "................"
+    ],
+    "map": {
+      ".": null,
+      "k": "#1a1c2c",
+      "s": "#41a6f6",
+      "w": "#f4f4f4",
+      "b": "#566c86"
+    }
+  }
+}

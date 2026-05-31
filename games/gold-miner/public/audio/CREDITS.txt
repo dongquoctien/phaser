@@ -1,0 +1,7 @@
+Sound effects from Kenney (https://kenney.nl) — Interface Sounds.
+License: Creative Commons CC0 (public domain). Credited here.
+
+drop.ogg  — drop_001          (Interface Sounds)
+grab.ogg  — bong_001          (Interface Sounds)
+score.ogg — confirmation_001  (Interface Sounds)
+win.ogg   — confirmation_003  (Interface Sounds)

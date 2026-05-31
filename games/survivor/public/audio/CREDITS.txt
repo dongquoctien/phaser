@@ -1,0 +1,9 @@
+Sound effects from Kenney (https://kenney.nl) — Interface Sounds + Impact Sounds.
+License: Creative Commons CC0 (public domain). No attribution required, but credited here.
+
+shoot.ogg   — impactGeneric_light_000 (Impact Sounds)
+hit.ogg     — impactMining_000        (Impact Sounds)
+hurt.ogg    — impactGlass_heavy_000   (Impact Sounds)
+pickup.ogg  — bong_001                (Interface Sounds)
+levelup.ogg — confirmation_001        (Interface Sounds)
+click.ogg   — click_001               (Interface Sounds)

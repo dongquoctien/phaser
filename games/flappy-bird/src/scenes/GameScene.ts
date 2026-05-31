@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { SceneKeys, TextureKeys, RegistryKeys } from '../types/keys';
+import { SceneKeys, TextureKeys, AudioKeys, RegistryKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, Tuning } from '../config';
 import { Bird } from '../objects/Bird';
 import { Pipe } from '../objects/Pipe';
 import { PipePool } from '../systems/PipePool';
+import { Audio } from '../systems/Audio';
 
 export class GameScene extends Phaser.Scene {
   private bird!: Bird;
@@ -11,6 +12,7 @@ export class GameScene extends Phaser.Scene {
   private ground!: Phaser.GameObjects.TileSprite;
   private scoreText!: Phaser.GameObjects.Text;
   private spawnTimer?: Phaser.Time.TimerEvent;
+  private audio!: Audio;
   private score = 0;
   private over = false;
 
@@ -21,6 +23,7 @@ export class GameScene extends Phaser.Scene {
   create(): void {
     this.score = 0;
     this.over = false;
+    this.audio = new Audio(this);
 
     const groundY = GAME_HEIGHT - Tuning.groundHeight;
 
@@ -73,6 +76,7 @@ export class GameScene extends Phaser.Scene {
   private flap(): void {
     if (this.over) return;
     this.bird.flap();
+    this.audio.play(AudioKeys.Flap);
   }
 
   update(): void {
@@ -99,11 +103,13 @@ export class GameScene extends Phaser.Scene {
   private addScore(): void {
     this.score += 1;
     this.scoreText.setText(String(this.score));
+    this.audio.play(AudioKeys.Score);
   }
 
   private die(): void {
     if (this.over) return;
     this.over = true;
+    this.audio.play(AudioKeys.Hit);
     this.bird.kill();
     this.spawnTimer?.remove();
     this.pipes.group.setVelocityX(0);

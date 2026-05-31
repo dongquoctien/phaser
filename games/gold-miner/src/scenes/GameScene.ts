@@ -1,14 +1,16 @@
 import Phaser from 'phaser';
-import { SceneKeys, TextureKeys, RegistryKeys } from '../types/keys';
+import { SceneKeys, TextureKeys, AudioKeys, RegistryKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, Tuning } from '../config';
 import { Hook } from '../objects/Hook';
 import { LootField } from '../systems/LootField';
+import { Audio } from '../systems/Audio';
 
 export class GameScene extends Phaser.Scene {
   private hook!: Hook;
   private field!: LootField;
   private scoreText!: Phaser.GameObjects.Text;
   private timeText!: Phaser.GameObjects.Text;
+  private audio!: Audio;
   private score = 0;
   private timeLeft = Tuning.roundTime;
   private over = false;
@@ -22,6 +24,7 @@ export class GameScene extends Phaser.Scene {
     this.score = 0;
     this.timeLeft = Tuning.roundTime;
     this.over = false;
+    this.audio = new Audio(this);
 
     // Miner sits centered just above the hook pivot (its feet at the pivot, so the
     // rope visually starts from the miner). The HUD row lives above the miner.
@@ -90,6 +93,7 @@ export class GameScene extends Phaser.Scene {
 
   private drop(): void {
     if (this.over) return;
+    if (this.hook.state === 'swing') this.audio.play(AudioKeys.Drop);
     this.hook.drop();
   }
 
@@ -101,13 +105,17 @@ export class GameScene extends Phaser.Scene {
     // While extending, try to grab loot at the tip.
     if (this.hook.state === 'extend' && !this.hook.carried) {
       const loot = this.field.grabAt(this.hook.tipX, this.hook.tipY);
-      if (loot) this.hook.grab(loot);
+      if (loot) {
+        this.hook.grab(loot);
+        this.audio.play(AudioKeys.Grab);
+      }
     }
 
     // On return, score and recycle whatever came back.
     if (result === 'returned') {
       const loot = this.hook.release();
       if (loot) {
+        this.audio.play(AudioKeys.Score);
         this.addScore(loot.value);
         loot.despawn();
       }
@@ -134,6 +142,7 @@ export class GameScene extends Phaser.Scene {
     if (this.score > best) this.registry.set(RegistryKeys.Best, this.score);
 
     const won = this.score >= Tuning.targetScore;
+    if (won) this.audio.play(AudioKeys.Win);
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, won ? 'CLEARED!' : 'TIME UP', {
         fontFamily: 'monospace',

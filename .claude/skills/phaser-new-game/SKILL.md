@@ -128,4 +128,4 @@ palette so a new game auto-gets a color). Zero JS, no network font. Keep `src/pi
 - Importing all of Phaser into shared libs that don't need it (kills tree-shaking).
 - Hardcoded canvas dimensions instead of `Scale.FIT` + relative sizing.
 
-After scaffolding, mention the sibling skills: `pixel-art` (draw the game's sprites + hub thumbnail), `phaser-optimize-bundle`, `phaser-perf-audit`, `phaser-review`.
+After scaffolding, mention the sibling skills: `pixel-art` (draw the game's sprites + hub thumbnail), `phaser-audio` (add CC0 sound + the throttled Audio helper), `phaser-optimize-bundle`, `phaser-perf-audit`, `phaser-review`.

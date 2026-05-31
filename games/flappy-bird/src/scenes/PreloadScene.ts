@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, TextureKeys } from '../types/keys';
+import { SceneKeys, TextureKeys, AudioKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, Tuning } from '../config';
 
 // Generates all pixel-art textures procedurally (no PNGs to load) and shows a
@@ -12,12 +12,10 @@ export class PreloadScene extends Phaser.Scene {
 
   preload(): void {
     this.drawProgressBar();
-    // No external assets — but loading a tiny data URI keeps the loader's
-    // progress/complete events firing so the bar behaves like a real preload.
-    this.load.image(
-      '__pixel',
-      'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==',
-    );
+    // CC0 SFX from Kenney (see public/audio/CREDITS.txt).
+    for (const key of Object.values(AudioKeys)) {
+      this.load.audio(key, `audio/${key}.ogg`);
+    }
   }
 
   create(): void {
