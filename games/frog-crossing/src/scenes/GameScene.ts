@@ -13,6 +13,12 @@ function colX(col: number): number {
   return col * CELL + CELL / 2;
 }
 
+// World-x → nearest column index (clamped). Used to recover the logical column
+// after the frog has drifted on a log.
+function colFromX(x: number): number {
+  return Phaser.Math.Clamp(Math.round((x - CELL / 2) / CELL), 0, GRID_COLS - 1);
+}
+
 export class GameScene extends Phaser.Scene {
   private frog!: Frog;
   private input2!: HopInput;
@@ -90,17 +96,27 @@ export class GameScene extends Phaser.Scene {
 
   private tryHop(dir: HopDir): void {
     if (this.over || this.frog.hopping) return;
-    let { col, row } = this.frog;
-    if (dir === 'up') row += 1;
-    else if (dir === 'down') row -= 1;
-    else if (dir === 'left') col -= 1;
-    else col += 1;
+    let { row } = this.frog;
+    // Derive the column from the frog's ACTUAL x — it may have drifted while
+    // riding a log, so the logical `col` can be stale. Snapping here makes the
+    // next hop start from where the frog really is, not where it boarded.
+    let col = colFromX(this.frog.x);
+
+    let wx: number;
+    if (dir === 'up' || dir === 'down') {
+      row += dir === 'up' ? 1 : -1;
+      // Forward/back: keep the current (possibly drifted) x, just snap the
+      // logical column to the nearest cell for the next sideways hop.
+      wx = this.frog.x;
+    } else {
+      col += dir === 'left' ? -1 : 1;
+      wx = colX(col);
+    }
 
     // Can't hop off the sides or behind the start line.
     if (col < 0 || col >= GRID_COLS || row < 0) return;
 
     this.field.ensureUpTo(row + Math.ceil(GAME_HEIGHT / CELL) + 2);
-    const wx = colX(col);
     const wy = RowField.worldY(row);
     this.frog.col = col;
     this.frog.row = row;
