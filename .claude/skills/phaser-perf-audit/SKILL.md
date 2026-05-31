@@ -53,6 +53,38 @@ Scan `update()` and any per-frame callback for these and fix them:
 - `powerPreference: 'high-performance'` (in scaffold config).
 - Test on a real low-end phone, not just desktop throttling.
 
+### 6a. Touch input lag (felt as "lag" even at 60 FPS)
+
+A virtual joystick / touch control can feel laggy while the FPS readout says
+60 — this is **input latency**, not framerate, and users report it as "joystick
+lag / hướng đi trễ / giật". Checklist (all four were real bugs in `survivor`):
+
+- **Read direction every frame, not on `pointermove`.** `pointermove` fires
+  *less often than the frame loop* and stops entirely when the finger is held
+  still — so anything that updates direction only inside `onMove` lags or
+  "sticks". Store the owning pointer and recompute `dx/dy` in the per-frame
+  `sample()`/`update()` from `pointer.x/y` directly. Don't read direction
+  indirectly off a thumb sprite that itself only moves on `onMove`.
+- **`scene.input.setPollAlways()`** (sets `pollRate = 0`) so pointers are polled
+  every frame past the drag threshold, instead of "poll only on move" (the
+  default), which delays a held drag. Trade-off: polling runs a hit-test each
+  frame — fine for a game with few interactive objects, avoid if you have
+  hundreds of interactive Game Objects.
+- **`touch-action: none`** (+ `user-select: none`) on the canvas / game `<div>`
+  in `index.html`. Without it the browser may treat the drag as a scroll/zoom
+  and swallow or stutter the touch events — the #1 cause of *jitter on fast
+  drags* on phones. (`-webkit-tap-highlight-color: transparent` removes the grey
+  tap flash too.)
+- **Lock the drag to one pointer id.** Ignore `pointerdown` while already active,
+  and only honour `pointerup`/`pointermove` for the owning id — otherwise a
+  second finger yanks the direction. Also handle `pointerupoutside`.
+- Micro: prefer `Math.sqrt(dx*dx+dy*dy)` over `Math.hypot` on the move/sample hot
+  path (hypot's overflow guard is measurably slower).
+
+Verify with Playwright by driving the joystick handlers and asserting `sample()`
+returns a fresh direction *without* a new move event (held-finger case), the
+magnitude clamps to 1 past the radius, and a 2nd pointer can't hijack the drag.
+
 ## Autotest (Playwright)
 After applying fixes, run the **`phaser-smoketest`** skill — it measures `game.loop.actualFps` in a real browser and fails below threshold, so the "after FPS" number is observed, not guessed. Use its measured FPS as the audit's after-value.
 

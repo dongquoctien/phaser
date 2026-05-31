@@ -127,5 +127,10 @@ palette so a new game auto-gets a color). Zero JS, no network font. Keep `src/pi
 - `new Bullet()` / `.destroy()` in `update()` → use the Pool.
 - Importing all of Phaser into shared libs that don't need it (kills tree-shaking).
 - Hardcoded canvas dimensions instead of `Scale.FIT` + relative sizing.
+- **Virtual joystick that reads direction inside `pointermove`** → feels laggy on
+  phones (move events fire less often than the frame loop and stop when the finger
+  is held). Recompute `dx/dy` every frame in `sample()`/`update()` from the owning
+  pointer, call `input.setPollAlways()`, and keep `touch-action: none` (already in
+  the template `index.html`). Full checklist + Playwright verify in `phaser-perf-audit` §6a.
 
 After scaffolding, mention the sibling skills: `pixel-art` (draw the game's sprites + hub thumbnail), `phaser-audio` (add CC0 sound + the throttled Audio helper), `phaser-optimize-bundle`, `phaser-perf-audit`, `phaser-review`.

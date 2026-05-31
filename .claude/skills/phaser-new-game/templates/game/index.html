@@ -33,6 +33,15 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* Stop the browser treating drags as scroll/zoom — the #1 cause of
+           virtual-joystick jitter on mobile. Harmless for non-touch games. */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #game canvas {
+        touch-action: none;
       }
     </style>
   </head>
