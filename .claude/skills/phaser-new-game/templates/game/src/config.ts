@@ -19,12 +19,15 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   parent: 'game',
   backgroundColor: '#0d0d12',
 
-  // Crisp pixel art: nearest-neighbor filtering, roundPixels, no antialias.
-  pixelArt: true,
+  // DEFAULT: SVG vector art — antialias stays ON (default), pixelArt stays OFF.
+  // PIXEL MODE (only if the game is meant to be pixel-art): uncomment the two
+  // lines below — pixelArt enables nearest-neighbor, and Phaser 4 needs
+  // roundPixels set explicitly (it defaults to false in v4).
+  // pixelArt: true,
 
   render: {
     powerPreference: 'high-performance',
-    // antialias / roundPixels are already set correctly by pixelArt: true.
+    // roundPixels: true, // <- uncomment together with pixelArt above
   },
 
   scale: {

@@ -34,6 +34,8 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
 
   render: {
     powerPreference: 'high-performance',
+    // Phaser 4 defaults roundPixels to false — set explicitly for crisp pixels.
+    roundPixels: true,
   },
 
   scale: {

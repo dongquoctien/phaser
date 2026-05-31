@@ -1,0 +1,29 @@
+{
+  "title": "Gold Miner",
+  "description": "Swing the hook, drop it, and reel in gold before time runs out. Big nuggets pay more but pull up slow; rocks just slow you down.",
+  "tags": ["arcade", "timing", "score"],
+  "thumb": {
+    "grid": [
+      "................",
+      ".....kkkkk......",
+      "...kkhhyyykk....",
+      "..khhyyyyyykk...",
+      ".khhyyyyyyyok...",
+      ".khyyyyyyyook...",
+      ".kyyyyyyooook...",
+      ".kyyyooooooook..",
+      ".kyooooooooook..",
+      "..kooooooookk...",
+      "...kkooookk.....",
+      ".....kkkkk......",
+      "................"
+    ],
+    "map": {
+      ".": null,
+      "k": "#1a1c2c",
+      "h": "#fdf9b4",
+      "y": "#ffcd75",
+      "o": "#ef7d57"
+    }
+  }
+}

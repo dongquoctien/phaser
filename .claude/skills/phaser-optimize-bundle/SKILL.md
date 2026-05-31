@@ -25,6 +25,8 @@ Pixel-art games are almost always **asset-bound, not code-bound**. Loose PNGs an
   - Keep ≤ 2048×2048 (mobile GPU limit); power-of-two dimensions.
   - Trim transparent padding; the packer does this.
   - Recommended packers: `free-tex-packer` / TexturePacker (Phaser/JSON-Hash format), or the Phaser **Pixel Tools / Atlaspack** pipeline.
+  - **Phaser 4:** prefer the new **PCT (Phaser Compact Texture)** atlas format — ~90–95% smaller than a JSON atlas, supported across Loader/TextureManager. Compressed textures (KTX/PVR/Basis) must be exported **flip-Y** for v4's GL orientation (Y=0 bottom) or they render upside-down. (See `.claude/skills/PHASER4.md`.)
+- **SVG art** (the default for new non-pixel games): rasterizes once at load — bake at the largest display size via `load.svg(key, url, { scale })` or `{ width, height }`; don't ship oversized SVGs or upscale at runtime (blur). One small SVG often beats a PNG atlas for UI/icons.
 - **Crush PNGs**: run atlases through `oxipng -o4 --strip safe` or `pngquant` (pixel art tolerates palette reduction extremely well — often 60–80% smaller with no visible loss).
 - **Audio**: ship `.ogg` (+ `.mp3` fallback), mono for SFX, ~96–112 kbps for music. Trim silence.
 - **Lazy-load by level**: don't load every level's atlas in PreloadScene if the game has many. Load per-level and `textures.remove()` / unload on level exit.
@@ -42,7 +44,7 @@ The shared `vite.config.shared.mjs` already encodes the policy below; verify it'
 ## 4. Phaser-specific code weight
 
 - **Import Phaser once**, from `'phaser'`, and avoid pulling it into shared utility modules that don't need it — that defeats tree-shaking and can duplicate the engine across chunks.
-- Phaser 3 ships as one module; you can't tree-shake unused systems out of the standard build. If the engine chunk is the bottleneck and the game is simple, consider a **custom Phaser build** (exclude Matter/Spine/etc.) or evaluate **Phaser 4** (Beam renderer, lighter) — flag this as a larger decision, don't do it silently.
+- Phaser ships as one module; you can't tree-shake unused systems out of the standard build. The project is on **Phaser 4.1.0** (~347KB gzip — slightly larger full-build than v3 but a lighter/faster runtime renderer). If the engine chunk is the bottleneck and the game is simple, consider a **custom Phaser build** (exclude Matter/Spine/etc.).
 - Remove unused plugins from the game config (e.g. don't enable Matter if only Arcade is used).
 
 ## 5. Verify

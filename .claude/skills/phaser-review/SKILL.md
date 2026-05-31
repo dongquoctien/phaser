@@ -40,8 +40,29 @@ Review the target game (`games/<name>/`) against the monorepo standard. Output a
 - [ ] Pure game logic (score, spawning rules) lives in `systems/`, decoupled from scene rendering where reasonable.
 - [ ] `npm run typecheck` passes for the game.
 
+## Phaser 4 v3-ism scanner (this project is on Phaser 4.1.0)
+
+Flag any of these leftover v3 patterns (each is a blocker — breaks or silently
+misbehaves on v4). Full context: `.claude/skills/PHASER4.md`.
+
+- `setTintFill(` / `.tintFill` → `setTint(c).setTintMode(Phaser.TintModes.FILL)`.
+- `.children.entries` on a **Group** → `getChildren()` (Group#children is a native Set).
+- `Phaser.Struct.Set` / `Phaser.Struct.Map` → native `Set`/`Map`.
+- `Phaser.Geom.Point` / `new Phaser.Geom.Point` / `instanceof ...Point` → `Math.Vector2`.
+- `Math.TAU` (value changed to PI*2) / `Math.PI2` (removed) → `Math.PI_OVER_2` for old value.
+- `this.textures.generate(` → `Graphics.generateTexture` (removed in v4).
+- `setPipeline('Light2D')` → `setLighting(true)`; any custom `WebGLPipeline`.
+- `new Phaser.Display.Masks.BitmapMask` → `obj.filters.internal.addMask(maskObj)`.
+- `Mesh` / `Plane` / `Camera3D` / `Layer3D` (removed — no drop-in).
+- A `RenderTexture`/`DynamicTexture` drawn but never `.render()`-ed (renders nothing).
+- `Phaser.CANVAS` forced (Canvas renderer deprecated) → `Phaser.AUTO`.
+- **SVG** GameObject `setScale()`'d well above its loaded raster size (blur — bake bigger).
+- `addFlatColor`/`addUint8Array` used without a WebGL-only guard; `addBase64` read
+  synchronously (it's async).
+- Pixel game missing `pixelArt: true` / explicit `roundPixels: true` (v4 default false).
+
 ## How to run
 1. Read `games/<name>/src/**` (scenes, objects, systems, config, keys).
-2. Walk the checklist; collect findings with exact `file:line`.
+2. Walk the checklist + the v4 scanner; collect findings with exact `file:line`.
 3. Group by severity, give each a one-line fix. Offer to apply blockers/should-fixes if the user wants.
-4. Cross-reference siblings: heavy-asset issues → `phaser-optimize-bundle`; FPS/GC issues → `phaser-perf-audit`.
+4. Cross-reference siblings: heavy-asset issues → `phaser-optimize-bundle`; FPS/GC issues → `phaser-perf-audit`; art → `pixel-art`.

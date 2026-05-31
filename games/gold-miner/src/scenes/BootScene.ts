@@ -1,0 +1,14 @@
+import Phaser from 'phaser';
+import { SceneKeys } from '../types/keys';
+
+// Lightest scene: nothing to load (textures are generated in PreloadScene), just
+// hand off. Kept for the standard Boot→Preload→Menu→Game flow.
+export class BootScene extends Phaser.Scene {
+  constructor() {
+    super(SceneKeys.Boot);
+  }
+
+  create(): void {
+    this.scene.start(SceneKeys.Preload);
+  }
+}

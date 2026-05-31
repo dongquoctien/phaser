@@ -1,6 +1,6 @@
 # Phaser Monorepo Skills
 
-A set of project skills for building **Phaser 3.90 + Vite + TypeScript** pixel-art
+A set of project skills for building **Phaser 4.1.0 + Vite + TypeScript** pixel-art
 games in this monorepo — "chuẩn nhất, pro nhất, nhẹ nhất". Claude invokes these
 automatically when your request matches, or call them with `/<name>`.
 
@@ -14,13 +14,13 @@ automatically when your request matches, or call them with `/<name>`.
 | **pixel-art** | Vẽ pixel-art procedural trong Phaser (game + hub): palette Sweetie-16, value ramp + hue-shift, 1 hướng sáng, outline selout, integer scale, nearest-neighbor. Dùng helper `src/pixel/` (`bakeSprite`, `ramp`, `lit`/`shade`). Trigger: "vẽ pixel/sprite", "tạo icon pixel", art "looks off / mờ". |
 
 ## Stack quy ước
-- **Phaser 3.90** (Tsugumi, 5/2025 — bản v3 ổn định cuối; v4 là hướng tương lai, cân nhắc riêng).
+- **Phaser 4.1.0** (đã nâng từ 3.90; v4 renderer mới. Lưu ý: v4 bỏ `Textures.generate`+Create Palettes, `roundPixels` default `false` → đã set explicit `roundPixels: true`).
 - **Vite 5 + TypeScript 5 (strict)**, npm workspaces.
 - Cấu trúc monorepo: `games/<name>/` tự chứa; root chia sẻ `vite.config.shared.mjs` + `tsconfig.base.json`.
 
 ## Templates
 `phaser-new-game/templates/` chứa code thật sẵn để copy:
-- `root/` — package.json (workspaces), tsconfig.base.json, vite.config.shared.mjs (đã tune production), scripts/build-all.mjs, **src/pixel/** (helper pixel-art), **hub/** (Phaser hub app + font Press Start 2P nhúng).
+- `root/` — package.json (workspaces), tsconfig.base.json, vite.config.shared.mjs (đã tune production), **scripts/build-all.mjs + scripts/hub-template.mjs** (sinh hub HTML tĩnh), **src/pixel/** (helper pixel-art).
 - `game/` — index.html, vite.config.mjs, game.json (+thumb), src/ đầy đủ (config, scenes, systems/Pool.ts, objects/PooledSprite.ts, types/keys.ts).
 
 Mọi chính sách build/perf nằm ở file shared của root → sửa một chỗ, mọi game hưởng lợi.
@@ -36,6 +36,6 @@ dist/
 - **GitHub Pages**: `.github/workflows/deploy.yml` tự build + publish khi push `main`. Base path = `/<repo>/` (lấy tự động từ tên repo qua `BASE_PATH`). URL: `https://<user>.github.io/<repo>/`.
 - **Host khác / root domain**: `BASE_PATH=/ npm run build:all`.
 - Game mới **tự xuất hiện** trên hub — build-all quét `games/*`, không cần sửa tay.
-- **Windows**: chạy `build:all` qua PowerShell (Git Bash mangle `/` → MSYS path). Base truyền qua env `GAME_BASE`/`HUB_BASE`, không phải CLI `--base /`.
+- **Windows**: chạy `build:all` qua PowerShell (Git Bash mangle `/` → MSYS path). Base truyền qua env `GAME_BASE`, không phải CLI `--base /`.
 
-**Hub design** (`hub/`): là **Phaser app pixel-art** (không phải HTML tĩnh) → đồng nhất với game. Font **Press Start 2P** nhúng base64 (tự chứa). Icon/thumbnail vẽ bằng `src/pixel/` (skill `pixel-art`). Mỗi card đọc `game.json` (`title`/`description`/`tags`/`thumb`); thiếu `thumb` → glyph cabinet mặc định. Card pixel bevel, focus ring, keyboard nav (mũi tên + Enter). Fallback `<ul>`/`<noscript>` crawlable cho a11y/SEO (canvas không có DOM). **Không** auto-screenshot.
+**Hub design** (`scripts/hub-template.mjs`): **HTML/CSS tĩnh** (không phải Phaser) — grid card pastel kiểu "COLLECTION" trên nền tối, mỗi game 1 card (responsive auto 1→6 cột, màu xoay vòng). Header pill "PHASER ARCADE". Artwork card = pixel `thumb` render thành **inline SVG** (ưu tiên `cover.svg`/`cover.png` thủ công nếu có). Card là `<a>` thật → crawlable, **zero JS**, focus-visible, không emoji.

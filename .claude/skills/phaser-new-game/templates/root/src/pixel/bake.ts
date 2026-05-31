@@ -80,25 +80,10 @@ export function bakeSprite(
   return { key, width, height };
 }
 
-/**
- * Sugar over Phaser's built-in indexed generator (`scene.textures.generate`):
- * `data` rows use single hex-digit palette indices, '.' = transparent.
- */
-export function bakeIndexed(
-  scene: Phaser.Scene,
-  key: string,
-  data: string[],
-  opts: { pixelWidth?: number; pixelHeight?: number } = {},
-): { key: string } {
-  if (!scene.textures.exists(key)) {
-    scene.textures.generate(key, {
-      data,
-      pixelWidth: opts.pixelWidth ?? 1,
-      pixelHeight: opts.pixelHeight ?? 1,
-    });
-  }
-  return { key };
-}
+// NOTE: a `bakeIndexed()` helper used to wrap Phaser 3's `textures.generate`
+// (ARNE16 indexed palette). Phaser 4 REMOVED `Create.GenerateTexture` and
+// `TextureManager.generate` entirely, so that wrapper is gone. Use `bakeSprite`
+// (Graphics.generateTexture, still supported) — it's more capable anyway.
 
 // ── Built-in glyphs (Sweetie-16). Used as defaults by the hub. ───────────────
 const H = SWEETIE16_HEX;

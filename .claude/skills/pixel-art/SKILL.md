@@ -1,6 +1,6 @@
 ---
 name: pixel-art
-description: Draw crisp procedural pixel-art in Phaser (games + the hub) for this monorepo — Sweetie-16 palette, dark→light value ramps with hue-shifting, one light direction, selective outlines, contact shadows, integer-only scaling, nearest-neighbor render flags — baked once via the shared src/pixel helper. Use when the user wants to "draw pixel art", "make/draw a sprite/tile/icon", "vẽ pixel", "vẽ sprite", "tạo icon pixel", "pixel thumbnail", "bake a texture", or says art "looks off / blurry / not pixel / mờ / không đúng style".
+description: Draw art for Phaser games + the hub in this monorepo. DEFAULT is SVG vector art (research a verified free asset first, then draw); PIXEL-ART mode (Sweetie-16 palette, value ramps + hue-shift, one light direction, selout outlines, integer scaling, nearest-neighbor, baked via src/pixel) is used only when the user asks for "pixel" or for hub thumbnails. Use when the user wants to "draw/make a sprite/tile/icon", "vẽ", "tạo icon", "thumbnail", "bake a texture", or says art "looks off / blurry / mờ / không đúng style". Always research a fitting free asset (Kenney/OpenGameArt/game-icons, CC0) and Playwright-verify it before hand-drawing.
 ---
 
 # Pixel Art — Phaser (this monorepo)
@@ -62,7 +62,33 @@ stays cohesive and cached.
 - **`make.graphics().generateTexture()`** (parametric shapes — circles, stretched
   bars): see the canonical example in
   `games/flappy-bird/src/scenes/PreloadScene.ts` (`generateTextures()` bakes the
-  bird/pipe/ground). `bakeIndexed()` wraps Phaser's built-in indexed generator.
+  bird/pipe/ground).
+
+## Phaser 4 — pixel generators & crisp config
+
+**This project is on Phaser 4.1.0.** Full details: **`.claude/skills/PHASER4.md`**
+(§3 pixel-crisp, §2 procedural textures). Essentials for pixel mode:
+
+- **`Graphics.generateTexture(key,w,h)` is kept** (synchronous, both renderers) — this
+  is what `bakeSprite` uses. The primary procedural-texture path.
+- **`Textures.generate()` + Create Palettes (ARNE16/C64/…) were REMOVED in v4.** Our old
+  `bakeIndexed()` wrapper went with it — use `bakeSprite()` (more capable: readable
+  `char → hex` map + Sweetie-16 ramps/hue-shift, not a fixed 16-colour index).
+- **Crisp gate**: `roundPixels` defaults to **`false`** in v4. Use **`pixelArt: true`**
+  (→ `antialias:false` + `roundPixels:true` + nearest-neighbor) for pixel games; every
+  pixel config also sets `render.roundPixels: true` explicitly. roundPixels only rounds
+  **axis-aligned, unscaled** objects.
+- **Rotated/scaled pixel sprites**: use **`smoothPixelArt: true`** (WebGL-only;
+  mutually exclusive with `pixelArt`) or set `GameObject#vertexRoundMode` (`'full'`).
+- `addFlatColor`/`addUint8Array` exist but are **WebGL-only** — guard by renderer type;
+  `addBase64` is **async**. Prefer `generateTexture` (sync, both modes) for bake-at-boot.
+
+There is **no built-in sprite/asset library** in any Phaser version — Phaser only loads
+art you provide.
+
+### Tint (v4) — quick cheatsheet
+`setTintFill(c)` was REMOVED → `setTint(c).setTintMode(Phaser.TintModes.FILL)`. Modes:
+`MULTIPLY | FILL | ADD | SCREEN | OVERLAY | HARD_LIGHT`.
 
 ## Helper API (`src/pixel/`)
 - `SWEETIE16` (0xRRGGBB) · `SWEETIE16_HEX` ("#..") · `SWEETIE16_ARRAY` (len 16).
@@ -83,8 +109,10 @@ stays cohesive and cached.
 
 ## Adding a game thumbnail (for the hub)
 A game's `game.json` may carry `"thumb": { "grid": [...], "map": { "y": "#ffcd75", ".": null } }`
-(a `PixelGrid`). The hub bakes it via `bakeSprite`. Omit it → the hub uses
-`BUILTINS.cabinet`. Use Sweetie-16 hexes and keep rows equal length.
+(a `PixelGrid`). The static-HTML hub renders it as **inline SVG** at build time (one
+`<rect>` per cell — `scripts/hub-template.mjs` `gridToSvg`), NOT a Phaser bake. Omit it →
+the hub draws a default cabinet glyph; a committed `games/<name>/cover.svg`/`cover.png`
+overrides it. Use Sweetie-16 hexes and keep rows equal length.
 
 See also: `phaser-new-game` (scaffolds games that import this helper),
 `phaser-smoketest` (verifies the rendered result), and `sources.md`.

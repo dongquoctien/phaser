@@ -11,5 +11,5 @@ export type { Sweetie16Name } from './palette';
 export { lerpColor, hueShift, lit, shade, ramp } from './color';
 export type { HueShiftOpts, RampOpts } from './color';
 
-export { bakeSprite, bakeIndexed, BUILTINS } from './bake';
+export { bakeSprite, BUILTINS } from './bake';
 export type { PixelGrid, BakeOpts, BakeResult, BuiltinName } from './bake';
