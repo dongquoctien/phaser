@@ -1,6 +1,6 @@
 ---
 name: phaser-new-game
-description: Scaffold a new Phaser 3.90 + Vite + TypeScript game inside this monorepo, with the project-standard pixel-art config, scene structure, asset pipeline, and object-pooling/atlas conventions baked in. Use when the user wants to "create a new game", "add a game", "scaffold a Phaser game", "tạo game mới", "thêm game".
+description: Scaffold a new Phaser 4.1.0 + Vite + TypeScript game inside this monorepo, with the project-standard pixel-art config, scene structure, asset pipeline, and object-pooling/atlas conventions baked in. Use when the user wants to "create a new game", "add a game", "scaffold a Phaser game", "tạo game mới", "thêm game".
 ---
 
 # Phaser — New Game Scaffold
@@ -34,12 +34,45 @@ phaser/
 ```
 
 **Non-negotiables for "chuẩn / pro / nhẹ":**
-- `pixelArt: true` (sets nearest-neighbor, `roundPixels: true`, disables antialias).
 - One **texture atlas per category** (sprites / ui / fx), never loose PNGs.
 - **Object pooling** for anything spawned in a loop (bullets, particles, enemies).
 - **String-key constants** in `types/` — never raw string literals for scene/asset keys.
 - Arcade physics by default (Matter only if polygon collisions are truly needed).
 - `physics.arcade.debug` and any FPS overlay are **off** in the production config.
+
+## 0a. Art strategy — SVG by default, pixel ONLY when asked
+
+The default visual style for a NEW game is **SVG vector art** (smooth, scalable,
+crisp at any resolution). Use **pixel-art ONLY when the user explicitly says
+"pixel"** (or the game is clearly retro/8-bit by request).
+
+- **SVG default** → do NOT set `pixelArt: true`; load art with `this.load.svg(key,
+  url, { scale } | { width, height })`. SVG **rasterizes once at load** — bake at the
+  largest on-screen size (`{ scale: window.devicePixelRatio }` for HiDPI); upscaling
+  past the baked size at runtime blurs. Keep `antialias` on (default) for smooth vectors.
+- **Pixel mode** (only on request) → `pixelArt: true` + `render.roundPixels: true`
+  (Phaser 4 defaults roundPixels to false), draw via the `src/pixel/` helper.
+- **UI panels** that stretch → use the v4 `this.add.nineslice(...)` instead of a
+  hand-rolled 9-patch.
+
+> Full v4 API surface, breaking changes, and gotchas: **`.claude/skills/PHASER4.md`**.
+> This project is on **Phaser 4.1.0** — the Canvas renderer is deprecated (use
+> `Phaser.AUTO`), `Group#children` is a Set (use `getChildren()`), and
+> `Textures.generate` is gone (use `Graphics.generateTexture`).
+
+### Before drawing ANY art — research first, draw last
+Always try to **reuse a verified free asset before hand-drawing**:
+1. **Search the web** for a fitting asset: CC0/free game art (**Kenney.nl**,
+   **OpenGameArt**, itch.io "free"), or SVG icon sets (**game-icons.net** for game
+   props, **lucide** / **tabler** for UI).
+2. **Verify the LICENSE** — only CC0 / clearly-permissive / your-own. Never use art
+   of unknown license (e.g. media in Phaser's own example repos is unlicensed).
+3. **Verify it fits with Playwright**: drop the candidate into the game (or a tiny
+   preview page), render it, screenshot, and judge — right silhouette, readable at
+   game size, matches the other art's style/palette.
+4. **Only if nothing fits → draw it** (SVG for default games via the `pixel-art`
+   skill's craft rules, or a pixel grid if in pixel mode). Re-verify the drawn art
+   the same way (zoom in; readable silhouette first).
 
 ## 1. Steps
 
@@ -65,16 +98,28 @@ The ready-to-copy templates live next to this skill under `templates/`. Read the
 - **`objects/PooledSprite.ts`** — base class that knows how to reset itself for the pool.
 - **`game.json`** — hub card metadata: `{ title, description?, tags?[], thumb? }`. All optional except title; consumed by the hub.
 
-## 2b. Pixel-art & hub conventions
+## 2b. Hub conventions (static-HTML "COLLECTION" card grid)
 
-The landing page is a **small Phaser pixel-art app** (`hub/`, its own Vite root parallel to `games/`), so the hub matches the games visually. It draws icons + per-game thumbnails with the shared **`src/pixel/`** helper (Sweetie-16 palette, `ramp`/`lit`/`shade`, `bakeSprite`). See the **`pixel-art`** skill for the craft rules. Keep `src/pixel/`, `hub/`, and `scripts/build-all.mjs` in sync between the live repo and `templates/root/`.
+The landing page is a **static HTML/CSS page** generated at build time by
+`scripts/build-all.mjs` via `scripts/hub-template.mjs` (`renderHub`). It is NOT a
+Phaser app — it's a dark "COLLECTION"-style grid of **pastel trading cards**, one per
+game (responsive `auto-fill`, ~190px min, 1→6 cols; colors cycle through a pastel
+palette so a new game auto-gets a color). Zero JS, no network font. Keep `src/pixel/`
+(games) and `scripts/{build-all,hub-template}.mjs` in sync between the live repo and
+`templates/root/`.
 
-- **Drawing art** (sprites, thumbnails): use `src/pixel/` via the `pixel-art` skill — never ad-hoc `graphics.fill*`. Verify rendered art with Playwright (zoom in; readable silhouette first).
-- **Card metadata** comes from `games/<name>/game.json` (`title`/`description`/`tags`). Missing or malformed `game.json` never breaks the build — it falls back to the `<title>`.
-- **Thumbnail**: a game declares `game.json.thumb = { grid, map }` (a `PixelGrid` of Sweetie-16 hexes, equal-length rows). Omit it → the hub draws `BUILTINS.cabinet`. A committed `games/<name>/cover.png` is also honored.
-- **`build-all.mjs`** builds each game into `dist/<game>/`, writes the hub manifest `hub/src/games.generated.ts`, then builds the hub LAST (`emptyOutDir:false` so it keeps `dist/<game>/`), and injects a crawlable `<ul>` + `<noscript>` link fallback (canvas has no DOM — this is the a11y/SEO mitigation).
-- A new game appears on the hub automatically (auto-discovery) — no hub edit per game.
-- **Windows build**: run `build:all` via PowerShell or set base via env — Git Bash mangles a bare leading `/` (MSYS path conversion). Base comes through `GAME_BASE`/`HUB_BASE` env, never a CLI `--base /`.
+- **Game art** follows §0a (SVG by default; pixel only on request; research a verified free asset before drawing).
+- **Card artwork** priority (per game): committed `games/<name>/cover.svg` (inlined) →
+  `cover.png` (data-URI) → the pixel `game.json.thumb` rendered as **inline SVG** (via
+  `gridToSvg`) → a default cabinet glyph. `thumb` is a `PixelGrid { grid, map }`
+  (equal-length rows, hex/`null` map) — still authored with the `pixel-art` skill.
+- **Card text** comes from `games/<name>/game.json` (`title`/`tags`; `description` →
+  `aria-label`). Missing/malformed `game.json` never breaks the build — falls back to `<title>`.
+- **`build-all.mjs`** builds each game (Vite) into `dist/<game>/`, resolves each card's
+  artwork, then writes `dist/index.html` (the cards ARE the crawlable `<a>` content — no
+  separate fallback needed) + `dist/.nojekyll`. A new game appears automatically.
+- **Windows build**: run `build:all` via PowerShell or set base via env — Git Bash
+  mangles a bare leading `/` (MSYS). Base comes through the `GAME_BASE` env, never `--base /`.
 
 ## 3. Anti-patterns to refuse
 

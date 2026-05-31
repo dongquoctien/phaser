@@ -28,7 +28,8 @@ Scan `update()` and any per-frame callback for these and fix them:
 
 - **One atlas per category** so sprites batch into a single draw call. Mixing many separate textures forces texture swaps → more draw calls.
 - **Minimize blend-mode changes** between adjacent objects (they break the batch).
-- Static backgrounds → render once to a **RenderTexture** instead of many sprites every frame.
+- Static backgrounds → render once to a **RenderTexture** instead of many sprites every frame. **Phaser 4:** RenderTexture/DynamicTexture draws are *buffered* — you MUST call `.render()` to flush (else it draws nothing, no error). Use `DynamicTexture.preserve()` / `RenderTexture.renderMode` for reuse. (See `.claude/skills/PHASER4.md`.)
+- **Phaser 4 batching:** `setLighting(true)`, filters, and shaders break draw-call batching (they change the shader) — use sparingly, not blanket-on. `pathDetailThreshold` (config + per-Graphics) merges near-duplicate Graphics vertices; `SpriteGPULayer`/`TilemapGPULayer` handle very large quad counts.
 - `setVisible(false)` to hide, **not** `setAlpha(0)` (alpha-0 still renders).
 - Keep `pixelArt: true` / `roundPixels: true` (already in the scaffold config) — sub-pixel positions cause shimmer and extra work.
 

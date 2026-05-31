@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
-    <title>__GAME_TITLE__</title>
+    <title>Gold Miner</title>
     <!-- Inline favicon (1x1) so the browser doesn't 404 on /favicon.ico. -->
     <link
       rel="icon"
@@ -18,15 +18,14 @@
       body {
         margin: 0;
         height: 100%;
-        background: #0d0d12;
+        background: #1a1c2c;
         overflow: hidden;
       }
-      /* PIXEL MODE only — uncomment for crisp nearest-neighbor scaling.
-         Leave commented for the default SVG/vector look (smooth). */
-      /* canvas {
+      /* Crisp pixel scaling for the canvas on every browser. */
+      canvas {
         image-rendering: pixelated;
         image-rendering: crisp-edges;
-      } */
+      }
       #game {
         width: 100%;
         height: 100%;

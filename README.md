@@ -1,6 +1,6 @@
 # Phaser Arcade
 
-A **monorepo of pixel-art games** built with **Phaser 3.90 + Vite + TypeScript**,
+A **monorepo of pixel-art games** built with **Phaser 4.1.0 + Vite + TypeScript**,
 served behind a single pixel-art landing hub. Each game is self-contained; the
 whole collection deploys to GitHub Pages as one site.
 
@@ -14,17 +14,20 @@ whole collection deploys to GitHub Pages as one site.
 phaser/
 ├─ games/<name>/         # one self-contained game per folder (Vite root)
 │  └─ flappy-bird/       #   the first game
-├─ hub/                  # the landing page — itself a small Phaser app
 ├─ src/pixel/            # shared pixel-art helper (palette, ramps, bakeSprite)
-├─ scripts/build-all.mjs # builds every game + the hub into dist/
+├─ scripts/
+│  ├─ build-all.mjs      #   builds every game + generates the hub into dist/
+│  └─ hub-template.mjs   #   static-HTML hub generator (renderHub + gridToSvg)
 ├─ vite.config.shared.mjs, tsconfig.base.json   # shared tooling
 └─ .claude/skills/       # authoring skills (see below)
 ```
 
-The **hub** is a Phaser canvas app (not static HTML) so it matches the games
-visually — pixel cards, Press Start 2P font, Sweetie-16 palette. It auto-discovers
-every game in `games/*` and links to it; a crawlable `<noscript>`/`<ul>` link list
-is generated for accessibility and SEO.
+The **hub** (`dist/index.html`) is a **static HTML/CSS page** generated at build time
+— a dark "COLLECTION"-style grid of pastel trading cards, one per game (responsive,
+colors cycle automatically). Each card's artwork is the game's pixel `thumb` rendered
+as inline SVG, overridable by a committed `games/<name>/cover.svg` / `cover.png`. It
+auto-discovers every game in `games/*`; the cards are real `<a>` links (crawlable, no
+JS needed).
 
 ## Quick start
 
@@ -101,4 +104,4 @@ Project skills for [Claude Code](https://claude.com/claude-code):
 
 ## Tech
 
-Phaser 3.90 · Vite 5 · TypeScript 5 (strict) · npm workspaces · GitHub Pages.
+Phaser 4.1.0 · Vite 5 · TypeScript 5 (strict) · npm workspaces · GitHub Pages.

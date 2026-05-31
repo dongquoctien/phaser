@@ -5,6 +5,7 @@ dist-preview/
 .DS_Store
 .vite/
 .playwright-mcp/
+.claude/scheduled_tasks.lock
 # transient verification screenshots (game cover.png committed by hand is NOT ignored)
 hub-*.png
 *-menu.png

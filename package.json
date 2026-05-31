@@ -11,10 +11,13 @@
     "typecheck": "tsc -b --pretty games/*",
     "dev:flappy-bird": "vite --config games/flappy-bird/vite.config.mjs games/flappy-bird",
     "build:flappy-bird": "vite build --config games/flappy-bird/vite.config.mjs games/flappy-bird",
-    "preview:flappy-bird": "vite preview --config games/flappy-bird/vite.config.mjs games/flappy-bird"
+    "preview:flappy-bird": "vite preview --config games/flappy-bird/vite.config.mjs games/flappy-bird",
+    "dev:gold-miner": "vite --config games/gold-miner/vite.config.mjs games/gold-miner",
+    "build:gold-miner": "vite build --config games/gold-miner/vite.config.mjs games/gold-miner",
+    "preview:gold-miner": "vite preview --config games/gold-miner/vite.config.mjs games/gold-miner"
   },
   "devDependencies": {
-    "phaser": "^3.90.0",
+    "phaser": "^4.1.0",
     "terser": "^5.31.0",
     "typescript": "^5.5.0",
     "vite": "^5.4.0"
