@@ -25,6 +25,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        /* Stop the browser from treating drags as scroll/zoom (mobile touch lag). */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #game canvas {
+        touch-action: none;
       }
     </style>
   </head>
