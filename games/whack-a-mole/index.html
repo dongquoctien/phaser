@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>TWDC Whack-a-Char</title>
+
+    <!-- Open Graph / social share card. og.png is served next to this file at
+         the deployed base, so an absolute URL is used for scrapers. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TWDC Whack-a-Char" />
+    <meta
+      property="og:description"
+      content="Bonk the cheeky characters as they pop up — but spare the sweet ones! Pick your weapon: pan, mace, or swatter."
+    />
+    <meta
+      property="og:image"
+      content="https://dongquoctien.github.io/phaser/whack-a-mole/og.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://dongquoctien.github.io/phaser/whack-a-mole/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="TWDC Whack-a-Char" />
+    <meta
+      name="twitter:description"
+      content="Bonk the cheeky characters — spare the sweet ones! Pick your weapon."
+    />
+    <meta
+      name="twitter:image"
+      content="https://dongquoctien.github.io/phaser/whack-a-mole/og.png"
+    />
+
+    <!-- Inline favicon (1x1) so the browser doesn't 404 on /favicon.ico. -->
+    <link
+      rel="icon"
+      href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
+    />
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #0d0d12;
+        overflow: hidden;
+      }
+      /* PIXEL MODE — crisp nearest-neighbor scaling for the pixel-art sprites. */
+      canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* Stop the browser treating taps as scroll/zoom — keeps whacking crisp. */
+        touch-action: none;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        cursor: none; /* the in-game mallet IS the cursor */
+      }
+      #game canvas {
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

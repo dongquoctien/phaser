@@ -29,7 +29,10 @@
     "preview:tank-defense": "vite preview --config games/tank-defense/vite.config.mjs games/tank-defense",
     "dev:twdc-defense": "vite --config games/twdc-defense/vite.config.mjs games/twdc-defense",
     "build:twdc-defense": "vite build --config games/twdc-defense/vite.config.mjs games/twdc-defense",
-    "preview:twdc-defense": "vite preview --config games/twdc-defense/vite.config.mjs games/twdc-defense"
+    "preview:twdc-defense": "vite preview --config games/twdc-defense/vite.config.mjs games/twdc-defense",
+    "dev:whack-a-mole": "vite --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
+    "build:whack-a-mole": "vite build --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
+    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole"
   },
   "devDependencies": {
     "phaser": "^4.1.0",

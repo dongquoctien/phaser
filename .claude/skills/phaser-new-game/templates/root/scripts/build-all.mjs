@@ -73,6 +73,8 @@ function metaOf(game) {
     title: (meta.title && String(meta.title).trim()) || titleOf(game),
     description: (meta.description && String(meta.description).trim()) || '',
     tags: Array.isArray(meta.tags) ? meta.tags.map(String).slice(0, 4) : [],
+    // Category groups the game on the hub. Missing → "Arcade".
+    category: (meta.category && String(meta.category).trim()) || 'Arcade',
     thumb,
   };
 }
@@ -113,6 +115,7 @@ const model = games.map((game) => {
     title: m.title,
     description: m.description,
     tags: m.tags,
+    category: m.category,
     href: `${BASE}${game}/`,
     art: artOf(game, m.thumb),
   };
