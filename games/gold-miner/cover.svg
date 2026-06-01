@@ -1,0 +1,8 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gold miner hook and nugget">
+  <line x1="50" y1="4" x2="50" y2="42" stroke="#b9863e" stroke-width="3"/>
+  <path d="M38 42 L50 60 L62 42" fill="none" stroke="#cfd3da" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M30 62 l20 -9 22 12 -7 23 -27 2 z" fill="#ffcf33"/>
+  <path d="M50 53 l22 12 -7 23 -15 -5 z" fill="#e6a912"/>
+  <circle cx="42" cy="74" r="3.4" fill="#fff6cf"/>
+  <circle cx="58" cy="80" r="2.6" fill="#fff6cf"/>
+</svg>
