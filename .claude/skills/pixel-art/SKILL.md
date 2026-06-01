@@ -47,10 +47,32 @@ Then draw (only if nothing reusable fits), and **Playwright-verify** the result
 but still glance at the web for how the genre's icon/sprite is conventionally
 drawn.
 
+## Resolution — the grid size sets the detail ceiling (pick ONE tier)
+
+The **number of cells in the sprite grid** decides how much detail is possible; it
+is NOT the bake `px` (which only enlarges the source texture) nor the on-screen
+`setScale`. Each step up **quadruples** the pixel count AND the drawing time:
+
+| Grid | Pixels | Reads as | Time |
+|------|--------|----------|------|
+| 8×8   | 64    | silhouette only | fastest |
+| 16×16 | 256   | category (bird/cat/skeleton); bold, cohesive | fast |
+| 32×32 | 1,024 | facial expression, shading, texture | ~4× 16×16 |
+| 64×64 | 4,096 | equipment, fine texture, AA edges | very high (8-frame walk ≈ a day) |
+
+- **This repo's sprites today are ~8–16 px** (hero/frog/enemy grids ~10–16). That's
+  the "16×16 — reads as the category" tier: clear silhouettes, retro-NES charm, fast.
+- **More pixels ≠ better.** Low-res forces bold, consistent shapes; it's faster and
+  stays cohesive. **Keep the whole game on one tier** — mixing 16 and 64 looks off.
+- For a NEW pixel game, `phaser-new-game` **asks the user** which tier (8/16/32/64,
+  with the detail/time tradeoff) before drawing. Recommend 16×16 (repo default),
+  32×32 for expressive characters, 64×64 only for a showcase hero.
+
 ## Render gates (Phaser crispness — all must hold)
 - `pixelArt: true` in the game config (sets nearest-neighbor + `roundPixels`).
-- Author at a small **base resolution**; scale up by **integer factors only** via
-  `Scale.FIT`. Never fractional/"mixel" scaling — it destroys crispness.
+- Author at a small **base resolution** (the tier above); scale up by **integer
+  factors only** via `Scale.FIT` / `setScale`. Never fractional/"mixel" scaling — it
+  destroys crispness (1.5× / 2.7× makes uneven pixels). Nearest-neighbor is the rule.
 - No fractional positions for pixel sprites (`Math.round` / rely on `roundPixels`).
 - **Bake once, reuse.** Generate the texture in `create`/preload, never per frame.
 

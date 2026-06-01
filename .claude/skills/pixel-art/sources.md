@@ -44,6 +44,19 @@ these sources — not copied from any other project.
 - W3Schools — SVG linear/radial gradients (stop offsets, multi-colour ramps):
   https://www.w3schools.com/graphics/svg_grad_linear.asp
 
+## Resolution / canvas size — detail vs time tradeoff (added 2026-06)
+- Pixel Art Daily — "Canvas Sizes Explained (8/16/32/64)" (pixel-count quadruples
+  per step; silhouette → category → expression → equipment):
+  https://www.pixelartdaily.com/blog/pixel-art-canvas-sizes-explained
+- Pixnote — Resolution Simulator & guide (what each resolution conveys):
+  https://pixnote.net/en/learn/resolution/
+- Pixel Parmesan — "Choosing the Right Resolution for your Pixel Art":
+  https://pixelparmesan.com/blog/choosing-the-right-resolution-for-your-pixel-art
+- notkey.studio — render resolution + integer scaling (1.5×/2.7× = uneven pixels):
+  https://notkey.studio/en/tutorials/choosing-the-right-render-resolution-for-a-pixel-art-game/
+- pixelartapp — 32×32 8-frame ≈ 4× a 16×16; 64×64 frame ≈ a workday (art time):
+  https://pixelartapp.com/resolutions-guide
+
 ## Advanced pixel techniques (added 2026-06)
 - Lospec — dithering tutorials (fake a 3rd colour / gradient; when to avoid):
   https://lospec.com/pixel-art-tutorials/tags/dithering

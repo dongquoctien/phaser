@@ -52,8 +52,35 @@ crisp at any resolution). Use **pixel-art ONLY when the user explicitly says
   past the baked size at runtime blurs. Keep `antialias` on (default) for smooth vectors.
 - **Pixel mode** (only on request) → `pixelArt: true` + `render.roundPixels: true`
   (Phaser 4 defaults roundPixels to false), draw via the `src/pixel/` helper.
+  **Before drawing, ASK the user the sprite resolution** (see "Pixel resolution"
+  below) — it sets the detail ceiling and the art budget.
 - **UI panels** that stretch → use the v4 `this.add.nineslice(...)` instead of a
   hand-rolled 9-patch.
+
+### Pixel resolution — ASK before drawing pixel art (8 / 16 / 32 / 64)
+The **grid size** (how many cells the sprite is, e.g. 16×16) — NOT the bake `px`
+or the on-screen scale — is what sets how detailed the art can be. Each step up
+**quadruples** the pixel count and the drawing time, so confirm it with the user
+via `AskUserQuestion` before you start. (`px` in `bakeSprite` only enlarges the
+source texture; on-screen size comes from integer `setScale` + nearest-neighbor.)
+
+| Grid | Pixels | What it can show | Art time | Use for |
+|------|--------|------------------|----------|---------|
+| **8×8** | 64 | only a **silhouette** | fastest | tiny icons, particles, UI bits |
+| **16×16** | 256 | the **category** ("bird/cat/skeleton"), bold + cohesive, retro NES charm | fast | **the repo default** — most game sprites today (frog/hero/enemy ~10–16) |
+| **32×32** | 1,024 | **facial expressions**, shading, cloth/wood/grass texture | ~4× a 16×16 | hero/boss you want expressive; the "pro sweet spot" |
+| **64×64** | 4,096 | **equipment, fine texture, anti-aliased edges**, realistic proportions | very high (a 64×64 8-frame walk ≈ a full day for a pro) | showcase characters only |
+
+Guidance to give the user:
+- **More pixels ≠ automatically better.** Low-res *forces* bold, consistent shapes
+  and has its own charm; it's also far faster and stays cohesive with this repo's
+  existing 16-ish sprites. Mixing 16×16 and 64×64 in one game looks inconsistent —
+  **pick one tier and keep the whole game on it.**
+- Recommend **16×16** by default (matches what's already shipped, fast, reads
+  clearly at small size), **32×32** if they specifically want expressive
+  characters, and only go 64×64 for a single showcase hero.
+- Whatever tier: still follow the craft gates (Sweetie-16, ramps, one light dir,
+  readable silhouette first) and Playwright-verify — see `pixel-art`.
 
 > Full v4 API surface, breaking changes, and gotchas: **`.claude/skills/PHASER4.md`**.
 > This project is on **Phaser 4.1.0** — the Canvas renderer is deprecated (use
