@@ -90,6 +90,16 @@ Guidance to give the user:
 ### Before drawing ANY art — research the web first, draw last
 **Mandatory. Especially when the user did NOT provide a reference image — if they
 gave no art, you MUST search the web before drawing, never invent from memory.**
+
+> **This is a hard gate with a visible receipt — do it, don't just intend to.**
+> Your FIRST action in the art step must be an actual `WebSearch`/`WebFetch` call.
+> Before you draw a single grid, post a one-line **research receipt** to the user:
+> the queries you ran, the candidate asset(s) + their license, and the
+> style references you studied. If that receipt is missing, you skipped the gate —
+> stop and do the research. "I know what a tower/frog/tank looks like" is exactly
+> the from-memory shortcut this rule forbids; the point is to match what players
+> expect and to reuse a verified free asset when one exists.
+
 Research has two purposes (do both):
 1. **Reusable asset hunt** — a fitting **CC0/free** asset that already works:
    CC0/free game art (**Kenney.nl**, **OpenGameArt**, itch.io "free"), or SVG icon
@@ -121,7 +131,24 @@ Research has two purposes (do both):
    - In `game.json`, optionally fill `description` and `tags` — the hub shows them on the game's card. Both are optional; an empty description/tags falls back to a title-only card.
 4. **Wire the workspace**: add `games/<name>` to the root `package.json` `workspaces` array (if using npm workspaces) and add `dev:<name>` / `build:<name>` / `preview:<name>` scripts. No hub edit needed — `scripts/build-all.mjs` auto-discovers every `games/*` with a `vite.config.mjs` and regenerates the hub (`dist/index.html`) + deploys it, so a new game appears on the landing page automatically.
 5. **Install** (`npm install` at root) only if deps changed.
-6. **Autotest (Playwright)**: run the **`phaser-smoketest`** skill against the new game — it boots the game in a real browser and asserts canvas renders, console is clean, FPS ≥ 55, and screenshots each scene. This is the real "it works" gate; report its pass/fail table. Do not leave the dev server running unless asked.
+6. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
+   **`phaser-smoketest`** skill against the new game and report its full pass/fail
+   table. A green run REQUIRES all of:
+   - boots + canvas renders + console clean + FPS ≥ 55, **and**
+   - **UI layout sound** — run its overlap/reachability probe on *every* scene and
+     *every* overlay state (menu, gameplay, shop/build menu open, upgrade panel,
+     pause, game-over/win): zero overlapping interactive controls, nothing
+     off-screen, every visible button reachable. (This is the gate that catches a
+     buy-shop covering the play/start button — boot+FPS alone will not.)
+   - **Core gameplay loop proven** — drive the one-sentence loop end to end and
+     assert the state changes (score/money/lives/health/wave). Add a dev-only hook
+     if needed to do it deterministically.
+   - **Every screenshot eyeballed** — `Read` each PNG back and judge it (overlap,
+     occlusion, clipping, readability), not just save it.
+
+   Do not report "it works" off a boot-only run. If the smoke-test surfaces an
+   overlap/occlusion or a loop that doesn't advance, **fix it and re-verify** before
+   calling the game done. Do not leave the dev server running unless asked.
 
 ## 2. Template files
 
