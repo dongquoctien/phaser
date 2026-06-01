@@ -26,6 +26,7 @@ export const Tuning = {
   enemyAtkPerFloor: 0.22,
   enemySpeed: 26, // px/s advance toward the hero
   enemyContactRange: 54, // melee when this close to the hero line
+  telegraphMs: 280, // §4: enemy melee wind-up before the strike lands
   enemiesPerRoundMin: 3,
   enemiesPerRoundMax: 5,
   bossEveryFloors: 5,

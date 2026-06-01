@@ -24,13 +24,22 @@ export class Audio {
   }
 
   play(key: AudioKey): void {
+    this.playInternal(key, 1);
+  }
+
+  /** Like play() but with ±10% pitch jitter so spammed SFX don't fatigue (§5). */
+  playPitched(key: AudioKey): void {
+    this.playInternal(key, Phaser.Math.FloatBetween(0.9, 1.1));
+  }
+
+  private playInternal(key: AudioKey, rate: number): void {
     if (this.scene.sound.mute) return;
     if (!this.scene.cache.audio.exists(key)) return;
     const cfg = SFX[key];
     const now = this.scene.time.now;
     if (cfg.throttle > 0 && now - (this.lastPlayed[key] ?? -1e9) < cfg.throttle) return;
     this.lastPlayed[key] = now;
-    this.scene.sound.play(key, { volume: cfg.volume });
+    this.scene.sound.play(key, { volume: cfg.volume, rate });
   }
 
   toggleMute(): boolean {

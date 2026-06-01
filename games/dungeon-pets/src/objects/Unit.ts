@@ -21,7 +21,11 @@ export class Unit {
   poisonUntil = 0;
   poisonDps = 0;
 
+  // §4 telegraph: while > 0 the enemy is winding up a melee (rear back + red).
+  telegraphUntil = 0;
+
   sprite: Phaser.GameObjects.Image;
+  baseScale = 0.9; // the sprite's resting scale (juice tweens scale around this)
   private barBg: Phaser.GameObjects.Rectangle;
   private barFill: Phaser.GameObjects.Rectangle;
   private scene: Phaser.Scene;
@@ -44,7 +48,8 @@ export class Unit {
     this.def = opts.def;
     this.attackInterval = opts.attackInterval;
 
-    this.sprite = scene.add.image(x, y, texture).setScale(opts.scale ?? 0.9).setDepth(10);
+    this.baseScale = opts.scale ?? 0.9;
+    this.sprite = scene.add.image(x, y, texture).setScale(this.baseScale).setDepth(10);
     // Heroes face right (default art); enemies face left.
     this.sprite.setFlipX(!opts.isHero);
 
@@ -74,6 +79,54 @@ export class Unit {
   heal(amount: number): void {
     this.hp = Math.min(this.maxHp, this.hp + amount);
     this.updateBar();
+  }
+
+  /** Squash-and-stretch pop when firing (§2 game-feel): stretch toward aim. */
+  recoil(): void {
+    this.scene.tweens.add({
+      targets: this.sprite,
+      scaleX: this.baseScale * 1.12, scaleY: this.baseScale * 0.9,
+      duration: 70, yoyo: true, ease: 'Quad.easeOut',
+    });
+  }
+
+  /** A slow breathing bob so idle units feel alive (§2 secondary action). */
+  startIdleBob(): void {
+    this.scene.tweens.add({
+      targets: this.sprite,
+      scaleY: this.baseScale * 0.97,
+      duration: 900 + Math.random() * 400,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+    });
+  }
+
+  /** Brief positional knock from a hit (sprite only — homeX/anchor unchanged). */
+  knockback(px: number): void {
+    const dir = this.isHero ? -1 : 1; // enemies (facing left) get pushed right
+    this.scene.tweens.add({
+      targets: this.sprite,
+      x: this.homeX + dir * px,
+      duration: 70, yoyo: true, ease: 'Quad.easeOut',
+    });
+  }
+
+  /** Start a melee wind-up: rear back + red tint so the player can read it (§4). */
+  startTelegraph(until: number): void {
+    this.telegraphUntil = until;
+    this.sprite.setTint(0xff5a5a);
+    this.scene.tweens.add({
+      targets: this.sprite,
+      x: this.homeX + (this.isHero ? 12 : -12), // pull back, away from the hero
+      scaleX: this.sprite.scaleX * 1.08, scaleY: this.sprite.scaleY * 0.92,
+      duration: 180, yoyo: true, ease: 'Sine.easeInOut',
+    });
+  }
+
+  clearTelegraph(): void {
+    if (this.telegraphUntil !== 0) {
+      this.telegraphUntil = 0;
+      this.sprite.clearTint();
+    }
   }
 
   /** Add a burn/poison stack: dps scales with hit damage, refreshes duration. */

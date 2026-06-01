@@ -37,12 +37,17 @@ export class LevelUpScene extends Phaser.Scene {
     const cardH = 110;
     const gap = 18;
     const startY = GAME_HEIGHT * 0.3;
-    choices.forEach((sk, i) => this.makeCard(sk, GAME_WIDTH / 2, startY + i * (cardH + gap), cardW, cardH));
+    choices.forEach((sk, i) => {
+      const c = this.makeCard(sk, GAME_WIDTH / 2, startY + i * (cardH + gap), cardW, cardH);
+      // §3 anticipation pop — cards spring in, staggered, with Back.easeOut.
+      c.setScale(0.6).setAlpha(0);
+      this.tweens.add({ targets: c, scale: 1, alpha: 1, delay: i * 70, duration: 260, ease: 'Back.easeOut' });
+    });
 
     if (choices.length === 0) this.pick(null);
   }
 
-  private makeCard(skill: Skill, cx: number, cy: number, w: number, h: number): void {
+  private makeCard(skill: Skill, cx: number, cy: number, w: number, h: number): Phaser.GameObjects.Container {
     const c = this.add.container(cx, cy);
     const color = RARITY_COLOR[skill.rarity] ?? 0x94b0c2;
     const gutter = 64;
@@ -64,6 +69,7 @@ export class LevelUpScene extends Phaser.Scene {
     c.add([bg, iconBg, icon, name, rarity, desc]);
     bg.setInteractive({ useHandCursor: true });
     bg.on('pointerup', () => this.pick(skill));
+    return c;
   }
 
   private pick(skill: Skill | null): void {

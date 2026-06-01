@@ -5,6 +5,7 @@ import { Unit } from '../objects/Unit';
 import { Projectile, type ShotData } from '../objects/Projectile';
 import { Audio } from '../systems/Audio';
 import { Footer } from '../systems/Footer';
+import { Juice } from '../systems/Juice';
 import { STARTERS, PETS, heroById, statsFor, type HeroDef } from '../types/roster';
 import { freshProfile, type AttackProfile, type Skill, skillById } from '../types/skills';
 
@@ -23,6 +24,7 @@ export class GameScene extends Phaser.Scene {
   private bullets!: Phaser.GameObjects.Group;
   private audio!: Audio;
   private footer!: Footer;
+  private juice!: Juice;
 
   private taken: Record<string, number> = {};
   private floor = 1;
@@ -36,6 +38,7 @@ export class GameScene extends Phaser.Scene {
   private over = false;
   private spawning = false;
   private heroNextFire = 0;
+  private trailTick = 0;
 
   // HUD
   private floorText!: Phaser.GameObjects.Text;
@@ -58,6 +61,7 @@ export class GameScene extends Phaser.Scene {
     this.over = false; this.spawning = false; this.heroNextFire = 0;
 
     this.audio = new Audio(this);
+    this.juice = new Juice(this);
     this.drawBackdrop();
 
     const id = data?.hero ?? (this.registry.get(RegistryKeys.Team) as string) ?? STARTERS[0].id;
@@ -69,6 +73,7 @@ export class GameScene extends Phaser.Scene {
     this.hero = new Unit(this, this.heroDef.texture, Tuning.heroX, Tuning.heroY, {
       hp: s.hp, atk: s.atk, def: s.def, attackInterval: this.profile.attackInterval, isHero: true, scale: 1.1,
     });
+    this.hero.startIdleBob();
 
     this.bullets = this.add.group({ classType: Projectile, maxSize: Tuning.poolProjectiles });
     for (let i = 0; i < Tuning.poolProjectiles; i++) this.bullets.add(new Projectile(this), true);
@@ -120,12 +125,16 @@ export class GameScene extends Phaser.Scene {
       atk: Math.round(Tuning.enemyBaseAtk * mul.atk * atkScale),
       def: 0, attackInterval: 1100, isHero: false, scale: mul.scale,
     });
+    u.startIdleBob();
     this.enemies.push(u);
   }
 
   // ── main loop ──────────────────────────────────────────────────────────────
   update(time: number, deltaMs: number): void {
     if (this.over) return;
+    // Hit-stop: during a freeze the simulation pauses (firing / advance / projectile
+    // integration) but tweens + camera shake keep running for the "weight" effect.
+    if (this.juice.frozen) return;
     const dt = deltaMs / 1000;
 
     // 1. hero + pets fire on cadence
@@ -151,20 +160,32 @@ export class GameScene extends Phaser.Scene {
       const dist = Math.hypot(e.homeX - hx, e.homeY - hy);
       if (dist > Tuning.enemyContactRange) {
         e.advance(hx, hy, Tuning.enemySpeed, dt);
-      } else if (time >= e.nextAttackAt) {
+        e.clearTelegraph();
+      } else if (e.telegraphUntil === 0 && time >= e.nextAttackAt) {
+        // §4 telegraph: a readable wind-up (rear back + red tint) BEFORE the hit.
+        e.startTelegraph(time + Tuning.telegraphMs);
+      } else if (e.telegraphUntil > 0 && time >= e.telegraphUntil) {
+        // strike
+        e.telegraphUntil = 0;
         e.nextAttackAt = time + e.attackInterval;
         e.lunge(hx);
         const dmg = Math.max(1, e.atk - this.hero.def);
-        if (this.hero.takeDamage(dmg)) { this.updateHpBar(); this.gameOver(); return; }
+        const dead = this.hero.takeDamage(dmg);
+        this.juice.damageNumber(hx, hy - 8, dmg, false);
+        this.juice.shake(0.4); // taking damage shakes (red-tinted via hero flash)
+        this.audio.playPitched(AudioKeys.Defeat);
         this.updateHpBar();
+        if (dead) { this.gameOver(); return; }
       }
     }
 
-    // 3. projectiles fly + resolve hits
+    // 3. projectiles fly + resolve hits (+ a faint trail every few frames)
     const minX = -40, maxX = GAME_WIDTH + 40, minY = Tuning.laneTop - 80, maxY = Tuning.laneBottom + 80;
+    this.trailTick = (this.trailTick + 1) % 2;
     for (const obj of this.bullets.getChildren()) {
       const b = obj as Projectile;
       if (!b.active) continue;
+      if (this.trailTick === 0) this.juice.trail(b.x, b.y, 0xbfe3ff);
       if (b.step(dt, minX, maxX, minY, maxY)) { b.despawn(); continue; }
       this.resolveProjectile(b, time);
     }
@@ -206,7 +227,8 @@ export class GameScene extends Phaser.Scene {
       };
       b.fire(shooter.homeX + 16, shooter.homeY, a, profile.projectileSpeed, data, tint);
     }
-    if (shooter === this.hero) this.audio.play(AudioKeys.Skill);
+    shooter.recoil(); // §2 squash on fire
+    if (shooter === this.hero) this.audio.playPitched(AudioKeys.Skill);
   }
 
   private resolveProjectile(b: Projectile, time: number): void {
@@ -236,7 +258,12 @@ export class GameScene extends Phaser.Scene {
     const crit = Math.random() < data.critChance;
     if (crit) dmg = Math.round(dmg * data.critMul);
     this.spawnSlash(e.homeX, e.homeY, crit);
-    this.audio.play(AudioKeys.Hit);
+    this.audio.playPitched(AudioKeys.Hit); // §5: ±pitch so spammed hits don't fatigue
+
+    // — juice §3: floating damage number + knockback + crit shake/hit-stop —
+    this.juice.damageNumber(e.homeX, e.homeY - 8, dmg, crit);
+    e.knockback(8 + (crit ? 8 : 0));
+    if (crit) { this.juice.shake(0.45); this.juice.hitStop(3, time); this.juice.burst(e.homeX, e.homeY, 0xffd23f, 6, 90); }
 
     // execute under threshold
     let killed = false;
@@ -287,6 +314,11 @@ export class GameScene extends Phaser.Scene {
     if (e.dead) return; // already removed (guards double-kill from multi-hit / DoT)
     e.dead = true;
     e.hp = 0;
+    // — juice §3: death pop — particle burst + shake + hit-stop (boss = bigger) —
+    const big = e.sprite.scale > 1.2; // boss-ish
+    this.juice.burst(e.homeX, e.homeY, 0xff8c66, big ? 18 : 10, big ? 180 : 130);
+    this.juice.shake(big ? 0.85 : 0.3);
+    this.juice.hitStop(big ? 7 : 2, this.time.now);
     e.die();
     this.enemies = this.enemies.filter((x) => x !== e);
     this.gainXp(Tuning.xpPerKill);
@@ -313,6 +345,7 @@ export class GameScene extends Phaser.Scene {
     this.roundText.setText(`Round 1/${Tuning.roundsPerFloor}`);
     this.hero.heal(Math.round(this.hero.maxHp * 0.35));
     this.updateHpBar();
+    this.juice.burst(this.hero.homeX, this.hero.homeY, 0x7ce06a, 12, 110); // heal sparkle
     if ((this.floor - 1) % Tuning.recruitEveryFloors === 0 && this.pets.length < Tuning.maxPets) {
       const pet = PETS[this.petsRecruited % PETS.length];
       if (pet) { this.petsRecruited += 1; this.addPet(pet); this.audio.play(AudioKeys.LevelUp); this.flashBanner(`${pet.name} joined!`); }
@@ -328,6 +361,7 @@ export class GameScene extends Phaser.Scene {
     const u = new Unit(this, def.texture, Tuning.heroX - 24, y, {
       hp: s.hp, atk: Math.round(this.hero.atk * 0.6), def: s.def, attackInterval: Tuning.petAttackInterval, isHero: true, scale: 0.8,
     });
+    u.startIdleBob();
     this.pets.push(u);
   }
 
