@@ -23,7 +23,7 @@ export const TextureKeys = {
   Boss: 'boss',
   // FX / props
   Slash: 'slash',
-  Crown: 'crown',
+  Arrow: 'arrow',
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 

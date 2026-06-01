@@ -11,8 +11,15 @@ export class Unit {
   attackInterval: number; // ms (already includes archetype speed)
   nextAttackAt = 0;
   readonly isHero: boolean;
-  readonly homeX: number;
-  readonly homeY: number;
+  homeX: number;
+  homeY: number;
+
+  // Damage-over-time (burn = red, poison = green). Each is a remaining-duration
+  // (ms) + per-second damage; the scene ticks them via tickDot().
+  burnUntil = 0;
+  burnDps = 0;
+  poisonUntil = 0;
+  poisonDps = 0;
 
   sprite: Phaser.GameObjects.Image;
   private barBg: Phaser.GameObjects.Rectangle;
@@ -65,6 +72,51 @@ export class Unit {
   heal(amount: number): void {
     this.hp = Math.min(this.maxHp, this.hp + amount);
     this.updateBar();
+  }
+
+  /** Add a burn/poison stack: dps scales with hit damage, refreshes duration. */
+  applyBurn(dps: number, now: number): void {
+    this.burnDps += dps;
+    this.burnUntil = now + 2500;
+  }
+  applyPoison(dps: number, now: number): void {
+    this.poisonDps += dps;
+    this.poisonUntil = now + 3000;
+  }
+
+  /** Tick DoT; returns damage dealt this frame (caller checks for death). */
+  tickDot(dt: number, now: number): number {
+    let dmg = 0;
+    if (now < this.burnUntil) dmg += this.burnDps * dt;
+    else this.burnDps = 0;
+    if (now < this.poisonUntil) dmg += this.poisonDps * dt;
+    else this.poisonDps = 0;
+    if (dmg > 0) {
+      this.hp = Math.max(0, this.hp - dmg);
+      this.updateBar();
+      // subtle tint toward the active DoT colour
+      this.sprite.setTint(now < this.burnUntil ? 0xff8c3a : 0x8cff6a);
+      this.scene.time.delayedCall(60, () => { if (this.alive) this.sprite.clearTint(); });
+    }
+    return dmg;
+  }
+
+  /** Move the sprite (and home anchor) toward a target — enemies advancing. */
+  advance(towardX: number, towardY: number, speed: number, dt: number): void {
+    const dx = towardX - this.homeX;
+    const dy = towardY - this.homeY;
+    const d = Math.hypot(dx, dy) || 1;
+    const step = Math.min(d, speed * dt);
+    this.homeX += (dx / d) * step;
+    this.homeY += (dy / d) * step;
+    this.sprite.setPosition(this.homeX, this.homeY);
+    this.syncBar();
+  }
+
+  private syncBar(): void {
+    const barY = this.homeY - this.sprite.displayHeight / 2 - 8;
+    this.barBg.setPosition(this.homeX, barY);
+    this.barFill.setPosition(this.homeX - this.barW / 2 + 1, barY);
   }
 
   /** Raise max HP by a factor, scaling current HP with it. */

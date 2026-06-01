@@ -1,27 +1,49 @@
 import { TextureKeys, type TextureKey } from './keys';
 import { Tuning } from '../tuning';
+import type { AttackProfile } from './skills';
 
-// A hero archetype: stat multipliers off the Tuning base + which texture to use.
-// `starter` heroes are pickable at the start; `pet` heroes join every 5 floors.
+// A pickable hero: base stats + a starting tweak to its AttackProfile so each
+// one plays differently from shot one (before any skills).
 export interface HeroDef {
   id: string;
   name: string;
+  blurb: string;
   texture: TextureKey;
   hpMul: number;
   atkMul: number;
   defMul: number;
-  attackSpeed: number; // multiplier on Tuning.attackInterval (lower = faster)
+  // mutate the fresh profile to give the hero its identity
+  startProfile: (p: AttackProfile) => void;
   pet: boolean;
 }
 
 export const HEROES: HeroDef[] = [
-  // ── Starters (choose 3) ──────────────────────────────────────────────────
-  { id: 'capybara', name: 'Capy', texture: TextureKeys.Capybara, hpMul: 1.5, atkMul: 0.85, defMul: 1.4, attackSpeed: 1.1, pet: false },
-  { id: 'cat', name: 'Mittens', texture: TextureKeys.Cat, hpMul: 0.8, atkMul: 1.35, defMul: 0.8, attackSpeed: 0.8, pet: false },
-  { id: 'duck', name: 'Quacky', texture: TextureKeys.Duck, hpMul: 1.0, atkMul: 1.1, defMul: 1.0, attackSpeed: 1.0, pet: false },
-  { id: 'frog', name: 'Hopper', texture: TextureKeys.Frog, hpMul: 1.1, atkMul: 1.0, defMul: 1.15, attackSpeed: 0.95, pet: false },
-  // ── Pet recruits (join every 5 floors, in order) ─────────────────────────
-  { id: 'owl', name: 'Hoot', texture: TextureKeys.Owl, hpMul: 0.9, atkMul: 1.5, defMul: 0.9, attackSpeed: 0.75, pet: true },
+  {
+    id: 'capybara', name: 'Capy', blurb: 'Tanky · steady shots', texture: TextureKeys.Capybara,
+    hpMul: 1.6, atkMul: 0.9, defMul: 1.5, pet: false,
+    startProfile: (p) => { p.lifesteal += 0.05; },
+  },
+  {
+    id: 'cat', name: 'Mittens', blurb: 'Glass cannon · crits', texture: TextureKeys.Cat,
+    hpMul: 0.8, atkMul: 1.3, defMul: 0.8, pet: false,
+    startProfile: (p) => { p.critChance += 0.15; p.attackInterval = Math.round(p.attackInterval * 0.9); },
+  },
+  {
+    id: 'duck', name: 'Quacky', blurb: 'Spread · starts +1 arrow', texture: TextureKeys.Duck,
+    hpMul: 1.0, atkMul: 1.0, defMul: 1.0, pet: false,
+    startProfile: (p) => { p.arrows += 1; },
+  },
+  {
+    id: 'frog', name: 'Hopper', blurb: 'Toxic · starts with poison', texture: TextureKeys.Frog,
+    hpMul: 1.15, atkMul: 1.0, defMul: 1.1, pet: false,
+    startProfile: (p) => { p.poison += 1; },
+  },
+  // Pet recruit (joins every 5 floors). Fires a weaker support arrow.
+  {
+    id: 'owl', name: 'Hoot', blurb: 'Pet · support fire', texture: TextureKeys.Owl,
+    hpMul: 0.7, atkMul: 1.0, defMul: 0.7, pet: true,
+    startProfile: () => {},
+  },
 ];
 
 export const STARTERS = HEROES.filter((h) => !h.pet);
@@ -31,7 +53,6 @@ export function heroById(id: string): HeroDef | undefined {
   return HEROES.find((h) => h.id === id);
 }
 
-/** Resolve a HeroDef into concrete starting stats. */
 export function statsFor(def: HeroDef): { hp: number; atk: number; def: number } {
   return {
     hp: Math.round(Tuning.heroBaseHp * def.hpMul),

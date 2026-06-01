@@ -7,7 +7,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 const SVG_KEYS: ReadonlyArray<string> = [
   TextureKeys.Capybara, TextureKeys.Cat, TextureKeys.Duck, TextureKeys.Frog,
   TextureKeys.Owl, TextureKeys.Skeleton, TextureKeys.Slime, TextureKeys.Boss,
-  TextureKeys.Slash,
+  TextureKeys.Slash, TextureKeys.Arrow,
 ];
 
 export class PreloadScene extends Phaser.Scene {

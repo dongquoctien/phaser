@@ -2,239 +2,304 @@ import Phaser from 'phaser';
 import { SceneKeys, AudioKeys, RegistryKeys, TextureKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, Tuning } from '../config';
 import { Unit } from '../objects/Unit';
+import { Projectile, type ShotData } from '../objects/Projectile';
 import { Audio } from '../systems/Audio';
+import { Footer } from '../systems/Footer';
 import { STARTERS, PETS, heroById, statsFor, type HeroDef } from '../types/roster';
-import { freshBuffs, type TeamBuffs, type Skill } from '../types/skills';
+import { freshProfile, type AttackProfile, type Skill, skillById } from '../types/skills';
 
 declare const __DEV__: boolean;
 
+// One hero (left) shoots projectiles at advancing enemies (right). Skills modify
+// the shot — multishot/pierce/bounce/crit/burn/poison/execute — and COMPOUND, so
+// depth comes from the build, not flat %. Pets join every 5 floors and add
+// support fire.
 export class GameScene extends Phaser.Scene {
-  private heroes: Unit[] = [];
+  private hero!: Unit;
+  private heroDef!: HeroDef;
+  private profile!: AttackProfile;
+  private pets: Unit[] = [];
   private enemies: Unit[] = [];
-  private heroDefs: HeroDef[] = []; // parallel to heroes (for recompute on buff)
-  private buffs: TeamBuffs = freshBuffs();
-  private taken: Record<string, number> = {};
+  private bullets!: Phaser.GameObjects.Group;
   private audio!: Audio;
+  private footer!: Footer;
 
+  private taken: Record<string, number> = {};
   private floor = 1;
   private round = 1;
   private hits = 0;
   private level = 1;
   private xp = 0;
   private xpNeeded: number = Tuning.xpBase;
+  private pendingLevels = 0;
   private petsRecruited = 0;
   private over = false;
-  private resolving = false; // between-wave pause
+  private spawning = false;
+  private heroNextFire = 0;
 
   // HUD
   private floorText!: Phaser.GameObjects.Text;
   private roundText!: Phaser.GameObjects.Text;
   private hitsText!: Phaser.GameObjects.Text;
+  private hpBar!: Phaser.GameObjects.Graphics;
   private statText!: Phaser.GameObjects.Text;
 
   constructor() {
     super(SceneKeys.Game);
   }
 
-  create(data?: { team?: string[] }): void {
-    this.heroes = [];
+  create(data?: { hero?: string }): void {
+    this.pets = [];
     this.enemies = [];
-    this.heroDefs = [];
-    this.buffs = freshBuffs();
     this.taken = {};
-    this.floor = 1;
-    this.round = 1;
-    this.hits = 0;
-    this.level = 1;
-    this.xp = 0;
-    this.xpNeeded = Tuning.xpBase;
-    this.petsRecruited = 0;
-    this.over = false;
-    this.resolving = false;
+    this.floor = 1; this.round = 1; this.hits = 0; this.level = 1;
+    this.xp = 0; this.xpNeeded = Tuning.xpBase; this.petsRecruited = 0;
+    this.pendingLevels = 0;
+    this.over = false; this.spawning = false; this.heroNextFire = 0;
 
     this.audio = new Audio(this);
     this.drawBackdrop();
-    this.buildHud();
 
-    // Resolve the chosen team (registry or passed data; fall back to first 3).
-    const ids =
-      data?.team ??
-      (this.registry.get(RegistryKeys.Team) as string[] | undefined) ??
-      STARTERS.slice(0, Tuning.teamSize).map((h) => h.id);
-    ids.slice(0, Tuning.teamSize).forEach((id, i) => {
-      const def = heroById(id) ?? STARTERS[i];
-      this.addHero(def, i);
+    const id = data?.hero ?? (this.registry.get(RegistryKeys.Team) as string) ?? STARTERS[0].id;
+    this.heroDef = heroById(id) ?? STARTERS[0];
+    this.profile = freshProfile(Tuning.baseAttackInterval, Tuning.baseProjectileSpeed);
+    this.heroDef.startProfile(this.profile);
+
+    const s = statsFor(this.heroDef);
+    this.hero = new Unit(this, this.heroDef.texture, Tuning.heroX, Tuning.heroY, {
+      hp: s.hp, atk: s.atk, def: s.def, attackInterval: this.profile.attackInterval, isHero: true, scale: 1.1,
     });
-    this.updateStatText(); // reflect the team now that heroes exist
 
+    this.bullets = this.add.group({ classType: Projectile, maxSize: Tuning.poolProjectiles });
+    for (let i = 0; i < Tuning.poolProjectiles; i++) this.bullets.add(new Projectile(this), true);
+    this.bullets.getChildren().forEach((b) => (b as Projectile).despawn());
+
+    this.footer = new Footer(this);
+    this.buildHud();
     this.spawnWave();
 
     this.events.on('skillPicked', this.applySkill, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.events.off('skillPicked', this.applySkill, this);
-    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.events.off('skillPicked', this.applySkill, this));
 
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       (this as unknown as Record<string, unknown>).__dev = {
-        win: () => this.enemies.forEach((e) => e.alive && this.kill(e)),
+        addSkill: (sid: string) => { const sk = skillById(sid); if (sk) this.applySkill(sk); },
         addXp: (n: number) => this.gainXp(n),
-        state: () => ({ floor: this.floor, round: this.round, heroes: this.heroes.length, enemies: this.enemies.filter((e) => e.alive).length }),
+        clearWave: () => this.enemies.slice().forEach((e) => this.killEnemy(e)),
+        state: () => ({ floor: this.floor, round: this.round, enemies: this.enemies.length, pets: this.pets.length, hits: this.hits, profile: this.profile, taken: this.taken }),
+        profile: () => this.profile,
       };
     }
   }
 
-  // ── team / spawns ────────────────────────────────────────────────────────
-  private heroSlotY(i: number, total: number): number {
-    const span = Tuning.laneBottom - Tuning.laneTop;
-    return Tuning.laneTop + (span * (i + 1)) / (total + 1);
-  }
-
-  private addHero(def: HeroDef, index: number): void {
-    const total = Math.max(Tuning.teamSize, this.heroDefs.length + 1);
-    const s = statsFor(def);
-    const col = index % 2; // two columns so up to 8 fit
-    const x = Tuning.heroLineX - col * 56;
-    const y = this.heroSlotY(Math.floor(index / 2), Math.ceil(total / 2));
-    const u = new Unit(this, def.texture, x, y, {
-      hp: Math.round(s.hp * this.buffs.hpMul),
-      atk: Math.round(s.atk * this.buffs.atkMul),
-      def: Math.round(s.def * this.buffs.defMul),
-      attackInterval: Tuning.attackInterval * def.attackSpeed / this.buffs.haste,
-      isHero: true,
-      scale: def.pet ? 0.95 : 1,
-    });
-    this.heroes.push(u);
-    this.heroDefs.push(def);
-  }
-
+  // ── spawns ─────────────────────────────────────────────────────────────────
   private spawnWave(): void {
-    const isBossRound = this.round === Tuning.roundsPerFloor && this.floor % Tuning.bossEveryFloors === 0;
-    const hpScale = 1 + (this.floor - 1) * Tuning.enemyHpPerFloor;
-    const atkScale = 1 + (this.floor - 1) * Tuning.enemyAtkPerFloor;
-
-    if (isBossRound) {
-      this.addEnemy(TextureKeys.Boss, 0, 1, { hp: 8, atk: 1.7, scale: 1.4 }, hpScale, atkScale);
+    const isBoss = this.round === Tuning.roundsPerFloor && this.floor % Tuning.bossEveryFloors === 0;
+    const hpScale = Math.pow(1 + Tuning.enemyHpPerFloor, this.floor - 1);
+    const atkScale = Math.pow(1 + Tuning.enemyAtkPerFloor, this.floor - 1);
+    if (isBoss) {
+      this.addEnemy(TextureKeys.Boss, (Tuning.laneTop + Tuning.laneBottom) / 2, { hp: 9, atk: 1.8, scale: 1.5 }, hpScale, atkScale);
       return;
     }
     const count = Phaser.Math.Between(Tuning.enemiesPerRoundMin, Tuning.enemiesPerRoundMax);
+    const span = Tuning.laneBottom - Tuning.laneTop;
     for (let i = 0; i < count; i++) {
       const tex = Math.random() < 0.6 ? TextureKeys.Skeleton : TextureKeys.Slime;
-      const tough = tex === TextureKeys.Skeleton ? { hp: 1, atk: 1 } : { hp: 1.4, atk: 0.7 };
-      this.addEnemy(tex, i, count, { ...tough, scale: 0.9 }, hpScale, atkScale);
+      const tough = tex === TextureKeys.Skeleton ? { hp: 1, atk: 1 } : { hp: 1.5, atk: 0.7 };
+      const y = Tuning.laneTop + (span * (i + 0.5)) / count + Phaser.Math.Between(-14, 14);
+      this.addEnemy(tex, y, { ...tough, scale: 0.9 }, hpScale, atkScale, i * 60);
     }
   }
 
   private addEnemy(
-    texture: string,
-    index: number,
-    count: number,
-    mul: { hp: number; atk: number; scale: number },
-    hpScale: number,
-    atkScale: number,
+    texture: string, y: number, mul: { hp: number; atk: number; scale: number },
+    hpScale: number, atkScale: number, xOffset = 0,
   ): void {
-    const span = Tuning.laneBottom - Tuning.laneTop;
-    const y = count === 1 ? (Tuning.laneTop + Tuning.laneBottom) / 2 : Tuning.laneTop + (span * (index + 1)) / (count + 1);
-    const col = index % 2;
-    const x = Tuning.enemyLineX + col * 52;
-    const u = new Unit(this, texture, x, y, {
+    const u = new Unit(this, texture, Tuning.spawnX + xOffset, y, {
       hp: Math.round(Tuning.enemyBaseHp * mul.hp * hpScale),
       atk: Math.round(Tuning.enemyBaseAtk * mul.atk * atkScale),
-      def: 0,
-      attackInterval: Tuning.attackInterval * 1.1,
-      isHero: false,
-      scale: mul.scale,
+      def: 0, attackInterval: 1100, isHero: false, scale: mul.scale,
     });
     this.enemies.push(u);
   }
 
-  // ── main loop ────────────────────────────────────────────────────────────
-  update(time: number): void {
-    if (this.over || this.resolving) return;
+  // ── main loop ──────────────────────────────────────────────────────────────
+  update(time: number, deltaMs: number): void {
+    if (this.over) return;
+    const dt = deltaMs / 1000;
 
-    for (const h of this.heroes) {
-      if (!h.alive) continue;
-      if (time >= h.nextAttackAt) {
-        const target = this.nearestAlive(this.enemies, h);
-        if (target) this.performAttack(h, target);
-        h.nextAttackAt = time + h.attackInterval;
+    // 1. hero + pets fire on cadence
+    if (!this.spawning && this.enemies.some((e) => e.alive)) {
+      if (time >= this.heroNextFire) {
+        this.fireVolley(this.hero, this.profile, 0xffffff);
+        this.heroNextFire = time + this.profile.attackInterval;
+      }
+      for (const pet of this.pets) {
+        if (time >= pet.nextAttackAt) {
+          this.fireVolley(pet, this.petProfile(), 0x9ad0ff);
+          pet.nextAttackAt = time + Tuning.petAttackInterval;
+        }
       }
     }
+
+    // 2. enemies advance toward the hero, melee when close, DoT ticks
+    const hx = this.hero.homeX;
+    const hy = this.hero.homeY;
     for (const e of this.enemies) {
       if (!e.alive) continue;
-      if (time >= e.nextAttackAt) {
-        const target = this.nearestAlive(this.heroes, e);
-        if (target) this.performAttack(e, target);
+      if (this.killByDot(e, dt, time)) continue;
+      const dist = Math.hypot(e.homeX - hx, e.homeY - hy);
+      if (dist > Tuning.enemyContactRange) {
+        e.advance(hx, hy, Tuning.enemySpeed, dt);
+      } else if (time >= e.nextAttackAt) {
         e.nextAttackAt = time + e.attackInterval;
+        e.lunge(hx);
+        const dmg = Math.max(1, e.atk - this.hero.def);
+        if (this.hero.takeDamage(dmg)) { this.updateHpBar(); this.gameOver(); return; }
+        this.updateHpBar();
+      }
+    }
+
+    // 3. projectiles fly + resolve hits
+    const minX = -40, maxX = GAME_WIDTH + 40, minY = Tuning.laneTop - 80, maxY = Tuning.laneBottom + 80;
+    for (const obj of this.bullets.getChildren()) {
+      const b = obj as Projectile;
+      if (!b.active) continue;
+      if (b.step(dt, minX, maxX, minY, maxY)) { b.despawn(); continue; }
+      this.resolveProjectile(b, time);
+    }
+  }
+
+  private petProfile(): AttackProfile {
+    // pets fire a simple weaker arrow that still benefits from a few modifiers
+    const p = freshProfile(Tuning.petAttackInterval, Tuning.baseProjectileSpeed);
+    p.damageMul = Tuning.petDamageMul * this.profile.damageMul;
+    p.pierce = Math.min(1, this.profile.pierce);
+    p.arrows = Math.min(2, this.profile.arrows);
+    p.critChance = this.profile.critChance * 0.5;
+    return p;
+  }
+
+  // ── firing ───────────────────────────────────────────────────────────────
+  private fireVolley(shooter: Unit, profile: AttackProfile, tint: number): void {
+    const target = this.nearestEnemy(shooter.homeX, shooter.homeY);
+    if (!target) return;
+    const baseAng = Math.atan2(target.homeY - shooter.homeY, target.homeX - shooter.homeX);
+    const dmg = Math.round(shooter.atk * profile.damageMul);
+    const total = profile.arrows;
+    const spread = Phaser.Math.DegToRad(profile.spreadDeg);
+    const angles: number[] = [];
+    for (let i = 0; i < total; i++) {
+      const off = total === 1 ? 0 : (i - (total - 1) / 2) * spread;
+      angles.push(baseAng + off);
+    }
+    for (let r = 0; r < profile.rearArrows; r++) angles.push(baseAng + Math.PI + (r - (profile.rearArrows - 1) / 2) * spread);
+
+    for (const a of angles) {
+      const b = this.bullets.getFirstDead(false) as Projectile | null;
+      if (!b) break;
+      const data: ShotData = {
+        damage: dmg, pierce: profile.pierce, bounce: profile.bounce,
+        critChance: profile.critChance, critMul: profile.critMul,
+        burn: profile.burn, poison: profile.poison, executeBelow: profile.executeBelow,
+        lifesteal: profile.lifesteal, bonusVsFull: profile.bonusVsFull, fromHero: shooter === this.hero,
+      };
+      b.fire(shooter.homeX + 16, shooter.homeY, a, profile.projectileSpeed, data, tint);
+    }
+    if (shooter === this.hero) this.audio.play(AudioKeys.Skill);
+  }
+
+  private resolveProjectile(b: Projectile, time: number): void {
+    for (const e of this.enemies) {
+      if (!e.alive || b.hitSet.has(e)) continue;
+      const d = Math.hypot(e.homeX - b.x, e.homeY - b.y);
+      if (d > b.radius + e.sprite.displayWidth * 0.4) continue;
+      b.hitSet.add(e);
+      this.applyHit(b.data2, e, time);
+      // pierce → keep going; else bounce → redirect; else despawn
+      if (b.data2.pierce > 0) {
+        b.data2.pierce -= 1;
+      } else if (b.data2.bounce > 0) {
+        const next = this.nearestEnemyExcept(b.x, b.y, b.hitSet);
+        if (next) { b.data2.bounce -= 1; b.redirect(next.homeX, next.homeY, Tuning.baseProjectileSpeed); }
+        else { b.despawn(); return; }
+      } else {
+        b.despawn();
+        return;
       }
     }
   }
 
-  private nearestAlive(list: Unit[], from: Unit): Unit | null {
-    let best: Unit | null = null;
-    let bestD = Infinity;
-    for (const u of list) {
-      if (!u.alive) continue;
-      const d = Math.abs(u.homeY - from.homeY); // same lane band → vertical proximity
-      if (d < bestD) { bestD = d; best = u; }
+  private applyHit(data: ShotData, e: Unit, time: number): void {
+    let dmg = data.damage;
+    if (data.bonusVsFull > 0 && e.hp >= e.maxHp - 1) dmg = Math.round(dmg * (1 + data.bonusVsFull));
+    const crit = Math.random() < data.critChance;
+    if (crit) dmg = Math.round(dmg * data.critMul);
+    this.spawnSlash(e.homeX, e.homeY, crit);
+    this.audio.play(AudioKeys.Hit);
+
+    // execute under threshold
+    let killed = false;
+    if (data.executeBelow > 0 && e.hp - dmg <= e.maxHp * data.executeBelow) killed = true;
+    else killed = e.takeDamage(dmg);
+
+    if (data.burn > 0) e.applyBurn(data.damage * 0.5 * data.burn, time);
+    if (data.poison > 0) e.applyPoison(data.damage * 0.4 * data.poison, time);
+    if (data.fromHero && data.lifesteal > 0) { this.hero.heal(Math.round(dmg * data.lifesteal)); this.updateHpBar(); }
+
+    if (data.fromHero) { this.hits += 1; this.hitsText.setText(`${this.hits}`); }
+    if (killed) this.killEnemy(e);
+  }
+
+  private killByDot(e: Unit, dt: number, time: number): boolean {
+    const d = e.tickDot(dt, time);
+    if (d > 0 && !e.alive) { this.killEnemy(e); return true; }
+    return false;
+  }
+
+  private nearestEnemy(x: number, y: number): Unit | null {
+    let best: Unit | null = null, bd = Infinity;
+    for (const e of this.enemies) {
+      if (!e.alive) continue;
+      const d = Math.hypot(e.homeX - x, e.homeY - y);
+      if (d < bd) { bd = d; best = e; }
     }
     return best;
   }
 
-  private performAttack(attacker: Unit, target: Unit): void {
-    attacker.lunge(target.homeX);
-    const strikes = attacker.isHero ? 1 + this.buffs.extraHits + (Math.random() < this.buffs.doubleChance ? 1 : 0) : 1;
-    let totalDamage = 0;
-    for (let s = 0; s < strikes; s++) {
-      let dmg = Math.max(1, attacker.atk - target.def);
-      if (attacker.isHero && Math.random() < this.buffs.critChance) dmg = Math.round(dmg * this.buffs.critMul);
-      totalDamage += dmg;
+  private nearestEnemyExcept(x: number, y: number, exclude: Set<object>): Unit | null {
+    let best: Unit | null = null, bd = Infinity;
+    for (const e of this.enemies) {
+      if (!e.alive || exclude.has(e)) continue;
+      const d = Math.hypot(e.homeX - x, e.homeY - y);
+      if (d < bd) { bd = d; best = e; }
     }
-    this.audio.play(AudioKeys.Hit);
-    this.spawnSlash(target.homeX, target.homeY);
-    if (attacker.isHero) {
-      this.hits += strikes;
-      this.hitsText.setText(`${this.hits}`);
-      if (this.buffs.lifesteal > 0) attacker.heal(Math.round(totalDamage * this.buffs.lifesteal));
-    }
-    const killed = target.takeDamage(totalDamage);
-    if (killed) this.kill(target);
+    return best;
   }
 
-  private spawnSlash(x: number, y: number): void {
-    const s = this.add.image(x, y, TextureKeys.Slash).setScale(0.7).setDepth(20).setAlpha(0.95);
-    this.tweens.add({ targets: s, alpha: 0, scale: 1.0, duration: 180, onComplete: () => s.destroy() });
+  private spawnSlash(x: number, y: number, crit: boolean): void {
+    const s = this.add.image(x, y, TextureKeys.Slash).setScale(crit ? 0.95 : 0.6).setDepth(20).setAlpha(0.95);
+    if (crit) s.setTint(0xffd23f);
+    this.tweens.add({ targets: s, alpha: 0, scale: s.scale + 0.3, duration: 170, onComplete: () => s.destroy() });
   }
 
-  private kill(target: Unit): void {
-    target.die();
-    if (target.isHero) {
-      // Keep heroDefs aligned with heroes when one dies.
-      const i = this.heroes.indexOf(target);
-      if (i >= 0) {
-        this.heroes.splice(i, 1);
-        this.heroDefs.splice(i, 1);
-      }
-      if (this.heroes.length === 0) { this.gameOver(); return; }
-    } else {
-      this.enemies = this.enemies.filter((e) => e !== target);
-      this.gainXp(Tuning.xpPerKill);
-      if (this.enemies.length === 0 && !this.over) this.advanceRound();
-    }
+  private killEnemy(e: Unit): void {
+    if (!e.alive) return;
+    e.hp = 0;
+    e.die();
+    this.enemies = this.enemies.filter((x) => x !== e);
+    this.gainXp(Tuning.xpPerKill);
+    if (this.enemies.length === 0 && !this.over) this.advanceRound();
   }
 
-  // ── progression ──────────────────────────────────────────────────────────
+  // ── progression ────────────────────────────────────────────────────────────
   private advanceRound(): void {
-    this.resolving = true;
-    this.time.delayedCall(450, () => {
+    this.spawning = true;
+    this.time.delayedCall(420, () => {
       if (this.over) return;
-      if (this.round >= Tuning.roundsPerFloor) {
-        this.advanceFloor();
-      } else {
-        this.round += 1;
-        this.roundText.setText(`Round ${this.round}/${Tuning.roundsPerFloor}`);
-        this.spawnWave();
-      }
-      this.resolving = false;
+      if (this.round >= Tuning.roundsPerFloor) this.advanceFloor();
+      else { this.round += 1; this.roundText.setText(`Round ${this.round}/${Tuning.roundsPerFloor}`); this.spawnWave(); }
+      this.spawning = false;
     });
   }
 
@@ -245,82 +310,68 @@ export class GameScene extends Phaser.Scene {
     if (this.floor - 1 > best) this.registry.set(RegistryKeys.BestFloor, this.floor - 1);
     this.floorText.setText(`Dungeon Floor ${this.floor}`);
     this.roundText.setText(`Round 1/${Tuning.roundsPerFloor}`);
-    // Heal the team a bit each floor.
-    for (const h of this.heroes) h.heal(Math.round(h.maxHp * 0.4));
-    // Recruit a pet every N floors.
-    if ((this.floor - 1) % Tuning.recruitEveryFloors === 0 && this.heroes.length < Tuning.maxTeam) {
+    this.hero.heal(Math.round(this.hero.maxHp * 0.35));
+    this.updateHpBar();
+    if ((this.floor - 1) % Tuning.recruitEveryFloors === 0 && this.pets.length < Tuning.maxPets) {
       const pet = PETS[this.petsRecruited % PETS.length];
-      if (pet) {
-        this.petsRecruited += 1;
-        this.relayoutAndAddPet(pet);
-        this.audio.play(AudioKeys.LevelUp);
-        this.flashBanner(`${pet.name} joined!`);
-      }
+      if (pet) { this.petsRecruited += 1; this.addPet(pet); this.audio.play(AudioKeys.LevelUp); this.flashBanner(`${pet.name} joined!`); }
     }
     this.updateStatText();
     this.spawnWave();
   }
 
-  private relayoutAndAddPet(pet: HeroDef): void {
-    // Append the pet; reposition all heroes to keep the formation tidy.
-    this.addHero(pet, this.heroes.length);
-    this.repositionHeroes();
-  }
-
-  private repositionHeroes(): void {
-    const total = this.heroes.length;
-    this.heroes.forEach((h, i) => {
-      const col = i % 2;
-      const x = Tuning.heroLineX - col * 56;
-      const y = this.heroSlotY(Math.floor(i / 2), Math.ceil(total / 2));
-      this.tweens.add({ targets: h.sprite, x, y, duration: 250 });
+  private addPet(def: HeroDef): void {
+    const s = statsFor(def);
+    const slot = this.pets.length;
+    const y = Tuning.heroY + (slot % 2 === 0 ? 72 : -72) + Math.floor(slot / 2) * 30;
+    const u = new Unit(this, def.texture, Tuning.heroX - 24, y, {
+      hp: s.hp, atk: Math.round(this.hero.atk * 0.6), def: s.def, attackInterval: Tuning.petAttackInterval, isHero: true, scale: 0.8,
     });
+    this.pets.push(u);
   }
 
-  // ── xp / level ───────────────────────────────────────────────────────────
   private gainXp(n: number): void {
     if (this.over) return;
     this.xp += n;
+    let gained = 0;
     while (this.xp >= this.xpNeeded) {
       this.xp -= this.xpNeeded;
       this.level += 1;
       this.xpNeeded = Math.round(this.xpNeeded * Tuning.xpGrowth);
-      this.levelUp();
+      gained += 1;
+    }
+    if (gained > 0) {
+      this.pendingLevels += gained;
+      // Only launch ONE pick at a time; the rest fire after each pick resolves.
+      if (!this.scene.isPaused()) this.levelUp();
     }
   }
 
   private levelUp(): void {
+    if (this.pendingLevels <= 0 || this.over) return;
+    this.pendingLevels -= 1;
     this.audio.play(AudioKeys.LevelUp);
-    this.resolving = true;
+    this.spawning = true; // pause firing during the pick
     this.scene.pause();
     this.scene.launch(SceneKeys.LevelUp, { taken: this.taken, gameKey: SceneKeys.Game });
   }
 
   private applySkill(skill: Skill): void {
     this.taken[skill.id] = (this.taken[skill.id] ?? 0) + 1;
-    const before = { ...this.buffs };
-    skill.apply(this.buffs);
+    skill.apply(this.profile);
     this.audio.play(AudioKeys.Skill);
-    // Re-derive hero stats from the new buffs (max-hp / atk / def / haste).
-    this.heroes.forEach((h, i) => {
-      const base = statsFor(this.heroDefs[i]);
-      h.atk = Math.round(base.atk * this.buffs.atkMul);
-      h.def = Math.round(base.def * this.buffs.defMul);
-      h.attackInterval = Tuning.attackInterval * this.heroDefs[i].attackSpeed / this.buffs.haste;
-      if (this.buffs.hpMul !== before.hpMul) h.scaleMaxHp(this.buffs.hpMul / before.hpMul);
-    });
+    this.footer.refresh(this.taken);
     this.updateStatText();
-    this.resolving = false;
+    this.spawning = false;
+    // Chain to the next queued level-up, if any (resumes on the next tick).
+    if (this.pendingLevels > 0) this.time.delayedCall(60, () => this.levelUp());
   }
 
-  // ── HUD / backdrop ───────────────────────────────────────────────────────
+  // ── HUD / backdrop ─────────────────────────────────────────────────────────
   private drawBackdrop(): void {
-    // dungeon gradient + floor band
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x20162e).setOrigin(0).setDepth(-2);
     this.add.rectangle(0, 200, GAME_WIDTH, 90, 0x2c2140).setOrigin(0).setDepth(-1);
-    const lane = this.add.rectangle(0, Tuning.laneTop - 30, GAME_WIDTH, Tuning.laneBottom - Tuning.laneTop + 90, 0x3a2f55).setOrigin(0).setDepth(-1);
-    lane.setAlpha(0.9);
-    // floor stones suggestion
+    this.add.rectangle(0, Tuning.laneTop - 30, GAME_WIDTH, Tuning.laneBottom - Tuning.laneTop + 90, 0x3a2f55).setOrigin(0).setDepth(-1).setAlpha(0.9);
     const g = this.add.graphics().setDepth(-1);
     g.lineStyle(1, 0xffffff, 0.04);
     for (let y = Tuning.laneTop + 40; y < Tuning.laneBottom + 60; y += 40) g.lineBetween(0, y, GAME_WIDTH, y);
@@ -333,17 +384,16 @@ export class GameScene extends Phaser.Scene {
     this.roundText = this.add.text(GAME_WIDTH / 2, 56, `Round 1/${Tuning.roundsPerFloor}`, {
       fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f', stroke: '#1a1020', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(60);
-    this.add.text(GAME_WIDTH - 14, 16, 'Hits', {
-      fontFamily: 'monospace', fontSize: '11px', color: '#ff9a66',
-    }).setOrigin(1, 0).setDepth(60);
-    this.hitsText = this.add.text(GAME_WIDTH - 14, 30, '0', {
+    this.add.text(GAME_WIDTH - 14, 14, 'Hits', { fontFamily: 'monospace', fontSize: '11px', color: '#ff9a66' }).setOrigin(1, 0).setDepth(60);
+    this.hitsText = this.add.text(GAME_WIDTH - 14, 28, '0', {
       fontFamily: 'monospace', fontSize: '18px', color: '#ffffff', stroke: '#1a1020', strokeThickness: 3,
     }).setOrigin(1, 0).setDepth(60);
 
-    // stat strip
-    this.statText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 90, '', {
+    this.hpBar = this.add.graphics().setDepth(60);
+    this.statText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 150, '', {
       fontFamily: 'monospace', fontSize: '13px', color: '#e8dcff', align: 'center',
     }).setOrigin(0.5).setDepth(60);
+    this.updateHpBar();
     this.updateStatText();
 
     const muteBtn = this.add.text(14, 16, this.audio.muted ? '[MUTED]' : '[SOUND]', {
@@ -352,11 +402,20 @@ export class GameScene extends Phaser.Scene {
     muteBtn.on('pointerup', () => muteBtn.setText(this.audio.toggleMute() ? '[MUTED]' : '[SOUND]'));
   }
 
+  private updateHpBar(): void {
+    const w = GAME_WIDTH - 28;
+    const frac = this.hero ? this.hero.hp / this.hero.maxHp : 1;
+    this.hpBar.clear();
+    this.hpBar.fillStyle(0x1a1020, 0.85).fillRect(14, GAME_HEIGHT - 178, w, 16);
+    this.hpBar.fillStyle(0xe2483f, 1).fillRect(15, GAME_HEIGHT - 177, (w - 2) * Phaser.Math.Clamp(frac, 0, 1), 14);
+  }
+
   private updateStatText(): void {
-    const team = this.heroes.length;
-    const atk = this.heroes.reduce((s, h) => s + h.atk, 0);
-    const hp = this.heroes.reduce((s, h) => s + h.hp, 0);
-    this.statText.setText(`TEAM ${team}   ATK ${fmt(atk)}   HP ${fmt(hp)}   LV ${this.level}`);
+    const p = this.profile;
+    this.statText.setText(
+      `ATK ${fmt(Math.round(this.hero.atk * p.damageMul))}  ·  HP ${fmt(this.hero.hp)}  ·  LV ${this.level}\n` +
+      `arrows ${p.arrows}${p.rearArrows ? '(+' + p.rearArrows + ' rear)' : ''}  pierce ${p.pierce}  bounce ${p.bounce}  crit ${Math.round(p.critChance * 100)}%`,
+    );
   }
 
   private flashBanner(msg: string): void {
@@ -366,14 +425,12 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: t, y: t.y - 30, alpha: 0, duration: 1100, onComplete: () => t.destroy() });
   }
 
-  // ── death ────────────────────────────────────────────────────────────────
   private gameOver(): void {
     if (this.over) return;
     this.over = true;
     this.audio.play(AudioKeys.Defeat);
-    const reached = this.floor;
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.7).setOrigin(0).setDepth(90);
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `DEFEATED\nFloor ${reached}\nTAP TO RETRY`, {
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `DEFEATED\nFloor ${this.floor}\nTAP TO RETRY`, {
       fontFamily: 'monospace', fontSize: '30px', color: '#ff6b6b', align: 'center', stroke: '#1a1020', strokeThickness: 6,
     }).setOrigin(0.5).setDepth(91);
     this.time.delayedCall(700, () => {
@@ -384,7 +441,8 @@ export class GameScene extends Phaser.Scene {
 }
 
 function fmt(n: number): string {
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B';
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
   if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
-  return String(n);
+  return String(Math.round(n));
 }
