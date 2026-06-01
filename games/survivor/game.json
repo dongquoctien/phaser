@@ -1,30 +1,40 @@
 {
   "title": "Survivor",
   "description": "Twin-stick survivor — move with the joystick, auto-fire at the swarm, grab XP gems, level up and stack skills. How long can you last?",
-  "tags": ["survivor", "action", "roguelite"],
+  "tags": [
+    "survivor",
+    "action",
+    "roguelite"
+  ],
   "thumb": {
-    "grid": [
-      "................",
-      "......kkkk......",
-      ".....kssssk.....",
-      ".....kswwsk.....",
-      ".....kssssk.....",
-      "...kkkssssskk...",
-      "..kssssssssbbbk.",
-      "..kssssssssbbbk.",
-      "..kssssssssskk..",
-      "...kssssssssk...",
-      "....kssssssk....",
-      "....ksk..ksk....",
-      "....kk....kk....",
-      "................"
-    ],
     "map": {
       ".": null,
       "k": "#1a1c2c",
-      "s": "#41a6f6",
+      "c": "#b13e53",
+      "s": "#ffcd75",
+      "b": "#3b5dc9",
+      "g": "#566c86",
       "w": "#f4f4f4",
-      "b": "#566c86"
-    }
+      "e": "#1a1c2c",
+      "y": "#ffcd75"
+    },
+    "grid": [
+      "......yy........",
+      "...k..gg..k.....",
+      "..kgk.gg.kgk....",
+      "..kgk.gg.kgk....",
+      "...kkkccckkk....",
+      "...kcccccck.....",
+      "...kcsssssk.....",
+      "...kseweesk.....",
+      "...ksssssssk....",
+      "..kbbbbbbbbbk...",
+      "..kbbbbbbbbbk...",
+      "..kbbbbbbbbbk...",
+      "...kbbbbbbbk....",
+      "...kbk..kbk.....",
+      "...kk....kk..yy.",
+      ".............yy."
+    ]
   }
 }
