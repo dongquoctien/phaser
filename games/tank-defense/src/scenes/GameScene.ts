@@ -162,6 +162,9 @@ export class GameScene extends Phaser.Scene {
     this.selectedTower = null;
     this.rangePreview.setVisible(false);
     this.upgradePanel.setVisible(false);
+    // The upgrade panel occupies the same HUD band as START WAVE, so it hides the
+    // button while open (a modal); restore it on close if we're between waves.
+    if (!this.waveActive && !this.over) this.startBtn.setVisible(true);
   }
 
   // ── main loop ─────────────────────────────────────────────────────────────────
@@ -219,7 +222,7 @@ export class GameScene extends Phaser.Scene {
       this.money += 40 + this.wave * 6; // end-of-wave bonus
       this.refreshHud();
       if (this.wave >= Tuning.waveCount) { this.win(); return; }
-      this.startBtn.setVisible(true);
+      if (!this.upgradePanel.visible) this.startBtn.setVisible(true); // don't pop under the modal panel
     }
   }
 
@@ -308,25 +311,34 @@ export class GameScene extends Phaser.Scene {
   }
 
   private buildShop(): void {
-    // 3 tower buy buttons in the HUD strip
-    const y = HUD_TOP + 56;
-    this.startBtn = this.add.text(GAME_WIDTH / 2, HUD_TOP + 18, 'START WAVE', {
+    // HUD strip layout (624..800): START WAVE band on top, shop row below, hint at
+    // the very bottom — kept clear of each other so no control covers another
+    // (the phaser-smoketest overlap probe enforces this).
+    const y = HUD_TOP + 84; // shop-button centre → top at 652, bottom at 716
+    this.startBtn = this.add.text(GAME_WIDTH / 2, HUD_TOP + 6, 'START WAVE', {
       fontFamily: 'monospace', fontSize: '18px', color: '#a7f070', stroke: '#1a1c2c', strokeThickness: 4,
       backgroundColor: '#2a2038', padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setDepth(40).setInteractive({ useHandCursor: true });
     this.startBtn.on('pointerup', () => { this.audio.play(AudioKeys.Click); this.startWave(); });
 
+    const BTN_W = 116, BTN_H = 64;
     TOWER_IDS.forEach((id, i) => {
       const def = TOWERS[id];
       const x = GAME_WIDTH * (0.2 + i * 0.3);
       const c = this.add.container(x, y).setDepth(40);
-      const bg = this.add.rectangle(0, 0, 116, 64, 0x2a2038).setStrokeStyle(2, 0x4a3a6a);
+      const bg = this.add.rectangle(0, 0, BTN_W, BTN_H, 0x2a2038).setStrokeStyle(2, 0x4a3a6a);
       const base = this.add.image(-32, 0, def.baseTex).setScale(0.7);
       const turret = this.add.image(-32, 0, def.turretTex).setScale(0.7);
       const name = this.add.text(2, -22, def.name, { fontFamily: 'monospace', fontSize: '12px', color: '#ffffff' }).setOrigin(0, 0);
       const cost = this.add.text(2, 2, `$${def.tiers[0].upgradeCost}`, { fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f' }).setOrigin(0, 0);
       c.add([bg, base, turret, name, cost]);
-      bg.setInteractive({ useHandCursor: true }).on('pointerup', () => this.selectBuild(id));
+      // Input lives on a top-level named Zone (not the container's child rect), so it
+      // sits in scene.children.list with real world getBounds() — the layout/overlap
+      // probe (phaser-smoketest) can see and validate every shop button.
+      const zone = this.add.zone(x, y, BTN_W, BTN_H).setDepth(41)
+        .setInteractive({ useHandCursor: true });
+      zone.name = `shop:${id}`;
+      zone.on('pointerup', () => this.selectBuild(id));
       c.setData('id', id); c.setData('bg', bg);
       this.shopButtons.push(c);
     });
@@ -379,6 +391,7 @@ export class GameScene extends Phaser.Scene {
       this.upgradePanel.add(this.add.text(GAME_WIDTH / 2 - 70, 0, 'MAX', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f' }).setOrigin(0.5));
     }
     this.upgradePanel.setVisible(true);
+    this.startBtn.setVisible(false); // panel is modal over the START WAVE band
   }
 
   private refreshHud(): void {
