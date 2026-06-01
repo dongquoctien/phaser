@@ -235,10 +235,12 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
       .card-art {
         width: 86%;
         height: 86%;
-        image-rendering: pixelated;
         object-fit: contain;
       }
+      /* Pixel thumbs/covers (PNG raster, or gridToSvg) opt into crisp scaling;
+         vector cover.svg stays smooth by default. */
       img.card-art { image-rendering: pixelated; }
+      svg.card-art[shape-rendering="crispEdges"] { image-rendering: pixelated; }
       footer {
         max-width: 1280px;
         margin: 36px auto 0;
