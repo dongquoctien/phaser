@@ -23,6 +23,30 @@ those public sources — not copied from any other repo.**
 Always prefer the **`src/pixel/` helper** over ad-hoc `graphics.fill*` calls so output
 stays cohesive and cached.
 
+## 0. ALWAYS research the web first — before drawing ANYTHING
+
+This is mandatory for **every** drawing task — game sprites AND hub cover art —
+and it is **doubly** mandatory when the user did NOT supply a reference image.
+Never draw "from imagination" first. Research serves two distinct purposes; do
+both, not just the asset hunt:
+
+1. **Reusable asset hunt** — is there a verified **CC0/free** asset that already
+   fits? (Kenney.nl, OpenGameArt, itch.io "free", game-icons.net for props,
+   lucide/tabler for UI.) Verify the **license** (CC0 / clearly-permissive /
+   your-own only — never unknown-license art). If one fits, use it.
+2. **Style/convention study** — even when you'll hand-draw, search how this
+   subject is normally drawn so your shapes match player expectations. E.g.
+   "crossy-road frog top-down", "survivor.io app icon", "gold miner claw icon",
+   "flappy bird sprite". Look at how the silhouette, proportions, and signature
+   props read at small size. THIS is what was missing when a survivor cover came
+   out as an abstract cluster of circles and a gold-miner claw read as a roof —
+   a 20-second style search fixes that before you draw.
+
+Then draw (only if nothing reusable fits), and **Playwright-verify** the result
+(see below). If the user gave a reference image, study it as the primary source
+but still glance at the web for how the genre's icon/sprite is conventionally
+drawn.
+
 ## Render gates (Phaser crispness — all must hold)
 - `pixelArt: true` in the game config (sets nearest-neighbor + `roundPixels`).
 - Author at a small **base resolution**; scale up by **integer factors only** via
@@ -107,12 +131,33 @@ art you provide.
 - Loading a PNG when a small char-grid would do (heavier, less cohesive).
 - `antialias: true` on a pixel game.
 
-## Adding a game thumbnail (for the hub)
-A game's `game.json` may carry `"thumb": { "grid": [...], "map": { "y": "#ffcd75", ".": null } }`
-(a `PixelGrid`). The static-HTML hub renders it as **inline SVG** at build time (one
-`<rect>` per cell — `scripts/hub-template.mjs` `gridToSvg`), NOT a Phaser bake. Omit it →
-the hub draws a default cabinet glyph; a committed `games/<name>/cover.svg`/`cover.png`
-overrides it. Use Sweetie-16 hexes and keep rows equal length.
+## Adding a game cover / thumbnail (for the hub)
+
+**Research the web first (§0)** — study how this game's genre is drawn as an
+app-icon/cover before drawing, then **preview + Playwright-verify on a real card
+background** before committing (a cover that looks fine in isolation can read as
+an abstract blob at 86% of a 190px card).
+
+Cover artwork priority (per game), resolved by `scripts/build-all.mjs`:
+1. committed **`games/<name>/cover.svg`** — inlined into the card (**default for
+   SVG/vector games**; smooth, scales perfectly). This is what the 4 current games
+   use.
+2. `games/<name>/cover.png` — data-URI'd (raster; opts into crisp scaling).
+3. `game.json` `"thumb": { grid, map }` (a `PixelGrid`) — rendered as **inline
+   SVG** at build time (one `<rect>` per cell, `gridToSvg`), NOT a Phaser bake.
+   Use for pixel games. Sweetie-16 hexes, equal-length rows.
+4. none → default cabinet glyph.
+
+**Hub CSS note:** `.card-art` no longer force-pixelates; vector `cover.svg` stays
+smooth, while pixel thumbs / PNGs opt back into crisp scaling via a
+`svg.card-art[shape-rendering="crispEdges"]` / `img.card-art` selector. Keep the
+live `scripts/hub-template.mjs` and `templates/root/scripts/hub-template.mjs` in
+sync.
+
+**Verify recipe (covers):** write the candidate SVG(s), build a tiny preview HTML
+that places each on its real pastel card (same 86% sizing), serve it, screenshot
+via Playwright, and judge readability at card size. Show an **old-vs-new** pair
+when redrawing. Only commit once the silhouette + signature props read clearly.
 
 See also: `phaser-new-game` (scaffolds games that import this helper),
 `phaser-smoketest` (verifies the rendered result), and `sources.md`.

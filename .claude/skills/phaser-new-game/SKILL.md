@@ -60,19 +60,28 @@ crisp at any resolution). Use **pixel-art ONLY when the user explicitly says
 > `Phaser.AUTO`), `Group#children` is a Set (use `getChildren()`), and
 > `Textures.generate` is gone (use `Graphics.generateTexture`).
 
-### Before drawing ANY art — research first, draw last
-Always try to **reuse a verified free asset before hand-drawing**:
-1. **Search the web** for a fitting asset: CC0/free game art (**Kenney.nl**,
-   **OpenGameArt**, itch.io "free"), or SVG icon sets (**game-icons.net** for game
-   props, **lucide** / **tabler** for UI).
-2. **Verify the LICENSE** — only CC0 / clearly-permissive / your-own. Never use art
+### Before drawing ANY art — research the web first, draw last
+**Mandatory. Especially when the user did NOT provide a reference image — if they
+gave no art, you MUST search the web before drawing, never invent from memory.**
+Research has two purposes (do both):
+1. **Reusable asset hunt** — a fitting **CC0/free** asset that already works:
+   CC0/free game art (**Kenney.nl**, **OpenGameArt**, itch.io "free"), or SVG icon
+   sets (**game-icons.net** for game props, **lucide** / **tabler** for UI).
+2. **Style/convention study** — search how this subject is normally drawn (e.g.
+   "crossy-road frog top-down sprite", "survivor.io app icon") so your shapes match
+   what players expect at small size, even when you hand-draw.
+3. **Verify the LICENSE** — only CC0 / clearly-permissive / your-own. Never use art
    of unknown license (e.g. media in Phaser's own example repos is unlicensed).
-3. **Verify it fits with Playwright**: drop the candidate into the game (or a tiny
+4. **Verify it fits with Playwright**: drop the candidate into the game (or a tiny
    preview page), render it, screenshot, and judge — right silhouette, readable at
    game size, matches the other art's style/palette.
-4. **Only if nothing fits → draw it** (SVG for default games via the `pixel-art`
+5. **Only if nothing fits → draw it** (SVG for default games via the `pixel-art`
    skill's craft rules, or a pixel grid if in pixel mode). Re-verify the drawn art
    the same way (zoom in; readable silhouette first).
+
+> The hub **cover.svg** follows the same protocol — research the genre's icon
+> style, draw, then Playwright-verify on a real card. See `pixel-art` §0 and
+> "Adding a game cover / thumbnail".
 
 ## 1. Steps
 
