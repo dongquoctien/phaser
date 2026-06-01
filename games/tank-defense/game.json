@@ -1,0 +1,42 @@
+{
+  "title": "Tank Defense",
+  "description": "Place gun, cannon and missile towers along the road, upgrade them, and stop waves of enemy tanks before they break through.",
+  "tags": [
+    "tower-defense",
+    "strategy",
+    "tanks"
+  ],
+  "thumb": {
+    "map": {
+      ".": null,
+      "k": "#1a1c2c",
+      "g": "#38b764",
+      "l": "#a7f070",
+      "p": "#333c57",
+      "s": "#566c86",
+      "t": "#257179",
+      "c": "#73eff7",
+      "r": "#b13e53",
+      "y": "#ffcd75",
+      "m": "#94b0c2"
+    },
+    "grid": [
+      "gglgggppppppgggg",
+      "gggggppppppgglgg",
+      "glggkkkggppggggg",
+      "gggktttkgpppprrg",
+      "ggktccctkpppkrkg",
+      "ggktccctkppkrrkg",
+      "gggktttkgppkrrkg",
+      "glggkckggppkrrkg",
+      "ggggkckgggpkrrkg",
+      "gggggkggglpkkkkg",
+      "ggpppppppppggggg",
+      "gppppppppppppglg",
+      "gppppppppppppppg",
+      "glgggggggggggggg",
+      "gggggglgggggglgg",
+      "gggggggggggggggg"
+    ]
+  }
+}
