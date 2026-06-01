@@ -131,7 +131,7 @@ function groupByCategory(games) {
 }
 
 /** Render the full hub document. */
-export function renderHub({ games, title = 'PHASER ARCADE' }) {
+export function renderHub({ games, title = 'PHASER ARCADE', ogImage = '', baseUrl = '' }) {
   const groups = groupByCategory(games);
   // render sections; only show the category heading when there's more than one
   let gi = 0; // global card index (stable colours/numbers across sections)
@@ -161,8 +161,17 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)}</title>
-    <meta name="description" content="A collection of games built with Phaser 4." />
+    <meta name="description" content="A collection of pixel-art games built with Phaser 4." />
     <link rel="icon" href="${FAVICON_HREF}" />
+${ogImage ? `    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escapeHtml(title)}" />
+    <meta property="og:description" content="A collection of pixel-art games — play in your browser." />
+    <meta property="og:image" content="${escapeHtml(ogImage)}" />
+    <meta property="og:url" content="${escapeHtml(baseUrl)}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escapeHtml(title)}" />
+    <meta name="twitter:image" content="${escapeHtml(ogImage)}" />
+` : ''}
     <style>
       :root { color-scheme: dark; --pixel: ui-monospace, 'Courier New', monospace; }
       * { box-sizing: border-box; }
