@@ -110,9 +110,41 @@ function renderCard(game, i) {
       </a>`;
 }
 
+// Group games by `category` into ordered sections. TWDC-style custom categories
+// come first (in first-seen order), then the default "Arcade" bucket last. The
+// global card index is preserved across sections so each card keeps a unique
+// pastel colour + number.
+function groupByCategory(games) {
+  const order = [];
+  const buckets = new Map();
+  for (const g of games) {
+    const cat = (g.category && String(g.category).trim()) || 'Arcade';
+    if (!buckets.has(cat)) {
+      buckets.set(cat, []);
+      order.push(cat);
+    }
+    buckets.get(cat).push(g);
+  }
+  // keep "Arcade" (the catch-all) last; everything else stays in first-seen order
+  order.sort((a, b) => (a === 'Arcade' ? 1 : 0) - (b === 'Arcade' ? 1 : 0));
+  return order.map((cat) => ({ cat, items: buckets.get(cat) }));
+}
+
 /** Render the full hub document. */
 export function renderHub({ games, title = 'PHASER ARCADE' }) {
-  const cards = games.map(renderCard).join('\n');
+  const groups = groupByCategory(games);
+  // render sections; only show the category heading when there's more than one
+  let gi = 0; // global card index (stable colours/numbers across sections)
+  const sections = groups
+    .map(({ cat, items }) => {
+      const cards = items.map((g) => renderCard(g, gi++)).join('\n');
+      const heading =
+        groups.length > 1
+          ? `      <h2 class="cat">${escapeHtml(cat)} <span class="cat-n">${items.length}</span></h2>\n`
+          : '';
+      return `${heading}      <div class="grid">\n${cards}\n      </div>`;
+    })
+    .join('\n');
   const n = games.length;
   // Highlight the middle two letters of the wordmark green, like the reference.
   const wm = title.split('');
@@ -212,12 +244,42 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
         letter-spacing: 0.05em;
         margin-top: 2px;
       }
+      .catalog { max-width: 1280px; margin: 0 auto; }
+      .cat {
+        margin: 26px 2px 12px;
+        font-size: clamp(14px, 2vw, 18px);
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #cfe8d6;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .cat::before {
+        content: '';
+        width: 10px; height: 10px; border-radius: 2px;
+        background: #7cf59b;
+        box-shadow: 0 0 8px rgba(124,245,155,0.7);
+      }
+      .cat::after {
+        content: '';
+        flex: 1; height: 1px;
+        background: linear-gradient(to right, #2a2f44, transparent);
+      }
+      .cat-n {
+        font-size: 11px;
+        color: #6a7090;
+        background: #15151f;
+        border: 1px solid #232336;
+        border-radius: 999px;
+        padding: 1px 8px;
+      }
+      .cat:first-child { margin-top: 6px; }
       .grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
         gap: 14px;
-        max-width: 1280px;
-        margin: 0 auto;
       }
       .card {
         background: var(--bg);
@@ -306,8 +368,8 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
       <div class="menu" aria-hidden="true"><span></span><span></span><span></span></div>
       <p class="sub">${n} game${n === 1 ? '' : 's'} · click to play</p>
     </header>
-    <main class="grid">
-${cards}
+    <main class="catalog">
+${sections}
     </main>
     <footer>Built with Phaser 4 · Vite · TypeScript</footer>
   </body>
