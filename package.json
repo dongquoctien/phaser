@@ -26,7 +26,10 @@
     "preview:dungeon-pets": "vite preview --config games/dungeon-pets/vite.config.mjs games/dungeon-pets",
     "dev:tank-defense": "vite --config games/tank-defense/vite.config.mjs games/tank-defense",
     "build:tank-defense": "vite build --config games/tank-defense/vite.config.mjs games/tank-defense",
-    "preview:tank-defense": "vite preview --config games/tank-defense/vite.config.mjs games/tank-defense"
+    "preview:tank-defense": "vite preview --config games/tank-defense/vite.config.mjs games/tank-defense",
+    "dev:twdc-defense": "vite --config games/twdc-defense/vite.config.mjs games/twdc-defense",
+    "build:twdc-defense": "vite build --config games/twdc-defense/vite.config.mjs games/twdc-defense",
+    "preview:twdc-defense": "vite preview --config games/twdc-defense/vite.config.mjs games/twdc-defense"
   },
   "devDependencies": {
     "phaser": "^4.1.0",
