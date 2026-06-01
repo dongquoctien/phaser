@@ -28,7 +28,7 @@ export class Mover extends Phaser.GameObjects.Image {
     this.kind = kind;
     this.speed = speed;
     this.rowIndex = rowIndex;
-    this.setScale(0.5); // art baked at 2x
+    this.setScale(1); // pixel art baked at final size
     this.setFlipX(speed < 0); // face travel direction
     this.halfW = this.displayWidth / 2;
     this.setPosition(x, y);

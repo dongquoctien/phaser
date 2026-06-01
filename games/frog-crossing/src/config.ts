@@ -17,8 +17,9 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   title: 'Frog Crossing',
   parent: 'game',
   backgroundColor: '#1e1f2b',
-  // SVG/vector look: antialias ON (default), pixelArt OFF — smooth cartoon art.
-  render: { powerPreference: 'high-performance' },
+  // Pixel-art: crisp nearest-neighbor + roundPixels (v4 defaults it false).
+  pixelArt: true,
+  render: { powerPreference: 'high-performance', roundPixels: true },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.NO_CENTER,
