@@ -56,8 +56,10 @@ export class Unit {
       .setDepth(12);
   }
 
+  dead = false; // set once when removed from play — guards double-kill
+
   get alive(): boolean {
-    return this.hp > 0;
+    return !this.dead && this.hp > 0;
   }
 
   /** Apply incoming damage (already mitigated by caller). Returns true if killed. */

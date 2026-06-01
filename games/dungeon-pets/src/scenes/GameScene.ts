@@ -284,12 +284,13 @@ export class GameScene extends Phaser.Scene {
   }
 
   private killEnemy(e: Unit): void {
-    if (!e.alive) return;
+    if (e.dead) return; // already removed (guards double-kill from multi-hit / DoT)
+    e.dead = true;
     e.hp = 0;
     e.die();
     this.enemies = this.enemies.filter((x) => x !== e);
     this.gainXp(Tuning.xpPerKill);
-    if (this.enemies.length === 0 && !this.over) this.advanceRound();
+    if (this.enemies.length === 0 && !this.spawning && !this.over) this.advanceRound();
   }
 
   // ── progression ────────────────────────────────────────────────────────────
@@ -364,7 +365,9 @@ export class GameScene extends Phaser.Scene {
     this.updateStatText();
     this.spawning = false;
     // Chain to the next queued level-up, if any (resumes on the next tick).
-    if (this.pendingLevels > 0) this.time.delayedCall(60, () => this.levelUp());
+    if (this.pendingLevels > 0) { this.time.delayedCall(60, () => this.levelUp()); return; }
+    // If the wave was wiped while the pick was open, advance now that we resumed.
+    if (this.enemies.length === 0 && !this.over) this.advanceRound();
   }
 
   // ── HUD / backdrop ─────────────────────────────────────────────────────────
