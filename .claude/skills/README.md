@@ -13,6 +13,7 @@ automatically when your request matches, or call them with `/<name>`.
 | **phaser-smoketest** | Autotest bằng **Playwright MCP**: boot game trong browser thật, check canvas render + console sạch + đo FPS + screenshot từng scene. Là bước verify cuối mà các skill new-game/optimize/perf-audit gọi tới. |
 | **pixel-art** | Vẽ pixel-art procedural trong Phaser (game + hub): palette Sweetie-16, value ramp + hue-shift, 1 hướng sáng, outline selout, integer scale, nearest-neighbor. Dùng helper `src/pixel/` (`bakeSprite`, `ramp`, `lit`/`shade`). Trigger: "vẽ pixel/sprite", "tạo icon pixel", art "looks off / mờ". |
 | **phaser-audio** | Thêm âm thanh: research SFX/nhạc CC0 (Kenney/freesound) trước → load → helper `Audio` (throttle theo key, mute persist registry, xử lý WebAudio autoplay-unlock + guard cache trước decode). Trigger: "âm thanh", "tiếng", "SFX", "nhạc nền", "thiếu tiếng". |
+| **game-design** | Thiết kế **cảm giác** game (không phải kỹ thuật): core loop & pacing, juice (screen shake, hit-stop, squash/stretch, particle, color flash, damage numbers), 12 nguyên tắc animation, sound feedback, telegraph/readability của enemy, onboarding. Trigger: game "nhạt / flat / không có chiều sâu / thiếu cảm giác", làm combat/feedback, hoặc lên kế hoạch loop game mới. Có `sources.md` (research từ Juice-it-or-lose-it, 12 principles, GDC telegraphing, sound-design, FTUE). |
 
 ## Stack quy ước
 - **Phaser 4.1.0** (đã nâng từ 3.90; v4 renderer mới. Lưu ý: v4 bỏ `Textures.generate`+Create Palettes, `roundPixels` default `false` → đã set explicit `roundPixels: true`).
