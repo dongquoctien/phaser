@@ -28,6 +28,7 @@ export class PreloadScene extends Phaser.Scene {
     // instance; its vertical edges stay crisp because they're straight columns.
     bakeSprite(this, TextureKeys.Bird, BIRD, { px: 3 });
     bakeSprite(this, TextureKeys.Pipe, PIPE, { px: 3 });
+    bakeSprite(this, TextureKeys.PipeCap, PIPE_CAP, { px: 3 });
 
     // Ground stays a plain strip (full-width, no detail needed).
     const g = this.make.graphics({ x: 0, y: 0 }, false);
@@ -70,10 +71,24 @@ const BIRD: PixelGrid = {
   ],
 };
 const PIPE: PixelGrid = {
-  map: { '.': null, k: H.black, g: H.green, l: H.lime, d: H.teal, s: H.dark },
+  // Pure vertical column (NO horizontal bands) so stretching the height never
+  // distorts a row — only the dark side-edges + green fill scale, staying crisp.
+  // The cap is a separate non-stretched texture (PIPE_CAP) the scene places at
+  // the pipe's mouth.
+  map: { '.': null, k: H.black, g: H.green, l: H.lime, s: H.dark },
   grid: [
-    'kkkkkkkkkkkkkk', 'klggggggggggsk', 'klggggggggggsk', 'klggggggggggsk',
-    'kkkkkkkkkkkkkk', '.klggggggggsk.', '.klggggggggsk.', '.klggggggggsk.',
-    '.klggggggggsk.', '.klggggggggsk.', '.klggggggggsk.', '.klggggggggsk.',
+    'klggggggggsk',
+    'klggggggggsk',
+  ],
+};
+// Pipe mouth cap — placed at the gap end, never stretched.
+const PIPE_CAP: PixelGrid = {
+  map: { '.': null, k: H.black, g: H.green, l: H.lime, s: H.dark },
+  grid: [
+    'kkkkkkkkkkkkkk',
+    'klgggggggggssk',
+    'klgggggggggssk',
+    'klgggggggggssk',
+    'kkkkkkkkkkkkkk',
   ],
 };

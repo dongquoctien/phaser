@@ -14,6 +14,7 @@ export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];
 export const TextureKeys = {
   Bird: 'bird',
   Pipe: 'pipe',
+  PipeCap: 'pipe-cap',
   Ground: 'ground',
 } as const;
 
