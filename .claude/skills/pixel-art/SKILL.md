@@ -99,6 +99,50 @@ art you provide.
   on key; throws on ragged rows / unmapped char).
 - `BUILTINS` — `cabinet` / `gamepad` / `bird` / `play` ready-made grids.
 
+## SVG / vector art craft (the DEFAULT mode — see §0a of phaser-new-game)
+
+Most games here use **SVG vector art** (smooth), pixel only on request. Craft rules
+for vector sprites/icons/covers that read well, especially at small card/sprite size:
+
+- **`viewBox`, never hardcoded width/height** — resolution-independent; the sprite
+  scales to any display size. Put the critical detail in the **center**.
+- **Solid fills > thin strokes for sub-32px art.** Thin strokes vanish when scaled
+  down; build the silhouette from filled shapes. Use `stroke-linecap="round"` and a
+  **high stroke-width relative to the viewBox** only where a line is essential.
+- **Cheap outline / cell-shade for "pop":** duplicate a shape, scale it slightly
+  larger, set it to a darker "outline" colour, drop it *below* the original. A second
+  lighter shape on the light side = two-tone cell shading (depth without gradients).
+- **Gradients** (when smoothness helps — covers, glows): `<linearGradient>` along a
+  direction, `<radialGradient>` from a focal point, multi-stop for ramps. A radial
+  white→transparent stop = a soft glow/highlight. Keep them few — flat reads cleaner
+  at small size and stays light.
+- **Filters for fx:** `feGaussianBlur` (soft glow/shadow), `feDropShadow`, chained
+  primitives = Photoshop-ish effects without rasterizing. Use sparingly (cost + can
+  muddy at small size).
+- **Readable silhouette first** (same gate as pixel): the shape must be clear in solid
+  black before adding colour/detail. **Verify at the TARGET size** (sprite scale, or
+  86% of a 190px hub card) with Playwright — a cover fine in isolation can read as a
+  blob on a card (a real miss we hit on survivor/gold-miner). Show old-vs-new when
+  redrawing.
+- **Baking in this repo:** game sprites either `load.svg(key, url, {scale})` (rasterize
+  once at load) or are built with `Graphics.generateTexture` (the frog/dungeon-pets
+  art). Hub covers are inline `cover.svg`. Either way, **research the genre's icon
+  style first** (§0 below / phaser-new-game §0a), then draw, then verify.
+
+## Advanced pixel techniques (pixel mode)
+
+- **Dithering** — alternate two palette colours in a pattern to fake a third / a
+  gradient without adding colours. Good for skies, metal, retro texture; **avoid on
+  small objects, faces, and anything needing readability** (it muddies them).
+- **Manual anti-aliasing** — pixel art is normally AA-off (crisp), but you can *hand*-
+  place 1–2 intermediate-value pixels on a hard diagonal/curve to smooth it. Use
+  intentionally and sparingly; never a blanket blur.
+- **Selout (selective outline)** — outline in the local ramp's darkest tone, not flat
+  `#000` everywhere, so the outline has hue/value variety (already in the craft gates).
+- **Colour-cycling animation** — animate by *cycling an indexed palette* (not redrawing
+  pixels): flowing water, lava, blinking lights, sparkles — near-zero data. In Phaser,
+  swap a few palette entries on a timer or re-tint.
+
 ## Anti-patterns to refuse
 - Fractional scale or non-integer sprite positions on a pixel canvas.
 - Re-baking a texture every frame (bake once, cache by key).

@@ -1,6 +1,6 @@
 ---
 name: game-design
-description: Design the FEEL of a game — core loop & pacing, juice (screen shake, hit-stop, squash/stretch, particles, color flash, damage numbers), animation principles, sound feedback, enemy telegraphing/readability, and onboarding. Use when a game "feels flat / boring / không có chiều sâu / nhạt / thiếu cảm giác", when building combat/feedback, or when planning a new game's loop & progression. The design counterpart to the technical phaser-* skills.
+description: Design the FEEL of a game — core loop & pacing, juice (screen shake, hit-stop, squash/stretch, particles, color flash, damage numbers), animation principles + frame timing, VFX/effect anatomy (additive vs alpha blend, explosion/spell phases), sound feedback, enemy telegraphing/readability, onboarding, reading/reverse-engineering a game from a reference image, and inferring narrative/theme logic from genre. Use when a game "feels flat / boring / không có chiều sâu / nhạt / thiếu cảm giác", when building combat/feedback or effects, when planning a new game's loop & progression, or when deconstructing a reference screenshot into mechanics. The design counterpart to the technical phaser-* skills.
 ---
 
 # Game Design — Feel, Loop, Juice (this monorepo)
@@ -66,6 +66,20 @@ frame-by-frame. The high-value principles for this repo's games:
   (see `pixel-art`). Over-shoot the pose; reality is boring.
 - **Timing**: fast actions = few ms (hit flash 60–80ms); settles = longer. Hold the
   end pose briefly so the eye registers it.
+
+### Frame-by-frame timing (if you DO animate frames, not just tween)
+The single thing that separates amateur from pro sprite animation is **uneven
+timing** — don't hold every frame the same. Hold the **key poses** long, blow through
+the transitions:
+- **Walk cycle** = 4 poses min (contact → passing → contact → passing), ~80–150ms each,
+  fairly even. 6 frames = smoother, 8 = AAA. Add a 1-px/1-frame delay on hair/tail/ears
+  (secondary motion) and the walk comes alive.
+- **Attack** = wind-up → anticipation peak → **strike** → recovery, but **variable**:
+  e.g. wind-up 80ms, hold the anticipation 300–400ms, strike 1 fast frame, recovery
+  ~150ms. Equal 100ms-per-frame feels mushy; the long hold on anticipation is what
+  telegraphs the hit (ties to §4). This makes 4 frames *feel* like twelve.
+- In Phaser this maps to per-frame `duration` in a tween timeline, or a sprite-sheet
+  anim with custom `frameRate`/per-frame holds — not a constant rate.
 
 ## 3. Juice — feedback per action (the biggest "feel" win, low effort)
 
@@ -160,6 +174,63 @@ Most games here are arcade/roguelite — narrative is light, but a little framin
 - **Roguelite framing loop**: *enter → fight → loot/level → get stronger → push
   deeper*; surface it through banners, floor numbers, and the build grid, not prose.
 - Keep copy **short and active** ("DEFEATED · TAP TO RETRY"), themed, no walls of text.
+
+### Inferring story/logic from a genre (when there's no script)
+When the brief is just "make a game like this image", derive the implied logic:
+- **Genre conventions carry meaning** — a crown = boss/elite; a skull = danger/death;
+  a heart = HP/heal; gold = currency/reward; a lock = gated progression. Reuse the
+  language players already know instead of inventing.
+- **The Holy Trinity** (plot · character · lore) collapses to *theme cohesion* for
+  arcade games: every visual + system should point at one fantasy ("plucky pets brave
+  an endless dungeon"). A capybara hero + skeleton foes + a pet joining = that fantasy,
+  no prose needed.
+- **Tie every loop back to the player's core goal/motivation** (survive deeper, get
+  stronger). If a system doesn't serve the fantasy or the goal, cut it.
+- **Consistency = believability**: don't mix tones/themes at random. A tiny "lore
+  bible" in your head (what is this world, who's the hero, what's the threat) keeps
+  art, copy, and systems aligned.
+
+## 8. Reading a reference image (reverse-engineering a game from a screenshot)
+
+Most new games here start from a reference image. Deconstruct it systematically before
+building — this is what turns "make a game like this" into a correct plan:
+
+1. **Genre & core loop** — what is the player *doing*? (auto-battle? hop? aim+fire?)
+   Name the loop in one sentence (§1). Telltales: a fire button vs auto-attack, a grid
+   vs free movement, lanes, waves, a timer.
+2. **HUD inventory** — list every on-screen element and infer its system: big number =
+   idle scaling; HP/ATK/DEF bars = stats; "Round 1/15" = wave structure; "Floor 52" =
+   endless depth; a skill grid = accumulating build (roguelite); "x3" = speed toggle;
+   "Give Up" = run-based with settle-on-quit.
+3. **Entities & roles** — hero(es), enemies (and which is elite/boss via crown/size/
+   colour), pets/companions, projectiles, drops. Note facing/orientation and relative
+   scale.
+4. **Art style** — vector-cartoon vs pixel; palette; rounded vs sharp; shading. Decide
+   SVG (default) vs pixel-on-request (`pixel-art`). **Research the genre's look** before
+   drawing (don't copy the reference's exact assets — they're usually licensed).
+5. **Layout & orientation** — portrait/landscape, where the action band sits, where the
+   controls/HUD live. Match it (mobile reference → portrait 480×800 here).
+6. **What to build first** — extract the *core* (entities + the one loop + win/lose)
+   and defer meta (leaderboard, gacha, shops). Confirm scope with the user.
+> Pitfall: don't reproduce the reference's exact numbers/art — infer the *system* and
+> rebuild it CC0-clean. The image tells you the **mechanics and feel**, not the assets.
+
+## 9. Effect / VFX anatomy (beyond the §3 juice quick-hits)
+
+For bigger effects (explosions, spells, deaths), think in **phases + blend modes**:
+- **Anatomy**: *charge/anticipation → burst/impact → dissipate/fade*. Even a 3-tween
+  sequence (grow → flash → shrink+fade) reads as a deliberate effect, not a blip.
+- **Additive blend** = bright glows, fire cores, sparks, magic (colours add → white-hot
+  centres). **Alpha blend** = smoke, soft particles, shockwave rings. In Phaser:
+  `setBlendMode(Phaser.BlendModes.ADD)` on the glow sprites; normal alpha for smoke.
+- **Layer** several systems for one effect: a bright additive core + alpha smoke + a
+  few fast sparks + a quick expanding ring reads far richer than one puff.
+- **Colour-code by meaning** (consistent with §4): gold = crit, red = fire/danger,
+  green = poison/heal, blue = the hero's own shots. The effect *communicates*, not just
+  decorates — a shockwave confirms "the hit landed".
+- **Timing**: effects are FAST (impact 100–300ms); a slow effect feels mushy. Scale
+  size/intensity by the event's weight (small hit vs boss death). **Pool everything**
+  (`phaser-perf-audit`) — a screen of effects must hold 60fps.
 
 ---
 

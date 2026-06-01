@@ -54,9 +54,36 @@ from these; no code or text is copied from any other game/repo.
 - Game Developer, "Sound Design for Video Games: A Primer":
   https://www.gamedeveloper.com/audio/sound-design-for-video-games-a-primer
 
-## VFX / particles / damage numbers
+## VFX / particles / damage numbers / effect anatomy (expanded 2026-06)
 - Pixune, "Ultimate Guide to Game VFX & Particle Systems":
   https://pixune.com/blog/the-ultimate-guide-to-game-vfx/
+- Magic Media, "Ultimate Guide to VFX for Gaming: From Explosions to Environments":
+  https://magicmedia.studio/news-insights/guide-to-vfx-for-gaming/
+- Generalist Programmer, "Game Particle Effects: Complete VFX Programming Guide"
+  (additive vs alpha blend, particle params, spell/explosion construction):
+  https://generalistprogrammer.com/tutorials/game-particle-effects-complete-vfx-programming-guide-2025
+
+## Sprite animation (frame timing, walk/attack anatomy, secondary motion) — added 2026-06
+- Sprite-AI, "How to animate pixel art — walk cycles, idles, attacks":
+  https://www.sprite-ai.art/guides/how-to-animate-pixel-art
+- Sprite-AI, "Sprite animation frames — how many do you actually need?" (uneven timing):
+  https://www.sprite-ai.art/blog/sprite-animation-frames
+- Pixnote, "How to Animate Pixel Art — Walk Cycles, Sprite Sheets & FPS Guide":
+  https://pixnote.net/en/learn/animation/
+
+## Reading a reference / reverse-engineering a game from an image — added 2026-06
+- MindStudio, "How to Reverse-Engineer Any Image Prompt" (deconstructing a screenshot):
+  https://www.mindstudio.ai/blog/how-to-reverse-engineer-image-prompts-chatgpt
+- (genre-convention reading is applied judgement, cross-checked against the loop/HUD
+  deconstruction in §8)
+
+## Narrative logic / worldbuilding / theme cohesion — added 2026-06
+- Pixune, "Game Narrative Design Complete Guide" (the plot·character·lore trinity):
+  https://pixune.com/blog/game-narrative-developing-a-story-that-works/
+- Number Analytics, "Lore Consistency in Game Narrative" (consistency = believability):
+  https://www.numberanalytics.com/blog/lore-consistency-game-narrative
+- The Level Design Book, "Worldbuilding":
+  https://book.leveldesignbook.com/process/preproduction/worldbuilding
 
 ## Onboarding / FTUE / narrative
 - Alexia Mandeville, "Designing a Good Game Tutorial":
