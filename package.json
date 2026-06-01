@@ -20,7 +20,10 @@
     "preview:survivor": "vite preview --config games/survivor/vite.config.mjs games/survivor",
     "dev:frog-crossing": "vite --config games/frog-crossing/vite.config.mjs games/frog-crossing",
     "build:frog-crossing": "vite build --config games/frog-crossing/vite.config.mjs games/frog-crossing",
-    "preview:frog-crossing": "vite preview --config games/frog-crossing/vite.config.mjs games/frog-crossing"
+    "preview:frog-crossing": "vite preview --config games/frog-crossing/vite.config.mjs games/frog-crossing",
+    "dev:dungeon-pets": "vite --config games/dungeon-pets/vite.config.mjs games/dungeon-pets",
+    "build:dungeon-pets": "vite build --config games/dungeon-pets/vite.config.mjs games/dungeon-pets",
+    "preview:dungeon-pets": "vite preview --config games/dungeon-pets/vite.config.mjs games/dungeon-pets"
   },
   "devDependencies": {
     "phaser": "^4.1.0",
