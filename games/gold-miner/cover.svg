@@ -1,0 +1,13 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gold miner claw grabbing a gold nugget">
+  <path d="M50 4 q3 7 0 14 q-3 7 0 13" fill="none" stroke="#c08a3e" stroke-width="3.5"/>
+  <rect x="42" y="28" width="16" height="9" rx="3" fill="#9aa1ad"/>
+  <rect x="44" y="25" width="12" height="5" rx="2" fill="#b9bfc9"/>
+  <path d="M30 56 l13 -10 18 4 7 17 -9 17 -21 -2 z" fill="#ffcf33"/>
+  <path d="M50 50 l18 4 7 17 -9 17 -10 -2 z" fill="#e6a912"/>
+  <path d="M30 56 l13 -10 5 6 -12 9 z" fill="#fff0a8"/>
+  <circle cx="44" cy="66" r="2.8" fill="#fff6cf"/><circle cx="60" cy="72" r="2.2" fill="#fff6cf"/>
+  <path d="M44 36 C30 42 26 56 32 70 C34 75 40 76 44 73" fill="none" stroke="#cfd3da" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M56 36 C70 42 74 56 68 70 C66 75 60 76 56 73" fill="none" stroke="#cfd3da" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M44 36 C32 42 28 56 33 69" fill="none" stroke="#9aa1ad" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+  <path d="M24 48 l1.6 4.4 4.4 1.6 -4.4 1.6 -1.6 4.4 -1.6 -4.4 -4.4 -1.6 4.4 -1.6 z" fill="#fff3b0"/>
+</svg>

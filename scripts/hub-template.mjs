@@ -12,6 +12,24 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// Inline SVG favicon — a little arcade cabinet in the hub's green-on-dark theme.
+// Drawn at viewBox 0 0 32 32 so it reads down to 16px. Embedded as a data-URI
+// (no favicon.ico request); only `#` needs encoding for the href.
+const FAVICON_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">` +
+  `<rect width="32" height="32" rx="7" fill="#15151f"/>` +
+  `<path d="M9 6 q0 -1 1 -1 h12 q1 0 1 1 v20 q0 1 -1 1 h-12 q-1 0 -1 -1 z" fill="#7cf59b"/>` +
+  `<rect x="9" y="6" width="14" height="3.5" rx="1" fill="#0a0a14"/>` +
+  `<rect x="11" y="11" width="10" height="7" rx="1" fill="#0a0a14"/>` +
+  `<rect x="12" y="12" width="8" height="5" rx="0.5" fill="#1a3a2a"/>` +
+  `<circle cx="13" cy="21.5" r="1.5" fill="#0a0a14"/>` +
+  `<rect x="12.4" y="21.5" width="1.2" height="2.4" fill="#0a0a14"/>` +
+  `<circle cx="18" cy="22" r="1.1" fill="#0a0a14"/><circle cx="20.5" cy="22" r="1.1" fill="#0a0a14"/>` +
+  `<rect x="9.5" y="27" width="3" height="2" rx="0.6" fill="#7cf59b"/>` +
+  `<rect x="19.5" y="27" width="3" height="2" rx="0.6" fill="#7cf59b"/>` +
+  `</svg>`;
+const FAVICON_HREF = `data:image/svg+xml,${FAVICON_SVG.replace(/#/g, '%23').replace(/"/g, "'")}`;
+
 // Pastel palette (light → near-black title reads on every one). Cycled per card.
 const PALETTE = [
   '#A8E6CF', '#FFD3B6', '#FFAAA5', '#FFF1A8',
@@ -112,10 +130,7 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)}</title>
     <meta name="description" content="A collection of games built with Phaser 4." />
-    <link
-      rel="icon"
-      href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC"
-    />
+    <link rel="icon" href="${FAVICON_HREF}" />
     <style>
       :root { color-scheme: dark; }
       * { box-sizing: border-box; }
@@ -235,10 +250,12 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
       .card-art {
         width: 86%;
         height: 86%;
-        image-rendering: pixelated;
         object-fit: contain;
       }
+      /* Pixel thumbs/covers (PNG raster, or gridToSvg) opt into crisp scaling;
+         vector cover.svg stays smooth by default. */
       img.card-art { image-rendering: pixelated; }
+      svg.card-art[shape-rendering="crispEdges"] { image-rendering: pixelated; }
       footer {
         max-width: 1280px;
         margin: 36px auto 0;
