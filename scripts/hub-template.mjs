@@ -132,15 +132,35 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
     <meta name="description" content="A collection of games built with Phaser 4." />
     <link rel="icon" href="${FAVICON_HREF}" />
     <style>
-      :root { color-scheme: dark; }
+      :root { color-scheme: dark; --pixel: ui-monospace, 'Courier New', monospace; }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         min-height: 100vh;
-        background: #0a0a14;
+        background:
+          radial-gradient(1200px 600px at 50% -10%, #161a2e 0%, #0a0a14 60%) ,
+          #0a0a14;
         color: #e8e8f0;
-        font-family: ui-sans-serif, system-ui, 'Segoe UI', Roboto, Arial, sans-serif;
+        font-family: var(--pixel);
+        letter-spacing: 0.02em;
         padding: clamp(20px, 4vw, 40px) clamp(12px, 3vw, 28px) 60px;
+      }
+      /* CRT scanline overlay — pure CSS, sits above everything, ignores pointer. */
+      body::after {
+        content: '';
+        position: fixed; inset: 0; pointer-events: none; z-index: 9;
+        background: repeating-linear-gradient(
+          to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px,
+          rgba(0,0,0,0.16) 3px, rgba(0,0,0,0) 4px);
+        mix-blend-mode: multiply;
+      }
+      @keyframes wm-glow {
+        0%,100% { text-shadow: 0 0 4px rgba(124,245,155,0.0); }
+        50%     { text-shadow: 0 0 10px rgba(124,245,155,0.55); }
+      }
+      @keyframes art-float {
+        0%,100% { transform: translateY(0); }
+        50%     { transform: translateY(-5px); }
       }
       header {
         max-width: 1280px;
@@ -170,6 +190,7 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
         text-transform: uppercase;
         white-space: nowrap;
       }
+      .wordmark { animation: wm-glow 2.6s ease-in-out infinite; }
       .wordmark .hl { color: #7cf59b; }
       .menu {
         justify-self: end;
@@ -208,13 +229,18 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
         flex-direction: column;
         gap: 6px;
         text-decoration: none;
-        box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.12);
-        transition: transform 0.12s ease, box-shadow 0.12s ease;
+        position: relative;
+        /* chunky pixel-frame border instead of a soft inset */
+        box-shadow: 0 0 0 3px #14141c, 0 0 0 5px var(--bg);
+        transition: transform 0.1s steps(2), box-shadow 0.1s ease, filter 0.1s ease;
       }
       .card:hover,
       .card:focus-visible {
-        transform: translateY(-4px);
-        box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5), inset 0 0 0 2px rgba(0, 0, 0, 0.18);
+        transform: translateY(-6px) scale(1.02);
+        filter: brightness(1.08);
+        box-shadow: 0 0 0 3px #14141c, 0 0 0 5px var(--bg),
+                    0 12px 30px rgba(0,0,0,0.55), 0 0 22px 2px var(--bg);
+        z-index: 2;
       }
       :focus-visible { outline: 3px solid #7cf59b; outline-offset: 2px; }
       .card-title {
@@ -250,10 +276,13 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
       .card-art {
         width: 86%;
         height: 86%;
+        image-rendering: pixelated; /* crisp pixel thumbs */
         object-fit: contain;
+        animation: art-float 3.2s ease-in-out infinite;
       }
-      /* Pixel thumbs/covers (PNG raster, or gridToSvg) opt into crisp scaling;
-         vector cover.svg stays smooth by default. */
+      /* stagger the float so the cards don't bob in lockstep */
+      .card:nth-child(2n) .card-art { animation-delay: -1.1s; }
+      .card:nth-child(3n) .card-art { animation-delay: -2.0s; }
       img.card-art { image-rendering: pixelated; }
       svg.card-art[shape-rendering="crispEdges"] { image-rendering: pixelated; }
       footer {
@@ -266,6 +295,7 @@ export function renderHub({ games, title = 'PHASER ARCADE' }) {
       @media (prefers-reduced-motion: reduce) {
         .card { transition: none; }
         .card:hover, .card:focus-visible { transform: none; }
+        .wordmark, .card-art { animation: none; }
       }
     </style>
   </head>

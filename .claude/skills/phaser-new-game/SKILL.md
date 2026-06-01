@@ -142,4 +142,9 @@ palette so a new game auto-gets a color). Zero JS, no network font. Keep `src/pi
   pointer, call `input.setPollAlways()`, and keep `touch-action: none` (already in
   the template `index.html`). Full checklist + Playwright verify in `phaser-perf-audit` §6a.
 
-After scaffolding, mention the sibling skills: `pixel-art` (draw the game's sprites + hub thumbnail), `phaser-audio` (add CC0 sound + the throttled Audio helper), `phaser-optimize-bundle`, `phaser-perf-audit`, `phaser-review`.
+After scaffolding, mention the sibling skills: `game-design` (the core loop, juice & feel — read it when planning the game so it isn't "flat"), `pixel-art` (draw the game's sprites + hub thumbnail), `phaser-audio` (add CC0 sound + the throttled Audio helper), `phaser-optimize-bundle`, `phaser-perf-audit`, `phaser-review`.
+
+> **Design before mechanics.** Before building gameplay, name the **core loop** in
+> one sentence and decide where the **juice** goes (feedback per action) — see
+> `game-design`. A technically-correct game with no loop/juice reads as "nhạt /
+> flat / không có chiều sâu".

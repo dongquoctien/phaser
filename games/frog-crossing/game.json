@@ -1,5 +1,38 @@
 {
   "title": "Frog Crossing",
   "description": "Hop the frog across endless roads and rivers — dodge trucks, ride the logs, and chase your best distance.",
-  "tags": ["arcade", "crossy-road", "frogger"]
+  "tags": [
+    "arcade",
+    "crossy-road",
+    "frogger"
+  ],
+  "thumb": {
+    "map": {
+      ".": null,
+      "k": "#1a1c2c",
+      "g": "#38b764",
+      "l": "#a7f070",
+      "w": "#f4f4f4",
+      "p": "#1a1c2c",
+      "c": "#ffcd75",
+      "b": "#333c57",
+      "r": "#566c86"
+    },
+    "grid": [
+      "..kk....kk....",
+      ".kwwk..kwwk...",
+      ".kwpk..kwpk...",
+      ".kggkkkkggk...",
+      ".kgggggggggk..",
+      "kgllllllllllgk",
+      "kglcccccccclgk",
+      "kgllllllllllgk",
+      ".kggggggggggk.",
+      "kk.kk..kk.kk..",
+      "bbbbbbbbbbbbbb",
+      "rbrbrbrbrbrbrb",
+      "cccccccccccccc",
+      "cccccccccccccc"
+    ]
+  }
 }

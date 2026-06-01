@@ -26,7 +26,7 @@ export class Frog extends Phaser.Physics.Arcade.Sprite {
     this.col = col;
     this.row = row;
     this.setOrigin(0.5);
-    this.setScale(0.5); // art baked at 2x supersample
+    this.setScale(1); // pixel art baked at final size (px=5 → ~50px)
     this.setDepth(20);
   }
 
@@ -61,10 +61,10 @@ export class Frog extends Phaser.Physics.Arcade.Sprite {
         onDone();
       },
     });
-    // A tiny scale pop for juice.
+    // A little squash-&-stretch pop on the hop (§2 game-feel).
     this.scene.tweens.add({
       targets: this,
-      scale: 0.6,
+      scale: 1.18,
       duration: durationMs / 2,
       yoyo: true,
       ease: 'Quad.easeOut',

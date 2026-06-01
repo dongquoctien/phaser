@@ -73,7 +73,8 @@ export class RowField {
       if (Math.random() < hazardChance) kind = Math.random() < 0.62 ? 'road' : 'water';
     }
 
-    const color = kind === 'grass' ? this.grassColor(index) : kind === 'road' ? 0x555a69 : 0x46d6e6;
+    // Sweetie-16 lane colours (cohesive with the pixel sprites).
+    const color = kind === 'grass' ? this.grassColor(index) : kind === 'road' ? 0x566c86 : 0x41a6f6;
     const band = this.scene.add
       .rectangle(GAME_WIDTH / 2, y, GAME_WIDTH, CELL, color)
       .setDepth(kind === 'water' ? 1 : 2);
@@ -95,7 +96,7 @@ export class RowField {
   }
 
   private grassColor(index: number): number {
-    return index % 2 === 0 ? 0x8ed24a : 0x84c93f;
+    return index % 2 === 0 ? 0x38b764 : 0x2f9d56; // Sweetie-16 green, alt shade
   }
 
   private addBushes(index: number, y: number): void {
@@ -107,7 +108,7 @@ export class RowField {
       const x = col * CELL + CELL / 2;
       const b = this.scene.add
         .image(x, y, TextureKeys.Bush)
-        .setScale(0.5)
+        .setScale(1)
         .setDepth(3);
       imgs.push(b);
     }

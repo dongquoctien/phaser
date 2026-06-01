@@ -9,10 +9,16 @@ export class Pipe extends Phaser.Physics.Arcade.Sprite {
   // Marks the bottom pipe of a pair as the one that awards a point when passed.
   scoring = false;
   scored = false;
+  // A separate, non-stretched cap sprite drawn at the pipe's mouth so the body
+  // texture can be a pure column that stretches without distortion.
+  private cap: Phaser.GameObjects.Image;
+  private capDX = 0; // cap x-offset to centre it on the body
 
   constructor(scene: Phaser.Scene) {
     super(scene, 0, 0, TextureKeys.Pipe);
     scene.physics.add.existing(this);
+    this.cap = scene.add.image(0, 0, TextureKeys.PipeCap).setOrigin(0, 0).setVisible(false);
+    this.cap.setDepth(this.depth + 1);
     this.despawn();
   }
 
@@ -25,19 +31,28 @@ export class Pipe extends Phaser.Physics.Arcade.Sprite {
 
     let height: number;
     let y: number;
+    // The body texture is a symmetric column, so no flip is needed — only the
+    // cap is oriented (see below).
+    this.setOrigin(0, 0);
     if (isTop) {
       height = Math.max(8, gapY - halfGap);
       y = 0;
-      this.setOrigin(0, 0);
     } else {
       const bottomY = gapY + halfGap;
       height = Math.max(8, groundY - bottomY);
       y = bottomY;
-      this.setOrigin(0, 0);
     }
 
     this.enableBody(true, x, y, true, true);
     this.setDisplaySize(this.width, height);
+
+    // Place the cap at the pipe's mouth (the gap-facing end), un-stretched.
+    // The cap is a touch wider than the body, so centre it (overhanging lip).
+    const capH = this.cap.height;
+    this.capDX = (this.displayWidth - this.cap.width) / 2;
+    this.cap.setVisible(true).setFlipY(isTop);
+    this.cap.x = x + this.capDX;
+    this.cap.y = isTop ? height - capH : y; // top: bottom edge; bottom: top edge
     // The Arcade body size is given in UNSCALED texture pixels — Arcade multiplies
     // it by the sprite's scale. setDisplaySize() scaled us by height/frameHeight,
     // so passing the full frame size makes the body exactly cover the visible
@@ -56,14 +71,16 @@ export class Pipe extends Phaser.Physics.Arcade.Sprite {
   despawn(): void {
     this.scoring = false;
     this.scored = false;
+    this.cap.setVisible(false);
     this.disableBody(true, true);
   }
 
-  // Recycle once fully off the left edge.
+  // Recycle once fully off the left edge. Scroll the cap with the body.
   preUpdate(time: number, delta: number): void {
     super.preUpdate(time, delta);
-    if (this.active && this.x + this.displayWidth < 0) {
-      this.despawn();
+    if (this.active) {
+      this.cap.x = this.x + this.capDX;
+      if (this.x + this.displayWidth < 0) this.despawn();
     }
   }
 }

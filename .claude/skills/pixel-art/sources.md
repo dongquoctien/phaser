@@ -34,3 +34,20 @@ these sources — not copied from any other project.
   https://newdocs.phaser.io/docs/3.55.2/focus/Phaser.GameObjects.Graphics-generateTexture
 - Belén Albeza — Retro, crisp pixel art in Phaser (nearest-neighbor, integer scale):
   https://www.belenalbeza.com/articles/retro-crisp-pixel-art-in-phaser/
+
+## SVG / vector art craft (added 2026-06)
+- Smashing Magazine — "Magical SVG Techniques" (gradients, masks, filters, cut-outs):
+  https://www.smashingmagazine.com/2022/05/magical-svg-techniques/
+- supermemoryai/skills — svg-animations SKILL (gradient stops, feGaussianBlur glow,
+  stroke-dasharray draw, viewBox + small-size readability, SMIL keySplines easing):
+  https://github.com/supermemoryai/skills/blob/main/svg-animations/SKILL.md
+- W3Schools — SVG linear/radial gradients (stop offsets, multi-colour ramps):
+  https://www.w3schools.com/graphics/svg_grad_linear.asp
+
+## Advanced pixel techniques (added 2026-06)
+- Lospec — dithering tutorials (fake a 3rd colour / gradient; when to avoid):
+  https://lospec.com/pixel-art-tutorials/tags/dithering
+- Pixnote — pixel-art glossary + tips (anti-aliasing, selout, sub-pixel, colour-cycle):
+  https://pixnote.net/en/learn/glossary/ · https://pixnote.net/en/learn/tips/
+- Leafo — "Anti-Alias and Dithering" (manual AA, dither patterns):
+  https://leafo.net/gwtemp/tutorials/170/

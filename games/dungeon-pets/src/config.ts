@@ -5,18 +5,17 @@ import { BootScene } from './scenes/BootScene';
 import { PreloadScene } from './scenes/PreloadScene';
 import { MenuScene } from './scenes/MenuScene';
 import { GameScene } from './scenes/GameScene';
+import { LevelUpScene } from './scenes/LevelUpScene';
 
 declare const __DEV__: boolean;
 
-// Tuning + dimensions live in ./tuning (no imports) to avoid an import cycle.
-// Re-export for convenience.
-export { GAME_WIDTH, GAME_HEIGHT, CELL, GRID_COLS, Tuning } from './tuning';
+export { GAME_WIDTH, GAME_HEIGHT, Tuning } from './tuning';
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  title: 'Frog Crossing',
+  title: 'Dungeon Pets',
   parent: 'game',
-  backgroundColor: '#1e1f2b',
+  backgroundColor: '#20162e',
   // Pixel-art: crisp nearest-neighbor + roundPixels (v4 defaults it false).
   pixelArt: true,
   render: { powerPreference: 'high-performance', roundPixels: true },
@@ -33,7 +32,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
       debug: typeof __DEV__ !== 'undefined' && __DEV__,
     },
   },
-  scene: [BootScene, PreloadScene, MenuScene, GameScene],
+  scene: [BootScene, PreloadScene, MenuScene, GameScene, LevelUpScene],
 };
 
 export { SceneKeys };
