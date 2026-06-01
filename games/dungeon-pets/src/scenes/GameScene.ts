@@ -393,9 +393,11 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(1, 0).setDepth(60);
 
     this.hpBar = this.add.graphics().setDepth(60);
-    this.statText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 150, '', {
-      fontFamily: 'monospace', fontSize: '13px', color: '#e8dcff', align: 'center',
-    }).setOrigin(0.5).setDepth(60);
+    // Stat strip sits in the gap BELOW the battlefield and ABOVE the footer panel
+    // (footer title is at GAME_HEIGHT-138) so the two never overlap.
+    this.statText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 168, '', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'center', lineSpacing: 2,
+    }).setOrigin(0.5).setDepth(61);
     this.updateHpBar();
     this.updateStatText();
 
@@ -409,8 +411,8 @@ export class GameScene extends Phaser.Scene {
     const w = GAME_WIDTH - 28;
     const frac = this.hero ? this.hero.hp / this.hero.maxHp : 1;
     this.hpBar.clear();
-    this.hpBar.fillStyle(0x1a1020, 0.85).fillRect(14, GAME_HEIGHT - 178, w, 16);
-    this.hpBar.fillStyle(0xe2483f, 1).fillRect(15, GAME_HEIGHT - 177, (w - 2) * Phaser.Math.Clamp(frac, 0, 1), 14);
+    this.hpBar.fillStyle(0x1a1020, 0.85).fillRect(14, GAME_HEIGHT - 200, w, 16);
+    this.hpBar.fillStyle(0xe2483f, 1).fillRect(15, GAME_HEIGHT - 199, (w - 2) * Phaser.Math.Clamp(frac, 0, 1), 14);
   }
 
   private updateStatText(): void {
@@ -431,6 +433,11 @@ export class GameScene extends Phaser.Scene {
   private gameOver(): void {
     if (this.over) return;
     this.over = true;
+    // Cancel any pending/open level-up so its overlay can't sit over the defeat
+    // screen (e.g. dying with queued level-ups).
+    this.pendingLevels = 0;
+    if (this.scene.isActive(SceneKeys.LevelUp)) this.scene.stop(SceneKeys.LevelUp);
+    if (this.scene.isPaused()) this.scene.resume();
     this.audio.play(AudioKeys.Defeat);
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.7).setOrigin(0).setDepth(90);
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `DEFEATED\nFloor ${this.floor}\nTAP TO RETRY`, {
