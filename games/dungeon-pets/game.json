@@ -1,5 +1,37 @@
 {
   "title": "Dungeon Pets",
   "description": "Pick a team of three, auto-battle through endless dungeon floors, learn skills on level-up, and recruit a new pet hero every 5 floors.",
-  "tags": ["idle", "auto-battler", "rpg"]
+  "tags": [
+    "idle",
+    "auto-battler",
+    "rpg"
+  ],
+  "thumb": {
+    "map": {
+      ".": null,
+      "k": "#1a1c2c",
+      "b": "#ef7d57",
+      "d": "#b13e53",
+      "w": "#f4f4f4",
+      "s": "#566c86",
+      "g": "#333c57",
+      "r": "#b13e53"
+    },
+    "grid": [
+      "gggggggggggggg",
+      "g..k....k....g",
+      "g.kbk..kbk...g",
+      "g.kbbkkbbk...g",
+      "gkbbbbbbbbk..g",
+      "gkbwbbbbwbk..g",
+      "gkbbbddbbbk..g",
+      "g.kbbbbbbk..gg",
+      "g..kbbbbk...gg",
+      "g...kkkk....gg",
+      "gsssssssssssgg",
+      "gkkkkkkkkkkkgg",
+      "gggggggggggggg",
+      "gggggggggggggg"
+    ]
+  }
 }

@@ -406,12 +406,28 @@ export class GameScene extends Phaser.Scene {
 
   // ── HUD / backdrop ─────────────────────────────────────────────────────────
   private drawBackdrop(): void {
-    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x20162e).setOrigin(0).setDepth(-2);
-    this.add.rectangle(0, 200, GAME_WIDTH, 90, 0x2c2140).setOrigin(0).setDepth(-1);
-    this.add.rectangle(0, Tuning.laneTop - 30, GAME_WIDTH, Tuning.laneBottom - Tuning.laneTop + 90, 0x3a2f55).setOrigin(0).setDepth(-1).setAlpha(0.9);
-    const g = this.add.graphics().setDepth(-1);
-    g.lineStyle(1, 0xffffff, 0.04);
-    for (let y = Tuning.laneTop + 40; y < Tuning.laneBottom + 60; y += 40) g.lineBetween(0, y, GAME_WIDTH, y);
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x1a1c2c).setOrigin(0).setDepth(-3);
+    // Tiled pixel brick wall behind the battle band; a darker floor below it.
+    const brick = this.textures.get(TextureKeys.Brick).getSourceImage();
+    const tw = brick.width, th = brick.height;
+    const wallTop = Tuning.laneTop - 60, wallBottom = Tuning.laneBottom + 50;
+    for (let y = wallTop; y < wallBottom; y += th) {
+      for (let x = 0; x < GAME_WIDTH; x += tw) {
+        const t = this.add.image(x, y, TextureKeys.Brick).setOrigin(0).setDepth(-2);
+        if (y > Tuning.laneBottom - 10) t.setTint(0x6a6a8a); // floor darker/cooler
+      }
+    }
+    // a vignette to focus the lane
+    this.add.rectangle(0, 0, GAME_WIDTH, wallTop, 0x1a1c2c).setOrigin(0).setDepth(-1).setAlpha(0.6);
+    this.add.rectangle(0, wallBottom, GAME_WIDTH, GAME_HEIGHT - wallBottom, 0x1a1c2c).setOrigin(0).setDepth(-1).setAlpha(0.55);
+    // Two flickering torches on the side walls.
+    [40, GAME_WIDTH - 40].forEach((tx) => {
+      const torch = this.add.image(tx, wallTop + 36, TextureKeys.Torch).setScale(1.2).setDepth(-1);
+      this.tweens.add({ targets: torch, alpha: 0.65, scaleX: 1.1, duration: 280, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      // warm glow pool
+      const glow = this.add.circle(tx, wallTop + 30, 34, 0xef7d57, 0.18).setDepth(-1);
+      this.tweens.add({ targets: glow, alpha: 0.08, scale: 1.15, duration: 320, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    });
   }
 
   private buildHud(): void {

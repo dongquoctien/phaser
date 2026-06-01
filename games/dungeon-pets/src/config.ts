@@ -16,8 +16,9 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   title: 'Dungeon Pets',
   parent: 'game',
   backgroundColor: '#20162e',
-  // SVG/vector look: antialias ON (default), pixelArt OFF — smooth cartoon art.
-  render: { powerPreference: 'high-performance' },
+  // Pixel-art: crisp nearest-neighbor + roundPixels (v4 defaults it false).
+  pixelArt: true,
+  render: { powerPreference: 'high-performance', roundPixels: true },
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.NO_CENTER,

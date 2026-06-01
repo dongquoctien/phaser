@@ -1,15 +1,10 @@
 import Phaser from 'phaser';
-import { SceneKeys, TextureKeys, AudioKeys } from '../types/keys';
+import { SceneKeys, AudioKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { bakeArt } from '../art';
 
-// Smooth vector art: each sprite is an SVG rasterized once at load (Phaser 4
-// load.svg). Bake at 2x so it stays crisp on HiDPI; sprites display ~64px.
-const SVG_KEYS: ReadonlyArray<string> = [
-  TextureKeys.Capybara, TextureKeys.Cat, TextureKeys.Duck, TextureKeys.Frog,
-  TextureKeys.Owl, TextureKeys.Skeleton, TextureKeys.Slime, TextureKeys.Boss,
-  TextureKeys.Slash, TextureKeys.Arrow,
-];
-
+// Pixel-art: every sprite/tile is baked from a Sweetie-16 grid via src/pixel
+// (bakeArt). No external image assets — only the .ogg audio is loaded.
 export class PreloadScene extends Phaser.Scene {
   constructor() {
     super(SceneKeys.Preload);
@@ -17,15 +12,13 @@ export class PreloadScene extends Phaser.Scene {
 
   preload(): void {
     this.drawProgressBar();
-    for (const key of SVG_KEYS) {
-      this.load.svg(key, `assets/${key}.svg`, { scale: 2 });
-    }
     for (const key of Object.values(AudioKeys)) {
       this.load.audio(key, `audio/${key}.ogg`);
     }
   }
 
   create(): void {
+    bakeArt(this);
     this.scene.start(SceneKeys.Menu);
   }
 

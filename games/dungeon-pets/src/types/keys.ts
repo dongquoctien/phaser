@@ -9,7 +9,7 @@ export const SceneKeys = {
 } as const;
 export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];
 
-// All art baked as smooth vector textures via Graphics (no atlas). One key each.
+// All art is baked pixel-art (Sweetie-16) via the shared src/pixel helper.
 export const TextureKeys = {
   // Heroes (capybara-go style roster)
   Capybara: 'capybara',
@@ -24,6 +24,9 @@ export const TextureKeys = {
   // FX / props
   Slash: 'slash',
   Arrow: 'arrow',
+  // Dungeon tiles (backdrop)
+  Brick: 'brick',
+  Torch: 'torch',
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 
