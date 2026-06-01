@@ -1,10 +1,10 @@
 import Phaser from 'phaser';
+import { bakeSprite, SWEETIE16_HEX as H, type PixelGrid } from '../../../../src/pixel';
 import { SceneKeys, TextureKeys, AudioKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, Tuning } from '../config';
 
-// Generates all pixel-art textures procedurally (no PNGs to load) and shows a
-// brief progress bar so the loading flow matches the monorepo standard. In a
-// game with real art this scene would `load.atlas(...)` instead.
+// Bird + pipe are pixel-art baked from Sweetie-16 grids (src/pixel); the ground
+// is a plain strip. Grids were SVG-previewed + Playwright-verified before baking.
 export class PreloadScene extends Phaser.Scene {
   constructor() {
     super(SceneKeys.Preload);
@@ -24,29 +24,16 @@ export class PreloadScene extends Phaser.Scene {
   }
 
   private generateTextures(): void {
+    // Bird + pipe = pixel-art grids (px=3). The pipe stretches vertically per
+    // instance; its vertical edges stay crisp because they're straight columns.
+    bakeSprite(this, TextureKeys.Bird, BIRD, { px: 3 });
+    bakeSprite(this, TextureKeys.Pipe, PIPE, { px: 3 });
+
+    // Ground stays a plain strip (full-width, no detail needed).
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-
-    // Bird: 17x12 yellow body with an eye and beak.
-    g.clear();
-    g.fillStyle(0xf7d51d).fillRoundedRect(0, 0, 17, 12, 3);
-    g.fillStyle(0xffffff).fillCircle(12, 4, 2.5);
-    g.fillStyle(0x000000).fillCircle(13, 4, 1.2);
-    g.fillStyle(0xff7f11).fillTriangle(15, 6, 21, 5, 15, 9);
-    g.generateTexture(TextureKeys.Bird, 22, 12);
-
-    // Pipe: a 1px-wide green column; we set its display height per-instance.
-    g.clear();
-    g.fillStyle(0x5bbd2a).fillRect(0, 0, 52, 64);
-    g.fillStyle(0x4a9e22).fillRect(0, 0, 6, 64); // shaded edge
-    g.fillStyle(0x74d33a).fillRect(46, 0, 6, 64); // highlight edge
-    g.generateTexture(TextureKeys.Pipe, 52, 64);
-
-    // Ground strip.
-    g.clear();
-    g.fillStyle(0xded895).fillRect(0, 0, GAME_WIDTH, Tuning.groundHeight);
-    g.fillStyle(0x9c8f4f).fillRect(0, 0, GAME_WIDTH, 4);
+    g.fillStyle(0xc2a86b).fillRect(0, 0, GAME_WIDTH, Tuning.groundHeight);
+    g.fillStyle(0x9a6b3f).fillRect(0, 0, GAME_WIDTH, 4);
     g.generateTexture(TextureKeys.Ground, GAME_WIDTH, Tuning.groundHeight);
-
     g.destroy();
   }
 
@@ -72,3 +59,21 @@ export class PreloadScene extends Phaser.Scene {
     });
   }
 }
+
+// ── pixel grids (Sweetie-16, verified before baking) ─────────────────────────
+const BIRD: PixelGrid = {
+  map: { '.': null, k: H.black, y: H.yellow, o: H.orange, w: H.white, e: H.black, l: H.lime },
+  grid: [
+    '...kkkk.....', '..kyyyykk...', '.kyyyyywwk..', '.kyyyyyweko.',
+    'kyyyyyywwkoo', 'kylllyyyykoo', 'kyllllyyyk..', 'kyllllyyyk..',
+    '.kyyyyyyk...', '..kyyyyk....', '...kkkk.....', '............',
+  ],
+};
+const PIPE: PixelGrid = {
+  map: { '.': null, k: H.black, g: H.green, l: H.lime, d: H.teal, s: H.dark },
+  grid: [
+    'kkkkkkkkkkkkkk', 'klggggggggggsk', 'klggggggggggsk', 'klggggggggggsk',
+    'kkkkkkkkkkkkkk', '.klggggggggsk.', '.klggggggggsk.', '.klggggggggsk.',
+    '.klggggggggsk.', '.klggggggggsk.', '.klggggggggsk.', '.klggggggggsk.',
+  ],
+};
