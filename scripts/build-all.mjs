@@ -11,6 +11,7 @@ import {
   existsSync,
   readFileSync,
   writeFileSync,
+  copyFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
@@ -122,8 +123,13 @@ const model = games.map((game) => {
 });
 
 // ── 3. Write the static-HTML hub ───────────────────────────────────────────────
-writeFileSync('dist/index.html', renderHub({ games: model }));
+// Absolute origin for Open Graph image URLs (social scrapers need full URLs).
+const ORIGIN = process.env.OG_ORIGIN ?? 'https://dongquoctien.github.io';
+const ogUrl = `${ORIGIN}${BASE}og-hub.png`;
+writeFileSync('dist/index.html', renderHub({ games: model, ogImage: ogUrl, baseUrl: `${ORIGIN}${BASE}` }));
 // .nojekyll skips Jekyll processing on GitHub Pages.
 writeFileSync('dist/.nojekyll', '');
+// Ship the hub's OG share image to the site root.
+if (existsSync('og-hub.png')) copyFileSync('og-hub.png', 'dist/og-hub.png');
 
 console.log(`\n✓ Built ${games.length} game(s) + static hub → dist/ (base ${BASE})`);
