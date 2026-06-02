@@ -3,7 +3,7 @@ import { AudioKeys, type AudioKey, type MusicKey, RegistryKeys } from '../types/
 
 // Throttled SFX helper with a WebAudio cache guard + persisted mute (phaser-audio
 // skill). playPitched adds ±10% rate so spammed shots don't fatigue.
-const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }> = {
+const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string; raw?: boolean }> = {
   [AudioKeys.Shoot]: { volume: 0.13, throttle: 45 },
   [AudioKeys.Hit]: { volume: 0.15, throttle: 40 },
   [AudioKeys.Explode]: { volume: 0.38, throttle: 80 },
@@ -22,13 +22,15 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
   // boss hero-execution: slow-mo sting on enter, "push" blow on the kill.
   [AudioKeys.BossKillSlow]: { volume: 0.6, throttle: 0 },
   [AudioKeys.Push]: { volume: 0.7, throttle: 0 },
+  // game-over plays at TRUE full volume (raw = bypass the global VOL_SCALE).
+  [AudioKeys.GameOver]: { volume: 1.0, throttle: 0, raw: true },
 };
 
 // Global volume scale applied to every SFX + music — drop everything 30% (×0.7).
 const VOL_SCALE = 0.7;
 const MUSIC_VOL = 0.35 * VOL_SCALE;
-// per-track music multiplier (1 = normal). Boss track is half-volume.
-const MUSIC_TRACK_VOL: Partial<Record<MusicKey, number>> = { 'boss-music': 0.5 };
+// per-track music multiplier (1 = normal). Boss track plays at 70%.
+const MUSIC_TRACK_VOL: Partial<Record<MusicKey, number>> = { 'boss-music': 0.7 };
 
 export class Audio {
   private scene: Phaser.Scene;
@@ -124,7 +126,8 @@ export class Audio {
     const slot = cfg.group ?? key;
     if (cfg.throttle > 0 && now - (this.lastPlayed[slot] ?? -1e9) < cfg.throttle) return;
     this.lastPlayed[slot] = now;
-    this.scene.sound.play(key, { volume: cfg.volume * VOL_SCALE, rate });
+    const volume = cfg.raw ? cfg.volume : cfg.volume * VOL_SCALE; // raw bypasses global scale
+    this.scene.sound.play(key, { volume, rate });
   }
 
   toggleMute(): boolean {

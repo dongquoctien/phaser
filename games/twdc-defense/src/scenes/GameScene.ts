@@ -1327,7 +1327,8 @@ export class GameScene extends Phaser.Scene {
   private gameOver(): void {
     if (this.over) return;
     this.over = true;
-    this.audio.play(AudioKeys.Lose);
+    this.audio.stopMusic();             // silence the loop so the sting stands alone
+    this.audio.play(AudioKeys.GameOver); // full-volume defeat sound
     this.saveBest();
     this.endOverlay(`OVERRUN\nWave ${this.wave}\nTAP TO RETRY`, '#ff6b6b');
   }
