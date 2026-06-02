@@ -12,8 +12,8 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
   [AudioKeys.Click]: { volume: 0.5, throttle: 0 },
   // zombie sfx: growls are ambient (longer throttle so a wave doesn't roar), die
   // sounds fire per kill, boss roar is a one-off on spawn.
-  [AudioKeys.ZombieGrrr]: { volume: 0.3, throttle: 900, group: 'grrr' },
-  [AudioKeys.ZombieGrrr1]: { volume: 0.3, throttle: 900, group: 'grrr' },
+  [AudioKeys.ZombieGrrr]: { volume: 0.15, throttle: 900, group: 'grrr' }, // halved (ambient growl)
+  [AudioKeys.ZombieGrrr1]: { volume: 0.15, throttle: 900, group: 'grrr' },
   [AudioKeys.ZombieBossSfx]: { volume: 0.6, throttle: 0 },
   // die sounds share ONE throttle group so a mass-kill (AoE/nova/cleave) plays a
   // single death sound, not a wall of them. ~350ms feels punchy without spamming.
