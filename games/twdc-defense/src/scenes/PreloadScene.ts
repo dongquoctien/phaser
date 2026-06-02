@@ -12,7 +12,9 @@ export class PreloadScene extends Phaser.Scene {
   preload(): void {
     this.drawProgressBar();
     for (const key of Object.values(AudioKeys)) {
-      this.load.audio(key, `audio/${key}.ogg`);
+      // Load BOTH formats — iOS/Safari can't decode OGG/Vorbis, so it falls back
+      // to the MP3. Phaser picks the first the browser supports.
+      this.load.audio(key, [`audio/${key}.ogg`, `audio/${key}.mp3`]);
     }
     // the 21 hero sprites (user's original art, kept at full detail).
     // PNG file name == hero id (see public/heroes/<id>.png).
