@@ -419,9 +419,14 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // ambient growls while zombies are on the field (throttled in Audio)
+    // ambient growls while zombies are on the field (throttled in Audio).
+    // If the timer is WAY overdue (>2s) the tab was just backgrounded — the scene
+    // clock jumped ahead — so skip the growl and reschedule instead of barking the
+    // instant we return.
     if (alive > 0 && time >= this.nextGrowlAt) {
-      this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieGrrr : AudioKeys.ZombieGrrr1);
+      if (time - this.nextGrowlAt < 2000) {
+        this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieGrrr : AudioKeys.ZombieGrrr1);
+      }
       this.nextGrowlAt = time + 2500 + Math.random() * 3500;
     }
 
