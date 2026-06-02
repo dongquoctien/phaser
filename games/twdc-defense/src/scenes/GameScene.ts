@@ -420,9 +420,14 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // ambient growls while zombies are on the field (throttled in Audio)
+    // ambient growls while zombies are on the field (throttled in Audio).
+    // If the timer is WAY overdue (>2s) the tab was just backgrounded — the scene
+    // clock jumped ahead — so skip the growl and reschedule instead of barking the
+    // instant we return.
     if (alive > 0 && time >= this.nextGrowlAt) {
-      this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieGrrr : AudioKeys.ZombieGrrr1);
+      if (time - this.nextGrowlAt < 2000) {
+        this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieGrrr : AudioKeys.ZombieGrrr1);
+      }
       this.nextGrowlAt = time + 2500 + Math.random() * 3500;
     }
 
@@ -1158,7 +1163,18 @@ export class GameScene extends Phaser.Scene {
     this.pickerOpenedBy = pointerId; // swallow this tap's pointerup (see isOpeningTap)
     this.showStartBtn(false);
     this.heroPicker.setVisible(true);
-    this.renderDetail(null); // empty prompt until a hero is picked
+    // pre-select a random hero so the detail pane isn't empty on open
+    const randomId = Phaser.Utils.Array.GetRandom(HERO_IDS as HeroId[]);
+    this.selectHeroInPicker(randomId);
+    // release the opening-tap lock on the next tick so it swallows ONLY the opening
+    // pointerup — the X button then closes on the first real click (was needing 2).
+    this.time.delayedCall(0, () => { this.pickerOpenedBy = -1; });
+  }
+
+  /** Highlight + show a hero in the picker detail pane (no sound, no lock change). */
+  private selectHeroInPicker(id: HeroId): void {
+    for (const [hid, hl] of this.listHighlights) hl.setVisible(hid === id);
+    this.renderDetail(id);
   }
 
   /** True if this pointerup belongs to the tap that just opened the picker (consume it). */
@@ -1170,14 +1186,11 @@ export class GameScene extends Phaser.Scene {
 
   /** Click a hero in the list → preview it in the detail pane (does NOT place). */
   private previewHero(id: HeroId, _p?: Phaser.Input.Pointer): void {
-    // No opening-tap guard here: previewing is harmless (it only shows detail, never
-    // deploys), so the very tap that opened the picker is allowed to preview a hero
-    // straight away — otherwise the first click would be swallowed and the user
-    // would have to click twice. Placement still requires the separate PLACE button.
-    this.pickerOpenedBy = -1; // consume the lock so CLOSE behaves normally afterwards
+    // Previewing only shows detail (never deploys); the opening-tap lock is cleared
+    // on the next tick in openHeroPicker, so taps here always register.
+    this.pickerOpenedBy = -1;
     this.audio.play(AudioKeys.Click);
-    for (const [hid, hl] of this.listHighlights) hl.setVisible(hid === id);
-    this.renderDetail(id);
+    this.selectHeroInPicker(id);
   }
 
   // Rebuild the detail pane for the previewed hero (or an empty prompt). The panel
