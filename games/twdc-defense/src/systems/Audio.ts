@@ -20,6 +20,13 @@ export class Audio {
     this.scene = scene;
     const muted = (scene.registry.get(RegistryKeys.Muted) as boolean) ?? false;
     scene.sound.setMute(muted);
+    // iOS belt-and-suspenders: even after Phaser unlocks, the WebAudio context can
+    // stay 'suspended' until explicitly resumed inside a gesture. Resume it on the
+    // first pointer/touch so SFX actually play on iPhone/iPad.
+    const sm = scene.sound as unknown as { context?: AudioContext };
+    const resume = () => { if (sm.context && sm.context.state === 'suspended') void sm.context.resume(); };
+    scene.input.once('pointerdown', resume);
+    scene.input.keyboard?.once('keydown', resume);
   }
 
   play(key: AudioKey): void {

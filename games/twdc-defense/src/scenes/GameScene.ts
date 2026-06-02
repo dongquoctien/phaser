@@ -597,12 +597,8 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker = this.add.container(0, 0).setDepth(70).setVisible(false);
     const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.96).setOrigin(0);
     dim.name = 'picker-dim';
-    const header = this.add.text(12, 12, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
-    const close = this.add.text(GAME_WIDTH - 12, 12, '✕', { fontFamily: 'monospace', fontSize: '18px', color: '#ff6b6b' })
-      .setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    close.name = 'picker-close';
-    close.on('pointerup', (p: Phaser.Input.Pointer) => { if (!this.isOpeningTap(p)) this.clearSelection(); });
-    this.heroPicker.add([dim, header, close]);
+    const header = this.add.text(12, 16, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
+    this.heroPicker.add([dim, header]);
 
     // ── LEFT: hero list (3 columns of avatar tiles) ──
     const listX = 10, listY = 40, tileW = 74, tileH = 60, cols = 2;
@@ -624,8 +620,18 @@ export class GameScene extends Phaser.Scene {
 
     // ── RIGHT: detail pane (rebuilt per selection in renderDetail) ──
     const detailX = listX + cols * tileW + 12;
-    this.detailBox = this.add.container(detailX, 40).setDepth(51);
+    this.detailBox = this.add.container(detailX, 62).setDepth(51); // below the close-button row
     this.heroPicker.add(this.detailBox);
+
+    // Close button LAST so it renders on top of the detail pane (container children
+    // draw in add-order, not by depth — the detail pane would otherwise cover it).
+    // A large, finger-friendly target (46px ≥ Apple's 44px minimum).
+    const cw = 46, cx = GAME_WIDTH - 8 - cw / 2, cy = 8 + cw / 2;
+    const closeBtn = this.add.rectangle(cx, cy, cw, cw, 0x3a2030, 0.98).setStrokeStyle(2, 0xff6b6b).setInteractive({ useHandCursor: true });
+    closeBtn.name = 'picker-close';
+    const closeX = this.add.text(cx, cy, '✕', { fontFamily: 'monospace', fontSize: '24px', color: '#ff6b6b' }).setOrigin(0.5);
+    closeBtn.on('pointerup', (p: Phaser.Input.Pointer) => { if (!this.isOpeningTap(p)) this.clearSelection(); });
+    this.heroPicker.add([closeBtn, closeX]);
   }
 
   private openHeroPicker(padKey: string, pointerId = -1): void {
