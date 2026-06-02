@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
-import { SceneKeys, TexKeys, AtlasKeys, REG_WEAPON, type WeaponId } from '../types/keys';
+import { SceneKeys, TexKeys, AtlasKeys, AudioKeys, REG_WEAPON, type WeaponId } from '../types/keys';
 import { WEAPON_ORIGIN, WEAPON_TEX } from '../systems/art';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Hole } from '../objects/Hole';
 import { pickChar, rollRoster, type CharDef, type Roster } from '../systems/roster';
+import { Audio } from '../systems/Audio';
 
 declare const __DEV__: boolean;
 
@@ -54,6 +55,7 @@ export class GameScene extends Phaser.Scene {
   private dirtEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private starEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private frozenUntil = 0; // hit-stop guard (ms timestamp)
+  private audio!: Audio;
 
   constructor() {
     super(SceneKeys.Game);
@@ -75,6 +77,7 @@ export class GameScene extends Phaser.Scene {
     this.frozenUntil = 0;
     this.running = true;
 
+    this.audio = new Audio(this);
     this.drawBackground();
     this.buildGrid();
     this.buildHud();
@@ -180,6 +183,24 @@ export class GameScene extends Phaser.Scene {
 
     this.timeBar = this.add.graphics().setDepth(901);
     this.redrawTimeBar();
+
+    // mute toggle (house style: text, no emoji), bottom-left corner
+    const muteBtn = this.add
+      .text(10, GAME_HEIGHT - 26, this.audio.muted ? '[MUTED]' : '[SOUND]', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#00000055',
+        padding: { x: 6, y: 3 },
+      })
+      .setDepth(902)
+      .setInteractive({ useHandCursor: true });
+    muteBtn.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      p.event?.stopPropagation?.();
+      const muted = this.audio.toggleMute();
+      muteBtn.setText(muted ? '[MUTED]' : '[SOUND]');
+      if (!muted) this.audio.play(AudioKeys.Click);
+    });
   }
 
   private buildParticles(): void {
@@ -291,8 +312,10 @@ export class GameScene extends Phaser.Scene {
       this.cameras.main.flash(120, 120, 0, 0); // red sting
       this.popText(x, y, `-${FRIENDLY_PENALTY}`, '#ff5a5a');
       this.dirtEmitter.emitParticleAt(x, y, 8);
+      this.audio.play(AudioKeys.Oops);
     } else {
       const base = def.kind === 'boss' ? BOSS_POINTS : ENEMY_POINTS;
+      const prevMult = this.comboMult();
       this.combo += 1;
       this.bestCombo = Math.max(this.bestCombo, this.combo);
       // tally this character for the end-of-round breakdown
@@ -306,6 +329,10 @@ export class GameScene extends Phaser.Scene {
       this.dirtEmitter.emitParticleAt(hole.x, hole.y - 6, big ? 12 : 7);
       this.impactBurst(x, y, big);
       this.popText(x, y, `+${gained}`, big ? '#ffd23f' : '#ffffff');
+      // sound: boss thud vs pitched bonk; a flourish when the multiplier rises
+      if (big) this.audio.play(AudioKeys.Boss);
+      else this.audio.playPitched(AudioKeys.Bonk);
+      if (mult > prevMult) this.audio.play(AudioKeys.Combo);
     }
     this.refreshHud();
     void hole;
@@ -445,6 +472,7 @@ export class GameScene extends Phaser.Scene {
   private endGame(): void {
     if (!this.running) return;
     this.running = false;
+    this.audio.play(AudioKeys.TimeUp);
     this.time.removeAllEvents();
     this.holes.forEach((h) => h.duck(false));
 

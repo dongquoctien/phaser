@@ -27,32 +27,31 @@ Mirror the art rule: don't grab random audio.
 2. **Verify the LICENSE** — only CC0 / clearly-permissive / your own. Add a
    `public/audio/CREDITS.txt` even when CC0 doesn't require it.
 3. **Pick a SMALL set** (5–8 clips, ~50KB total) — don't ship a 200-file pack. Rename to
-   clear names (`shoot.ogg`, `hit.ogg`, `pickup.ogg`, `levelup.ogg`, `hurt.ogg`,
-   `click.ogg`).
-4. **Make the `.m4a` siblings — REQUIRED, not optional** (see the iOS box above).
-   Transcode every `.ogg` to `.m4a` (AAC). Use a Node script with **`ffmpeg-static`**
-   (bundled binary, no system ffmpeg needed) so it runs anywhere:
-   ```js
-   // scripts/ogg-to-m4a.mjs — `node scripts/ogg-to-m4a.mjs games/<name>/public/audio`
-   import ffmpeg from 'ffmpeg-static'; import { execFileSync } from 'node:child_process';
-   import { readdirSync } from 'node:fs'; import { join } from 'node:path';
-   const dir = process.argv[2];
-   for (const f of readdirSync(dir).filter((n) => n.endsWith('.ogg'))) {
-     const out = join(dir, f.replace(/\.ogg$/, '.m4a'));
-     execFileSync(ffmpeg, ['-y', '-loglevel', 'error', '-i', join(dir, f),
-       '-c:a', 'aac', '-b:a', '96k', out]);
-   }
-   ```
-   (System `ffmpeg` works too, but `ffmpeg-static` is the portable default for this repo.)
+   clear names (`shoot`, `hit`, `pickup`, `levelup`, `hurt`, `click`).
+
+### ⚠️ SHIP TWO FORMATS — `.ogg` + `.m4a` (NON-NEGOTIABLE for iOS)
+**iOS Safari (iPhone/iPad) CANNOT decode Ogg Vorbis.** An `.ogg`-only game is **silent on
+every Apple device** — and you won't catch it on desktop/Android (they play Ogg fine). This
+is a real bug we shipped repo-wide. So every clip MUST also have an **`.m4a` (AAC)** sibling:
+```
+public/audio/shoot.ogg   public/audio/shoot.m4a
+```
+Transcode the whole `public/audio/` tree with the repo script (uses bundled `ffmpeg-static`,
+no system ffmpeg needed):
+```
+node scripts/ogg-to-m4a.mjs      # every *.ogg -> *.m4a (idempotent)
+```
 
 Acquisition example (CC0 Kenney): download the pack zip, extract the few clips you want
-into `games/<name>/public/audio/` (served as-is by Vite), transcode to `.m4a`, then
-verify with Playwright they decode (see below).
+into `games/<name>/public/audio/`, then run `ogg-to-m4a.mjs`. Verify with Playwright they
+decode (see below).
 
-## Loading (PreloadScene) — dual format, m4a first
+## Loading (PreloadScene)
+Load BOTH formats as an array — Phaser plays the first the browser supports. Put **`.m4a`
+first** so iOS definitely gets a decodable file:
 ```ts
 for (const key of Object.values(AudioKeys)) {
-  // m4a FIRST so iOS (which can't decode Ogg) gets a format it supports.
+  // m4a first so iOS Safari (no Ogg support) gets a decodable format.
   this.load.audio(key, [`audio/${key}.m4a`, `audio/${key}.ogg`]);
 }
 ```
@@ -97,6 +96,25 @@ working reference). Non-negotiables it encodes:
     document.addEventListener('visibilitychange', () => { if (!document.hidden) resume(); });
   }
   ```
+
+### iOS resume helper (the context re-suspends — fixes "no sound on iPhone")
+iOS keeps the WebAudio context **suspended** until a gesture AND **re-suspends it after a
+tab/app switch or screen lock** (iOS 17.5+) — so sound dies after the player leaves and
+returns. Belt-and-suspenders: in the `Audio` helper constructor, resume the context on the
+first pointer-down and on every visibility regain. Clean up on scene shutdown.
+```ts
+private installIosUnlock(): void {
+  const sm = this.scene.sound as Phaser.Sound.WebAudioSoundManager;
+  const ctx = sm.context as AudioContext | undefined;
+  if (!ctx) return; // HTML5 Audio fallback — nothing to resume
+  const resume = () => { if (ctx.state === 'suspended') void ctx.resume(); };
+  this.scene.input.on(Phaser.Input.Events.POINTER_DOWN, resume);
+  const onVis = () => { if (!document.hidden) resume(); };
+  document.addEventListener('visibilitychange', onVis);
+  this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+    document.removeEventListener('visibilitychange', onVis));
+}
+```
 
 ## Background music (if used)
 `const m = this.sound.add(AudioKeys.Music, { loop: true, volume: 0.4 }); m.play();` — add

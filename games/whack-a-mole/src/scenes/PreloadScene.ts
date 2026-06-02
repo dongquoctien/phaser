@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, AtlasKeys } from '../types/keys';
+import { SceneKeys, AtlasKeys, AudioKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { bakeArt } from '../systems/art';
 
@@ -13,6 +13,11 @@ export class PreloadScene extends Phaser.Scene {
   preload(): void {
     this.drawProgressBar();
     this.load.atlas(AtlasKeys.Sprites, 'assets/sprites.png', 'assets/sprites.json');
+    // CC0 SFX (see public/audio/CREDITS.txt). m4a first so iOS Safari (no Ogg
+    // support) gets a decodable format.
+    for (const key of Object.values(AudioKeys)) {
+      this.load.audio(key, [`audio/${key}.m4a`, `audio/${key}.ogg`]);
+    }
   }
 
   create(): void {
