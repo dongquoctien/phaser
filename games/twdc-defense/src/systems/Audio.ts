@@ -3,7 +3,7 @@ import { AudioKeys, type AudioKey, type MusicKey, RegistryKeys } from '../types/
 
 // Throttled SFX helper with a WebAudio cache guard + persisted mute (phaser-audio
 // skill). playPitched adds ±10% rate so spammed shots don't fatigue.
-const SFX: Record<AudioKey, { volume: number; throttle: number }> = {
+const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }> = {
   [AudioKeys.Shoot]: { volume: 0.13, throttle: 45 },
   [AudioKeys.Hit]: { volume: 0.15, throttle: 40 },
   [AudioKeys.Explode]: { volume: 0.38, throttle: 80 },
@@ -12,18 +12,20 @@ const SFX: Record<AudioKey, { volume: number; throttle: number }> = {
   [AudioKeys.Click]: { volume: 0.5, throttle: 0 },
   // zombie sfx: growls are ambient (longer throttle so a wave doesn't roar), die
   // sounds fire per kill, boss roar is a one-off on spawn.
-  [AudioKeys.ZombieGrrr]: { volume: 0.3, throttle: 900 },
-  [AudioKeys.ZombieGrrr1]: { volume: 0.3, throttle: 900 },
+  [AudioKeys.ZombieGrrr]: { volume: 0.3, throttle: 900, group: 'grrr' },
+  [AudioKeys.ZombieGrrr1]: { volume: 0.3, throttle: 900, group: 'grrr' },
   [AudioKeys.ZombieBossSfx]: { volume: 0.6, throttle: 0 },
-  [AudioKeys.ZombieDie]: { volume: 0.35, throttle: 60 },
-  [AudioKeys.ZombieDie2]: { volume: 0.35, throttle: 60 },
+  // die sounds share ONE throttle group so a mass-kill (AoE/nova/cleave) plays a
+  // single death sound, not a wall of them. ~350ms feels punchy without spamming.
+  [AudioKeys.ZombieDie]: { volume: 0.3, throttle: 350, group: 'die' },
+  [AudioKeys.ZombieDie2]: { volume: 0.3, throttle: 350, group: 'die' },
 };
 
 const MUSIC_VOL = 0.35;
 
 export class Audio {
   private scene: Phaser.Scene;
-  private lastPlayed: Partial<Record<AudioKey, number>> = {};
+  private lastPlayed: Record<string, number> = {}; // keyed by throttle slot (group or key)
   private music?: Phaser.Sound.BaseSound; // current looping track
   private musicKey?: MusicKey;
 
@@ -87,8 +89,10 @@ export class Audio {
     if (!this.scene.cache.audio.exists(key)) return;
     const cfg = SFX[key];
     const now = this.scene.time.now;
-    if (cfg.throttle > 0 && now - (this.lastPlayed[key] ?? -1e9) < cfg.throttle) return;
-    this.lastPlayed[key] = now;
+    // throttle by group when set (so all die sounds share one cooldown), else by key
+    const slot = cfg.group ?? key;
+    if (cfg.throttle > 0 && now - (this.lastPlayed[slot] ?? -1e9) < cfg.throttle) return;
+    this.lastPlayed[slot] = now;
     this.scene.sound.play(key, { volume: cfg.volume, rate });
   }
 
