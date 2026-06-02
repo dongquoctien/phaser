@@ -45,9 +45,8 @@ export const TextureKeys = {
   HeroNini: 'hero-nini',         // long hair — execute
   HeroHakj: 'hero-hakj',         // blue fish — water bounce
 
-  // Zombies (static baked grids — brute; walker icon for HUD)
+  // Zombies (walker grid kept only for the HUD lives icon)
   ZombieWalker: 'zombie-walker', // grid, used for the HUD lives icon
-  ZombieBrute: 'zombie-brute',
   // animated zombie spritesheets (cut from reference sheets by scripts/cut-zombie-sheet.mjs)
   ZombieGirlStand: 'zombie-girl-stand',   // walker — idle/walk/attackA/attackB/takeDamage/victory
   ZombieGirlLie: 'zombie-girl-lie',       // walker — death/rise
@@ -55,6 +54,8 @@ export const TextureKeys = {
   ZombieBossLie: 'zombie-boss-lie',       // boss — death/rise
   ZombieSpeedStand: 'zombie-speed-stand', // slow (bucket-head) — idle/walk/attack/takeDamage/victory
   ZombieSpeedLie: 'zombie-speed-lie',     // slow — death
+  ZombieBruteStand: 'zombie-brute-stand', // brute (satchel girl) — same anim set as girl
+  ZombieBruteLie: 'zombie-brute-lie',     // brute — death/rise
 
   // FX / projectiles
   ProjArcane: 'proj-arcane',

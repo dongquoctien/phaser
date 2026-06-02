@@ -37,6 +37,8 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet(SS.ZombieBossLie, 'enemies/zombie-boss-lie.png', { frameWidth: 157, frameHeight: 142 });
     this.load.spritesheet(SS.ZombieSpeedStand, 'enemies/zombie-speed-stand.png', { frameWidth: 130, frameHeight: 182 });
     this.load.spritesheet(SS.ZombieSpeedLie, 'enemies/zombie-speed-lie.png', { frameWidth: 179, frameHeight: 98 });
+    this.load.spritesheet(SS.ZombieBruteStand, 'enemies/zombie-brute-stand.png', { frameWidth: 118, frameHeight: 141 });
+    this.load.spritesheet(SS.ZombieBruteLie, 'enemies/zombie-brute-lie.png', { frameWidth: 158, frameHeight: 142 });
   }
 
   create(): void {
@@ -65,6 +67,7 @@ export class PreloadScene extends Phaser.Scene {
     for (const [pfx, stand, lie] of [
       ['girl', TextureKeys.ZombieGirlStand, TextureKeys.ZombieGirlLie],
       ['boss', TextureKeys.ZombieBossStand, TextureKeys.ZombieBossLie],
+      ['brute', TextureKeys.ZombieBruteStand, TextureKeys.ZombieBruteLie],
     ] as const) {
       mk(`${pfx}-idle`, stand, 0, 6, 4, 4, -1, true);
       mk(`${pfx}-walk`, stand, 1, 6, 6, 9, -1);

@@ -13,10 +13,9 @@ const data = baseArt as { map: Record<string, string | null>; art: Record<string
 // art.json key → TextureKey (zombies/FX use the same string ids as the keys).
 const BAKE_MAP: Record<string, string> = {
   grass: TextureKeys.Grass, path: TextureKeys.Path, tree: TextureKeys.Tree, rock: TextureKeys.Rock, pad: TextureKeys.Pad,
-  // walker grid kept for the HUD lives icon; brute still uses its grid. runner
-  // removed; boss is now an animated spritesheet (see PreloadScene).
+  // walker grid kept ONLY for the HUD lives icon. All 4 zombie types now use
+  // animated spritesheets (see PreloadScene); runner removed.
   'zombie-walker': TextureKeys.ZombieWalker,
-  'zombie-brute': TextureKeys.ZombieBrute,
   'proj-arcane': TextureKeys.ProjArcane, 'proj-arrow': TextureKeys.ProjArrow, 'proj-bullet': TextureKeys.ProjBullet,
   'proj-poison': TextureKeys.ProjPoison, 'proj-frost': TextureKeys.ProjFrost, 'proj-spit': TextureKeys.ProjSpit,
   'proj-bolt': TextureKeys.ProjBolt, slash: TextureKeys.Slash, explosion: TextureKeys.Explosion, spark: TextureKeys.Spark,

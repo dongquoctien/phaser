@@ -270,6 +270,6 @@ export const ZOMBIES: Record<ZombieId, ZombieDef> = {
   // walker = the zombie-girl sheet; slow = bucket-head (tanky, slow); boss = crowned queen.
   walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
   slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 130, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
-  brute: { id: 'brute', tex: TextureKeys.ZombieBrute, hp: 150, speedMul: 0.7, bounty: 2.2, scale: 1.05 },
+  brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 150, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
   boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 700, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss' },
 };
