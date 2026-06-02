@@ -1,0 +1,13 @@
+Sound effects from Kenney (https://kenney.nl) — Impact Sounds + Interface Sounds.
+License: Creative Commons CC0 (public domain). No attribution required, but credited here.
+
+bonk.ogg   — impactMining_000        (Impact Sounds)    — hitting an enemy
+boss.ogg   — impactGlass_heavy_000   (Impact Sounds)    — hitting the boss
+oops.ogg   — impactGlass_heavy_000   (Impact Sounds)    — whacking a friendly (penalty)
+combo.ogg  — (Kenney UI/level-up)                       — combo milestone
+click.ogg  — click_001               (Interface Sounds) — menu / weapon select
+timeup.ogg — (Kenney defeat)                            — round over
+
+Each clip ships as both .ogg and .m4a (AAC). iOS Safari cannot decode Ogg, so the
+.m4a is what plays on iPhone/iPad. Regenerate the .m4a set with:
+  node scripts/ogg-to-m4a.mjs

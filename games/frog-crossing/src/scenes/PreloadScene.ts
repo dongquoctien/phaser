@@ -10,9 +10,10 @@ export class PreloadScene extends Phaser.Scene {
 
   preload(): void {
     this.drawProgressBar();
-    // CC0 SFX (see public/audio/CREDITS.txt). One .ogg each.
+    // CC0 SFX (see public/audio/CREDITS.txt). m4a + ogg per key.
     for (const key of Object.values(AudioKeys)) {
-      this.load.audio(key, `audio/${key}.ogg`);
+      // m4a first so iOS Safari (no Ogg support) gets a decodable format.
+      this.load.audio(key, [`audio/${key}.m4a`, `audio/${key}.ogg`]);
     }
   }
 
