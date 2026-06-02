@@ -401,10 +401,11 @@ export class GameScene extends Phaser.Scene {
       alive++;
       if (res === 'end') {
         z.playEndAttack(); // chomp at the base, then despawns itself
-        this.lives -= 1;
+        const cost = z.bossInfo ? 10 : 1; // a boss reaching the gate costs 10 lives
+        this.lives -= cost;
         this.refreshHud();
         this.audio.play(AudioKeys.Lose);
-        this.cameras.main.shake(120, 0.006);
+        this.cameras.main.shake(z.bossInfo ? 200 : 120, z.bossInfo ? 0.01 : 0.006);
         if (this.lives <= 0) { this.gameOver(); return; }
       } else if (z.hp <= 0 && !z.dying) {
         // died from a DoT tick this frame (skip if its death anim already started,
