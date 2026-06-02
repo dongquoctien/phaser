@@ -347,16 +347,17 @@ export interface ZombieDef {
 
 export const ZOMBIES: Record<ZombieId, ZombieDef> = {
   // walker = the zombie-girl sheet; slow = bucket-head (tanky, slow).
-  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
-  slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 130, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
-  brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 150, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
+  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 55, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
+  slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 162, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
+  brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 188, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
   // ── bosses (one per map). skillCdMs = how often it destroys a hero (Easy slow → Hard fast).
   //    Title colours are themed per boss (toxic-green queen / blood-red king / drowned-cyan).
-  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 700, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss',
+  // HP from this PR (boss +20%); cooldown from main (PR #21 -5s).
+  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 840, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss',
     boss: { name: 'Dark Princess Oreo', skillCdMs: 9000, fill: '#5ee62e', outline: '#0a2a0c', glow: 0x2a5a1d } },
-  khoai: { id: 'khoai', tex: TextureKeys.ZombieKhoaiStand, hp: 1100, speedMul: 0.5, bounty: 12, scale: 0.5, sheet: 'khoai',
+  khoai: { id: 'khoai', tex: TextureKeys.ZombieKhoaiStand, hp: 1320, speedMul: 0.5, bounty: 12, scale: 0.5, sheet: 'khoai',
     boss: { name: 'King Khoai', skillCdMs: 6500, fill: '#ff3b3b', outline: '#3a0606', glow: 0x5a1d1d } },
-  hakj: { id: 'hakj', tex: TextureKeys.ZombieHakjStand, hp: 1600, speedMul: 0.55, bounty: 16, scale: 0.5, sheet: 'hakj',
+  hakj: { id: 'hakj', tex: TextureKeys.ZombieHakjStand, hp: 1920, speedMul: 0.55, bounty: 16, scale: 0.5, sheet: 'hakj',
     boss: { name: 'Hakj the Drowned', skillCdMs: 4500, fill: '#3be0ff', outline: '#06303a', glow: 0x1d4a5a } },
 };
 
