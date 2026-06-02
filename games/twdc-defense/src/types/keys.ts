@@ -12,14 +12,12 @@ export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];
 // Pixel-art (Sweetie-16, 32×32 sprites) baked via src/pixel. One key per art piece.
 // 15 hero sprites come from the user's reference images (1/2/3.png) — chibi pets.
 export const TextureKeys = {
-  // Tiles / map — cropped from the reference map art (public/tiles/*.png), loaded
-  // as images (NOT baked grids) for a richer look.
+  // Tiles / map
   Grass: 'grass',
   Path: 'path',
   Tree: 'tree',
   Rock: 'rock',
-  Pad: 'pad',        // hero pad, OFF (empty build slot)
-  PadOn: 'pad-on',   // hero pad, ON (glowing — a hero is placed)
+  Pad: 'pad', // empty hero pad (build slot)
 
   // 21 heroes (user's named sprites; each id matches HEROES in roster.ts)
   // image 1

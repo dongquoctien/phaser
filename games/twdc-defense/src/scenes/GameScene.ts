@@ -16,7 +16,7 @@ export class GameScene extends Phaser.Scene {
   private zombies: Zombie[] = [];
   private projectiles!: Phaser.GameObjects.Group;
   private heroes: Hero[] = [];
-  private padByCell = new Map<string, { x: number; y: number; taken: boolean; img: Phaser.GameObjects.Image }>();
+  private padByCell = new Map<string, { x: number; y: number; taken: boolean }>();
   private waypoints: { x: number; y: number }[] = [];
 
   private gold = 0;
@@ -119,15 +119,13 @@ export class GameScene extends Phaser.Scene {
     for (const d of this.map.decor) {
       if (!isInsideGrid(d.cell[0], d.cell[1])) continue;
       const { x, y } = cellCenter(d.cell[0], d.cell[1]);
-      const tex = d.kind === 'tree' ? TextureKeys.Tree : TextureKeys.Rock;
-      // tree/rock art is ~80px; show a bit larger than a cell, feet at the tile.
-      this.add.image(x, y - 4, tex).setDisplaySize(CELL * 1.25, CELL * 1.25).setOrigin(0.5, 0.55).setDepth(4);
+      this.add.image(x, y, d.kind === 'tree' ? TextureKeys.Tree : TextureKeys.Rock).setDepth(4);
     }
-    // hero pads — start OFF; swapped to the glowing PadOn when a hero is placed.
+    // hero pads
     for (const [c, r] of this.map.pads) {
       const { x, y } = cellCenter(c, r);
-      const img = this.add.image(x, y, TextureKeys.Pad).setDisplaySize(CELL * 1.05, CELL * 1.05).setDepth(2);
-      this.padByCell.set(`${c},${r}`, { x, y, taken: false, img });
+      this.add.image(x, y, TextureKeys.Pad).setDepth(2);
+      this.padByCell.set(`${c},${r}`, { x, y, taken: false });
     }
     // HUD strip background
     this.add.rectangle(0, HUD_TOP, GAME_WIDTH, GAME_HEIGHT - HUD_TOP, 0x141019, 1).setOrigin(0, 0).setDepth(30);
@@ -163,7 +161,6 @@ export class GameScene extends Phaser.Scene {
     const h = new Hero(this, id, col, row, pad.x, pad.y);
     this.heroes.push(h);
     pad.taken = true;
-    pad.img.setTexture(TextureKeys.PadOn); // pad lights up when occupied
     return h;
   }
 
