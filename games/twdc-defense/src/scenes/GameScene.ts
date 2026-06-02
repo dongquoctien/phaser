@@ -29,6 +29,7 @@ export class GameScene extends Phaser.Scene {
   private over = false;
   private countdownActive = false;
   private countdownEndsAt = 0; // scene-time (ms) when the next wave auto-starts
+  private awaitingFirstStart = false; // wave 1 waits for a manual START press (no timer)
   private slowmo = 1; // game-logic time multiplier; <1 during the boss-kill cinematic
   private cinematicActive = false; // true while a boss-kill slow-mo cinematic plays
 
@@ -91,8 +92,11 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onFieldTap, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.off('pointerdown', this.onFieldTap, this));
 
-    // Prep countdown before wave 1 — time to place a few heroes, then it auto-starts.
-    this.beginCountdown(Tuning.prepSeconds);
+    // Wave 1 waits for a manual START press (no countdown). The official clock /
+    // first wave only begins when the player taps START — gives unlimited prep time.
+    this.awaitingFirstStart = true;
+    this.showStartBtn(true);
+    this.refreshCountdown(); // shows the START label (no timer)
 
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       (this as unknown as Record<string, unknown>).__dev = {
@@ -313,6 +317,7 @@ export class GameScene extends Phaser.Scene {
   // ── input: open hero-picker on a pad, or select a placed hero ─────────────────
   private onFieldTap(p: Phaser.Input.Pointer): void {
     if (this.over) return;
+    if (this.cinematicActive) return; // ignore taps during the boss-kill cinematic
     // While the picker is open, ignore field taps entirely — the card zones (on
     // top) handle picking and the CLOSE button cancels. Closing here would race
     // the card's pointerup and eat the pick.
@@ -744,6 +749,9 @@ export class GameScene extends Phaser.Scene {
     if (!target) return;
     const victim = target;
     this.cinematicActive = true;
+    // close any open menu first — UI lives on the main camera, so the cinematic
+    // zoom would otherwise scale the hero-picker / upgrade panel too.
+    this.clearSelection();
     boss.playBossAttack();
     this.audio.play(AudioKeys.BossKillSlow); // tense slow-mo sting
 
@@ -823,14 +831,19 @@ export class GameScene extends Phaser.Scene {
   // early grants a small gold bonus as a reward for confidence.
   private skipCountdown(): void {
     if (this.over) return;
-    if (this.countdownActive && this.time.now < this.countdownEndsAt) {
+    // wave 1 manual start: no skip bonus (there was no timer to skip)
+    if (!this.awaitingFirstStart && this.countdownActive && this.time.now < this.countdownEndsAt) {
       this.gold += Tuning.skipBonus; // early-start reward
     }
     this.startWave();
   }
 
   private refreshCountdown(): void {
-    if (this.countdownActive && !this.waveActive) {
+    if (this.awaitingFirstStart && !this.waveActive) {
+      // wave 1: no timer — just prompt the player to start when ready
+      this.countdownText.setText('Place your heroes, then START').setVisible(true);
+      this.startBtn.setText('START ▶');
+    } else if (this.countdownActive && !this.waveActive) {
       const left = Math.max(0, Math.ceil((this.countdownEndsAt - this.time.now) / 1000));
       this.countdownText.setText(`Next wave in ${left}s`).setVisible(true);
       this.startBtn.setText(`SKIP ▶  +$${Tuning.skipBonus}`);
@@ -842,6 +855,7 @@ export class GameScene extends Phaser.Scene {
   private startWave(): void {
     if (this.waveActive || this.over) return;
     this.countdownActive = false;
+    this.awaitingFirstStart = false; // first START consumed; later waves auto-countdown
     this.countdownText.setVisible(false);
     this.wave += 1;
     this.waveActive = true;

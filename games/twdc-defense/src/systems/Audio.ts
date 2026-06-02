@@ -31,6 +31,7 @@ export class Audio {
   private lastPlayed: Record<string, number> = {}; // keyed by throttle slot (group or key)
   private music?: Phaser.Sound.BaseSound; // current looping track
   private musicKey?: MusicKey;
+  private pageHidden = false; // true while the tab is backgrounded — drop all sound
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -80,16 +81,19 @@ export class Audio {
     this.scene.input.on(Phaser.Input.Events.POINTER_DOWN, resume);
     const onVis = () => {
       if (document.hidden) {
-        // pause the manager (stops queuing/playback) and suspend the context so
-        // no audio is buffered up while we're backgrounded
-        this.scene.sound.pauseAll();
+        // Backgrounded: stop EVERYTHING and suspend the context. The pageHidden
+        // flag also makes playInternal/playMusic no-op so the game loop can't
+        // enqueue any sound while hidden (the queued buffers were what fired all
+        // at once — loud — on return).
+        this.pageHidden = true;
+        this.scene.sound.stopAll();
         if (ctx.state === 'running') void ctx.suspend();
       } else {
+        this.pageHidden = false;
         if (ctx.state === 'suspended') void ctx.resume();
-        // reset throttle clocks so the first sound after returning isn't gated,
-        // and (more importantly) old timestamps don't let a burst slip through
-        this.lastPlayed = {};
-        this.scene.sound.resumeAll();
+        this.lastPlayed = {}; // clear stale throttle timestamps
+        // restart the looping music that stopAll() killed
+        if (this.musicKey) { const k = this.musicKey; this.musicKey = undefined; this.playMusic(k); }
       }
     };
     document.addEventListener('visibilitychange', onVis);
@@ -106,6 +110,7 @@ export class Audio {
   }
 
   private playInternal(key: AudioKey, rate: number): void {
+    if (this.pageHidden) return; // never enqueue sound while backgrounded
     if (this.scene.sound.mute) return;
     if (!this.scene.cache.audio.exists(key)) return;
     const cfg = SFX[key];
