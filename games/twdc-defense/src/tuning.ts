@@ -15,7 +15,7 @@ export const HUD_TOP = FIELD_H; // HUD strip 640..800 (160px)
 export const Tuning = {
   startGold: 260,
   startLives: 20,
-  bountyBase: 7, // gold per kill (scaled by zombie tier)
+  bountyBase: 28, // gold per kill (scaled by zombie tier) — ×5 then −20% (35→28)
 
   // Wave spawning
   spawnInterval: 650, // ms between zombies in a wave
@@ -23,6 +23,9 @@ export const Tuning = {
   prepSeconds: 8, // countdown before wave 1 (time to place heroes)
   betweenSeconds: 10, // countdown between waves
   skipBonus: 15, // gold reward for skipping the countdown early
+  // end-of-wave gold reward = waveRewardBase + wave × waveRewardPerWave. (×10.)
+  waveRewardBase: 200,
+  waveRewardPerWave: 40,
   enemyHpPerWave: 0.2, // +20% zombie hp per wave (geometric)
   enemyCountBase: 6,
   enemyCountPerWave: 1.6,

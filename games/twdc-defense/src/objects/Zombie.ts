@@ -16,6 +16,10 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   dead = true;        // removed from play (stepped over, untargetable)
   dying = false;      // death anim is playing; not steppable/targetable but still on screen
   reachedEnd = false;
+  /** boss-only metadata (name + hero-kill cooldown); undefined for minions, even
+   *  when a boss type walks in as an elite minion (set only on real boss waves). */
+  bossInfo?: { name: string; skillCdMs: number };
+  nextHeroKillAt = 0; // next time this boss may destroy a hero (scene clock ms)
 
   // status
   private slowFactor = 1; // 1 = normal; <1 = slowed
@@ -23,6 +27,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private stunUntil = 0;
   private poisonDps = 0;
   private poisonUntil = 0;
+  private vulnStacks = 0; // gnaw (Jibgor): each bite raises damage taken; +8% per stack, capped
   private dist = 0; // distance travelled along the path (px), for knockback + targeting order
 
   private wpIndex = 0;
@@ -47,7 +52,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private busyAnimUntil = 0; // while a one-shot anim (takeDamage) plays, don't override with walk
 
   constructor(scene: Phaser.Scene) {
-    super(scene, 0, 0, 'zombie-walker');
+    super(scene, 0, 0, 'zombie-girl-stand'); // placeholder texture, replaced on spawn()
     this.setActive(false).setVisible(false);
     this.hpBarBg = scene.add.rectangle(0, 0, 26, 4, 0x1a1c2c).setDepth(15).setVisible(false);
     this.hpBar = scene.add.rectangle(0, 0, 24, 2, 0xb13e53).setOrigin(0, 0.5).setDepth(16).setVisible(false);
@@ -72,8 +77,10 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.dead = false;
     this.dying = false;
     this.reachedEnd = false;
+    this.bossInfo = undefined; // set by the scene only when this is the wave's real boss
+    this.nextHeroKillAt = 0;
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0;
-    this.poisonDps = 0; this.poisonUntil = 0;
+    this.poisonDps = 0; this.poisonUntil = 0; this.vulnStacks = 0;
     // precompute segment lengths for distance-based ordering
     this.segLen = [];
     for (let i = 0; i < waypoints.length - 1; i++) {
@@ -222,6 +229,14 @@ export class Zombie extends Phaser.GameObjects.Sprite {
    * direction before the scene drains a life and despawns it. `onDone` fires after
    * the lunge so the life-loss reads as "the zombie got through".
    */
+  /** One-shot attack anim for the boss hero-kill skill, then resume walking.
+   *  No-op for non-animated zombies. */
+  playBossAttack(): void {
+    if (!this.animated || this.dead || this.dying) return;
+    this.play(`${this.sheet}-${Math.random() < 0.5 ? 'attackA' : 'attackB'}`, true);
+    this.busyAnimUntil = this.scene.time.now + 500; // hold the attack pose briefly
+  }
+
   playEndAttack(onDone?: () => void): void {
     if (this.dying || this.dead) { onDone?.(); return; }
     this.dying = true;
@@ -258,6 +273,8 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   /** Apply a flat damage amount; returns true if this killed it. */
   applyDamage(amount: number): boolean {
     if (this.dead || this.dying) return false;
+    // gnaw vulnerability: each stack makes the zombie take +8% damage (cap +80%)
+    if (this.vulnStacks > 0) amount *= 1 + Math.min(this.vulnStacks, 10) * 0.08;
     this.hp -= amount;
     this.flash();
     if (this.hp <= 0) { this.hp = 0; return true; }
@@ -288,6 +305,12 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.stunUntil = Math.max(this.stunUntil, now + durationS * 1000);
     this.setTint(0xffe066);
     this.scene.time.delayedCall(durationS * 1000, () => { if (!this.dead) this.clearTint(); });
+  }
+
+  /** gnaw (Jibgor): add a vulnerability stack so the next bites bite harder. */
+  gnaw(): void {
+    if (this.dead) return;
+    this.vulnStacks++;
   }
 
   /** Push the zombie back along the path (rewind waypoints by `px`). */

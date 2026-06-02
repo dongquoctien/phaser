@@ -28,6 +28,20 @@ export class PreloadScene extends Phaser.Scene {
       this.load.image(HEROES[id].tex, `heroes-pixel/${id}.png`);
     }
 
+    // Map tiles + decor — real art cut from the user's asset sheet (public/tiles/).
+    const T = TextureKeys;
+    const tileFiles: Array<[string, string]> = [
+      [T.Grass, 'grass'], [T.Path, 'dirt'], [T.GrassFringe, 'grass_fringe'],
+      [T.RoadStraight, 'road_straight'], [T.RoadCorner, 'road_corner'],
+      [T.Grass0, 'grass0'], [T.Grass1, 'grass1'], [T.Grass2, 'grass2'], [T.Grass3, 'grass3'], [T.Grass4, 'grass4'],
+      [T.Pad, 'pad_blue'], [T.PadOn, 'pad_green'],
+      [T.TreeRound, 'tree_round'], [T.TreePine, 'tree_pine'], [T.TreeBig, 'tree_big'],
+      [T.TreeSmall1, 'tree_small1'], [T.TreeSmall2, 'tree_small2'],
+      [T.RockBig1, 'rock_big1'], [T.RockBig2, 'rock_big2'], [T.RockMed1, 'rock_med1'], [T.RockMed2, 'rock_med2'],
+      [T.Bush, 'bush'], [T.Flowers, 'flowers'], [T.Log, 'log'], [T.Mushroom, 'mushroom'],
+    ];
+    for (const [key, file] of tileFiles) this.load.image(key, `tiles/${file}.png`);
+
     // animated zombie spritesheets (cut by scripts/cut-zombie-sheet.mjs). Each
     // "sheet set" has a tall STAND png + a wide LIE png; cell sizes differ per set.
     const SS = TextureKeys;
@@ -39,12 +53,30 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet(SS.ZombieSpeedLie, 'enemies/zombie-speed-lie.png', { frameWidth: 179, frameHeight: 98 });
     this.load.spritesheet(SS.ZombieBruteStand, 'enemies/zombie-brute-stand.png', { frameWidth: 118, frameHeight: 141 });
     this.load.spritesheet(SS.ZombieBruteLie, 'enemies/zombie-brute-lie.png', { frameWidth: 158, frameHeight: 142 });
+    // per-map bosses (cut by cut-zombie-sheet.mjs khoai|hakj)
+    this.load.spritesheet(SS.ZombieKhoaiStand, 'enemies/zombie-khoai-stand.png', { frameWidth: 242, frameHeight: 193 });
+    this.load.spritesheet(SS.ZombieKhoaiLie, 'enemies/zombie-khoai-lie.png', { frameWidth: 242, frameHeight: 228 });
+    this.load.spritesheet(SS.ZombieHakjStand, 'enemies/zombie-hakj-stand.png', { frameWidth: 258, frameHeight: 232 });
+    this.load.spritesheet(SS.ZombieHakjLie, 'enemies/zombie-hakj-lie.png', { frameWidth: 258, frameHeight: 223 });
   }
 
   create(): void {
     bakeArt(this);
     this.createZombieAnims();
-    this.scene.start(SceneKeys.Menu);
+    // Wait for the Bangers display font (titles + banners) so the first text that
+    // renders already uses it instead of flashing the monospace fallback.
+    const go = () => this.scene.start(SceneKeys.Menu);
+    const fonts = (document as unknown as { fonts?: { load: (f: string) => Promise<unknown>; ready: Promise<unknown> } }).fonts;
+    if (fonts) {
+      // load both display fonts (Bangers for banners, Creepster for boss titles)
+      const load = Promise.all([
+        fonts.load('400 32px Bangers').catch(() => {}),
+        fonts.load('400 32px Creepster').catch(() => {}),
+      ]);
+      Promise.race([load, new Promise((r) => setTimeout(r, 1500))]).then(go);
+    } else {
+      go();
+    }
   }
 
   // Define animations for every zombie sheet set. Anim keys are `<sheet>-<name>`
@@ -90,6 +122,28 @@ export class PreloadScene extends Phaser.Scene {
     mk('speed-victory', sp, 4, 6, 3, 6, -1);
     mk('speed-death', TextureKeys.ZombieSpeedLie, 0, 4, 4, 8, 0);
     mk('speed-rise', TextureKeys.ZombieSpeedLie, 0, 4, 4, 8, 0); // no rise art → reuse death
+
+    // khoai (Normal boss): stand 6 cols × 6 rows; lie 3 cols × 2 rows.
+    const kh = TextureKeys.ZombieKhoaiStand, khL = TextureKeys.ZombieKhoaiLie;
+    mk('khoai-idle', kh, 0, 6, 4, 4, -1, true);
+    mk('khoai-walk', kh, 1, 6, 6, 9, -1);
+    mk('khoai-attackA', kh, 2, 6, 4, 11, 0);
+    mk('khoai-attackB', kh, 3, 6, 4, 11, 0);
+    mk('khoai-takeDamage', kh, 4, 6, 2, 14, 0);
+    mk('khoai-victory', kh, 5, 6, 4, 6, -1);
+    mk('khoai-death', khL, 0, 3, 3, 8, 0);
+    mk('khoai-rise', khL, 1, 3, 3, 9, 0);
+
+    // hakj (Hard boss): stand 3 cols × 6 rows; lie 3 cols × 2 rows.
+    const hj = TextureKeys.ZombieHakjStand, hjL = TextureKeys.ZombieHakjLie;
+    mk('hakj-idle', hj, 0, 3, 3, 4, -1, true);
+    mk('hakj-walk', hj, 1, 3, 3, 8, -1);
+    mk('hakj-attackA', hj, 2, 3, 3, 11, 0);
+    mk('hakj-attackB', hj, 3, 3, 3, 11, 0);
+    mk('hakj-takeDamage', hj, 4, 3, 2, 14, 0);
+    mk('hakj-victory', hj, 5, 3, 3, 6, -1);
+    mk('hakj-death', hjL, 0, 3, 3, 8, 0);
+    mk('hakj-rise', hjL, 1, 3, 3, 9, 0);
   }
 
   private drawProgressBar(): void {

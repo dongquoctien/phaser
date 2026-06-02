@@ -12,7 +12,9 @@ const data = baseArt as { map: Record<string, string | null>; art: Record<string
 
 // art.json key → TextureKey (zombies/FX use the same string ids as the keys).
 const BAKE_MAP: Record<string, string> = {
-  grass: TextureKeys.Grass, path: TextureKeys.Path, tree: TextureKeys.Tree, rock: TextureKeys.Rock, pad: TextureKeys.Pad,
+  // grass/path/tree/rock/pad are no longer baked — they load as real art from
+  // public/tiles/ (see PreloadScene). Only FX, projectiles and the HUD zombie
+  // icon are still hand-baked pixel grids.
   // walker grid kept ONLY for the HUD lives icon. All 4 zombie types now use
   // animated spritesheets (see PreloadScene); runner removed.
   'zombie-walker': TextureKeys.ZombieWalker,

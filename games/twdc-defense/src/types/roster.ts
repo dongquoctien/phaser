@@ -1,7 +1,7 @@
 import { TextureKeys, type TextureKey } from './keys';
 
 // ── Heroes ───────────────────────────────────────────────────────────────────
-// 21 chibi heroes from the user's reference images, each with a DISTINCT skill.
+// 25 chibi heroes from the user's reference images, each with a DISTINCT skill.
 // Names are the user's own. The engine reads `attack` (how it delivers damage) +
 // `skill` (the special effect), so behaviour is fully data-driven.
 
@@ -11,7 +11,9 @@ export type HeroId =
   // image 2 (6)
   | 'kenken' | 'oldbear' | 'bluefoo' | 'nixxx' | 'gauchi' | 'gei'
   // image 3 (6)
-  | 'yunseo' | 'dongdong' | 'midori' | 'anzu' | 'nini' | 'hakj';
+  | 'yunseo' | 'dongdong' | 'midori' | 'anzu' | 'nini' | 'hakj'
+  // image 4 (4)
+  | 'chuotchu' | 'meomeo' | 'doraemon' | 'shiba';
 
 export type AttackKind = 'projectile' | 'melee' | 'aura' | 'nova';
 
@@ -25,10 +27,16 @@ export type SkillKind =
   | 'doubleshot' // two bolts at the front target
   | 'buffaura'   // aura: boosts damage of heroes in range
   | 'execute'    // bonus damage vs low-hp zombies
-  | 'bounce';    // projectile splashes + slows (water bounce)
+  | 'bounce'     // projectile splashes + slows (water bounce)
+  // image-4 additions:
+  | 'bounceball' // a ball that bounces between adjacent zombies (Shiba); bounces grow per tier
+  | 'gnaw'       // each hit stacks vulnerability — the same zombie takes more each bite (Jibgor)
+  | 'roar'       // shot lands + a fear-roar: AoE damage + brief stun (Lionyori)
+  | 'aircannon'; // Doraemon's Air Cannon: a piercing air-blast that knocks a line back (Mr.Hoang)
 
 export interface HeroTier {
   range: number; fireInterval: number; damage: number; cost: number;
+  bounces?: number; // bounceball (Shiba): extra zombies the ball hops to — scales per tier
 }
 
 export interface HeroDef {
@@ -62,8 +70,45 @@ export interface HeroDef {
   lore: string; // short flavour bio shown in the hero-detail panel
 }
 
+// Hero max level. The three authored anchors map to levels 1, MID, and MAX; the
+// engine interpolates the in-between levels so every hero has 10 upgrade steps.
+export const MAX_LEVEL = 10;
+const MID_LEVEL = 5; // 1-based level the middle anchor sits on
+
+// Build 10 interpolated tiers from 3 authored anchors. Numeric stats + skill params
+// (damage/range/fireInterval and any bounces/splashRadius/chainJumps/shots/dot…)
+// lerp between anchors; `cost` is the price to REACH that level and grows +10% per
+// level over the previous (compounding), seeded from the base anchor cost.
 function tiers(base: HeroTier, t1: Partial<HeroTier>, t2: Partial<HeroTier>): HeroTier[] {
-  return [base, { ...base, ...t1 }, { ...base, ...t2 }];
+  const a0 = { ...base } as Record<string, number>;
+  const a1 = { ...base, ...t1 } as Record<string, number>;
+  const a2 = { ...base, ...t2 } as Record<string, number>;
+  const keys = new Set<string>([...Object.keys(a0), ...Object.keys(a1), ...Object.keys(a2)]);
+  keys.delete('cost'); // cost handled separately
+
+  const lerp = (p: number, lo: number, hi: number) => lo + (hi - lo) * p;
+  const out: HeroTier[] = [];
+  for (let lv = 0; lv < MAX_LEVEL; lv++) {
+    const t: Record<string, number> = {};
+    for (const k of keys) {
+      // pick the anchor pair this level falls between (anchors at 0, MID-1, MAX-1)
+      const midIdx = MID_LEVEL - 1, maxIdx = MAX_LEVEL - 1;
+      let v: number;
+      if (lv <= midIdx) {
+        const p = midIdx === 0 ? 0 : lv / midIdx;
+        v = lerp(p, a0[k] ?? 0, a1[k] ?? a0[k] ?? 0);
+      } else {
+        const p = (lv - midIdx) / (maxIdx - midIdx);
+        v = lerp(p, a1[k] ?? 0, a2[k] ?? a1[k] ?? 0);
+      }
+      // integer-ish stats round; fractional skill params (slowFactor) keep 2 dp
+      t[k] = Math.abs(v) < 3 && !Number.isInteger(v) ? Math.round(v * 100) / 100 : Math.round(v);
+    }
+    // cost: base for level 1; each subsequent level +10% compounding
+    t.cost = Math.round((base.cost) * Math.pow(1.1, lv) / 5) * 5; // round to nearest 5
+    out.push(t as unknown as HeroTier);
+  }
+  return out;
 }
 
 type Full = HeroDef & { tiers: HeroTier[] };
@@ -142,7 +187,7 @@ export const HEROES: Record<HeroId, Full> = {
     tiers: tiers({ range: 130, fireInterval: 1000, damage: 0, cost: 140 }, { cost: 160, goldBonus: 5, range: 150 } as Partial<HeroTier>, { cost: 250, goldBonus: 8, range: 170 } as Partial<HeroTier>),
   },
   oldbear: {
-    id: 'oldbear', name: 'Old Bear', tex: TextureKeys.HeroOldBear, proj: TextureKeys.ProjSpit, projSpeed: 280,
+    id: 'oldbear', name: 'Kho Chiu Vo Cung', tex: TextureKeys.HeroOldBear, proj: TextureKeys.ProjSpit, projSpeed: 280,
     attack: 'projectile', skill: 'sticky', slowFactor: 0.35, slowDuration: 2.5, tint: '#b98a5e',
     blurb: 'Sticky boba shot greatly slows zombies (low damage).',
     lore: 'Ran the last surviving boba shop on the block. His tapioca recipe is so thick it can glue a brute to the pavement. Extra pearls, no mercy.',
@@ -219,12 +264,42 @@ export const HEROES: Record<HeroId, Full> = {
     lore: 'A little water spirit who washed up during the floods. Bubbly and round and weirdly happy, HAKJ launches splashes that drench whole clusters of undead.',
     tiers: tiers({ range: 125, fireInterval: 850, damage: 18, cost: 115 }, { damage: 28, cost: 150, splashRadius: 46 } as Partial<HeroTier>, { damage: 44, cost: 250, splashRadius: 54 } as Partial<HeroTier>),
   },
+  // ── image 4 (new sprites) ──
+  chuotchu: {
+    id: 'chuotchu', name: 'Jibgor', tex: TextureKeys.HeroChuotChu, proj: TextureKeys.ProjArrow, projSpeed: 480,
+    attack: 'projectile', skill: 'gnaw', tint: '#e08a3a',
+    blurb: 'Relentless gnaw: every bite makes the target take MORE damage (stacks).',
+    lore: 'A street-smart sewer mouse who survived three cats and one apocalypse. He never bites once — he bites, and bites, and bites, until there is nothing left to bite.',
+    tiers: tiers({ range: 125, fireInterval: 340, damage: 7, cost: 100 }, { damage: 11, cost: 130, fireInterval: 300 }, { damage: 17, cost: 215, fireInterval: 260 }),
+  },
+  meomeo: {
+    id: 'meomeo', name: 'Lionyori', tex: TextureKeys.HeroMeoMeo, proj: TextureKeys.ProjArcane, projSpeed: 400,
+    attack: 'projectile', skill: 'roar', splashRadius: 56, stunDuration: 0.8, tint: '#b8a888',
+    blurb: 'Her shot lands with a lion-roar: damages and FREEZES nearby zombies in fear.',
+    lore: 'A long-haired tabby with a mane like a lion and a meow that became a roar somewhere along the way. The undead remember they are prey the instant they hear it.',
+    tiers: tiers({ range: 130, fireInterval: 1150, damage: 18, cost: 125 }, { damage: 29, cost: 165, stunDuration: 1.0 } as Partial<HeroTier>, { damage: 46, cost: 265, splashRadius: 66, stunDuration: 1.3 } as Partial<HeroTier>),
+  },
+  doraemon: {
+    id: 'doraemon', name: 'Mr.Hoang', tex: TextureKeys.HeroDoraemon, proj: TextureKeys.ProjBullet, projSpeed: 620,
+    attack: 'projectile', skill: 'aircannon', pierce: 3, knockback: 30, tint: '#41a6f6',
+    blurb: 'Air Cannon: a compressed-air blast that pierces a line and knocks them all back.',
+    lore: 'A robotic cat from the 22nd century with a four-dimensional pocket full of impossible gadgets. His favourite against a horde? The Air Cannon. "Bang!" — and the whole row goes flying.',
+    tiers: tiers({ range: 145, fireInterval: 900, damage: 20, cost: 120 }, { damage: 32, cost: 160, knockback: 38 } as Partial<HeroTier>, { damage: 52, cost: 260, pierce: 5, knockback: 48 } as Partial<HeroTier>),
+  },
+  shiba: {
+    id: 'shiba', name: 'Shiba', tex: TextureKeys.HeroShiba, proj: TextureKeys.ProjSpit, projSpeed: 360,
+    attack: 'projectile', skill: 'bounceball', chainRange: 92, tint: '#e8932e',
+    blurb: 'Throws a ball that bounces between adjacent zombies — more bounces per level.',
+    lore: 'A very good boy with a very loud bork and an even better fetch. He hurls his favourite ball into the horde and it just... keeps bouncing. Such physics. Much doom.',
+    tiers: tiers({ range: 130, fireInterval: 820, damage: 22, cost: 120, bounces: 2 }, { damage: 35, cost: 160, bounces: 3 }, { damage: 56, cost: 255, bounces: 4 }),
+  },
 };
 
 export const HERO_IDS: HeroId[] = [
   'evilcat', 'mymy', 'oreo', 'rwah', 'emso', 'mimi', 'chippy', 'gauem', 'normal',
   'kenken', 'oldbear', 'bluefoo', 'nixxx', 'gauchi', 'gei',
   'yunseo', 'dongdong', 'midori', 'anzu', 'nini', 'hakj',
+  'chuotchu', 'meomeo', 'doraemon', 'shiba',
 ];
 
 // ── Derived rating (for the hero-detail panel) ───────────────────────────────
@@ -256,7 +331,8 @@ export function heroStars(def: HeroDef & { tiers: HeroTier[] }): number {
 }
 
 // ── Zombies ──────────────────────────────────────────────────────────────────
-export type ZombieId = 'walker' | 'slow' | 'brute' | 'boss';
+// 3 minion types + 3 per-map bosses (queen=Easy, khoai=Normal, hakj=Hard).
+export type ZombieId = 'walker' | 'slow' | 'brute' | 'boss' | 'khoai' | 'hakj';
 
 export interface ZombieDef {
   id: ZombieId; tex: TextureKey; hp: number; speedMul: number; bounty: number; scale: number;
@@ -264,12 +340,33 @@ export interface ZombieDef {
    *  value is the sheet-set prefix (e.g. 'girl' → zombie-girl-stand/lie). `scale`
    *  is then applied to that sheet's cell. */
   sheet?: string;
+  /** boss-only: shown in the intro popup + drives the hero-kill skill.
+   *  `fill`/`outline`/`glow` colour the intro title + glow to match the boss theme. */
+  boss?: { name: string; skillCdMs: number; fill: string; outline: string; glow: number };
 }
 
 export const ZOMBIES: Record<ZombieId, ZombieDef> = {
-  // walker = the zombie-girl sheet; slow = bucket-head (tanky, slow); boss = crowned queen.
+  // walker = the zombie-girl sheet; slow = bucket-head (tanky, slow).
   walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
   slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 130, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
   brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 150, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
-  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 700, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss' },
+  // ── bosses (one per map). skillCdMs = how often it destroys a hero (Easy slow → Hard fast).
+  //    Title colours are themed per boss (toxic-green queen / blood-red king / drowned-cyan).
+  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 700, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss',
+    boss: { name: 'Dark Princess Oreo', skillCdMs: 14000, fill: '#5ee62e', outline: '#0a2a0c', glow: 0x2a5a1d } },
+  khoai: { id: 'khoai', tex: TextureKeys.ZombieKhoaiStand, hp: 1100, speedMul: 0.5, bounty: 12, scale: 0.5, sheet: 'khoai',
+    boss: { name: 'King Khoai', skillCdMs: 11500, fill: '#ff3b3b', outline: '#3a0606', glow: 0x5a1d1d } },
+  hakj: { id: 'hakj', tex: TextureKeys.ZombieHakjStand, hp: 1600, speedMul: 0.55, bounty: 16, scale: 0.5, sheet: 'hakj',
+    boss: { name: 'Hakj the Drowned', skillCdMs: 9500, fill: '#3be0ff', outline: '#06303a', glow: 0x1d4a5a } },
+};
+
+/** The boss that headlines each map (by map.id). */
+export const MAP_BOSS: Record<number, ZombieId> = { 0: 'boss', 1: 'khoai', 2: 'hakj' };
+
+/** Which minion types each map's regular waves can roll (used for cross-difficulty
+ *  mixing: Normal can sprinkle Easy-map bosses-as-minions, Hard can sprinkle both). */
+export const MAP_MINIONS: Record<number, ZombieId[]> = {
+  0: ['walker', 'slow', 'brute'],
+  1: ['walker', 'slow', 'brute', 'boss'],          // Normal: Easy boss may appear as a minion
+  2: ['walker', 'slow', 'brute', 'boss', 'khoai'], // Hard: Easy + Normal bosses as minions
 };

@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, mapBestKey, mapClearedKey } from '../types/keys';
+import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, Fonts, mapBestKey, mapClearedKey } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, CELL, FIELD_H, HUD_TOP, Tuning } from '../config';
 import { Zombie } from '../objects/Zombie';
 import { Projectile } from '../objects/Projectile';
 import { Hero } from '../objects/Hero';
 import { Audio } from '../systems/Audio';
-import { HEROES, HERO_IDS, ZOMBIES, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
+import { HEROES, HERO_IDS, ZOMBIES, MAP_BOSS, MAP_MINIONS, MAX_LEVEL, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
 import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, isInsideGrid, type MapDef } from '../types/map';
 
 declare const __DEV__: boolean;
@@ -16,7 +16,7 @@ export class GameScene extends Phaser.Scene {
   private zombies: Zombie[] = [];
   private projectiles!: Phaser.GameObjects.Group;
   private heroes: Hero[] = [];
-  private padByCell = new Map<string, { x: number; y: number; taken: boolean }>();
+  private padByCell = new Map<string, { x: number; y: number; taken: boolean; img: Phaser.GameObjects.Image }>();
   private waypoints: { x: number; y: number }[] = [];
 
   private gold = 0;
@@ -29,6 +29,8 @@ export class GameScene extends Phaser.Scene {
   private over = false;
   private countdownActive = false;
   private countdownEndsAt = 0; // scene-time (ms) when the next wave auto-starts
+  private slowmo = 1; // game-logic time multiplier; <1 during the boss-kill cinematic
+  private cinematicActive = false; // true while a boss-kill slow-mo cinematic plays
 
   // UI
   private goldText!: Phaser.GameObjects.Text;
@@ -61,12 +63,17 @@ export class GameScene extends Phaser.Scene {
     this.spawnQueue = [];
     this.over = false;
     this.countdownActive = false;
+    this.slowmo = 1;
+    this.cinematicActive = false;
+    this.anims.globalTimeScale = 1;
+    this.cameras.main.setZoom(1);
     this.selectedPadKey = null;
     this.selectedHero = null;
 
     this.audio = new Audio(this);
     this.audio.playMusic(MusicKeys.Bg); // looping background music
     this.drawMap();
+    this.drawWeather(); // ambient leaves (Normal) / rain (Hard)
 
     this.projectiles = this.add.group({ classType: Projectile, maxSize: Tuning.poolBullets });
     for (let i = 0; i < Tuning.poolBullets; i++) this.projectiles.add(new Projectile(this), true);
@@ -105,30 +112,202 @@ export class GameScene extends Phaser.Scene {
 
   // ── map ─────────────────────────────────────────────────────────────────────
   private drawMap(): void {
-    const path = pathSet(this.map);
+    const T = TextureKeys;
+    // 1. Grass field: one of 5 real grass variants per cell (+ mirror flip) so the
+    //    field reads as a lush, non-repeating surface instead of one tile stamped.
+    const GRASS = [T.Grass0, T.Grass1, T.Grass2, T.Grass3, T.Grass4];
     for (let r = 0; r < GAME_HEIGHT / CELL; r++) {
       for (let c = 0; c < GAME_WIDTH / CELL; c++) {
         if (r * CELL >= FIELD_H) continue;
         const { x, y } = cellCenter(c, r);
-        const onPath = path.has(`${c},${r}`);
-        // +1px display size so neighbouring tiles overlap and never show a seam.
-        this.add.image(x, y, onPath ? TextureKeys.Path : TextureKeys.Grass)
-          .setDisplaySize(CELL + 1, CELL + 1).setDepth(onPath ? 1 : 0);
+        const variant = GRASS[(c * 7 + r * 13 + ((c * r) % 5)) % GRASS.length];
+        const img = this.add.image(x, y, variant).setDisplaySize(CELL + 1, CELL + 1).setDepth(0);
+        img.setFlipX(((c + r) & 1) === 1);
+        img.setFlipY((c & 1) === 1);
       }
     }
+    // 2. The road: a smooth rounded dirt ribbon following the path centreline,
+    //    with a soft grass-toned shoulder — drawn the way the reference map does
+    //    it (one continuous winding road, rounded turns), not square dirt cells.
+    this.drawRoad();
+
+    // 3. Decor — dense + varied, like the reference (random fitting variant/cell).
+    const TREES = [T.TreeRound, T.TreePine, T.TreeBig, T.TreeSmall1, T.TreeSmall2];
+    const ROCKS = [T.RockBig1, T.RockBig2, T.RockMed1, T.RockMed2];
+    const EXTRAS = [T.Bush, T.Flowers, T.Log, T.Mushroom];
     for (const d of this.map.decor) {
       if (!isInsideGrid(d.cell[0], d.cell[1])) continue;
       const { x, y } = cellCenter(d.cell[0], d.cell[1]);
-      this.add.image(x, y, d.kind === 'tree' ? TextureKeys.Tree : TextureKeys.Rock).setDepth(4);
+      const tex = d.kind === 'tree' ? Phaser.Utils.Array.GetRandom(TREES) : Phaser.Utils.Array.GetRandom(ROCKS);
+      const spr = this.add.image(x, y + CELL * 0.18, tex).setOrigin(0.5, 0.86).setDepth(4 + y * 0.001);
+      spr.setScale((CELL * (d.kind === 'tree' ? 1.6 : 1.2)) / Math.max(spr.width, spr.height));
     }
-    // hero pads
+    this.scatterExtras(pathSet(this.map), EXTRAS);
+
+    // 4. hero pads (blue when empty; green once a hero stands on it)
     for (const [c, r] of this.map.pads) {
       const { x, y } = cellCenter(c, r);
-      this.add.image(x, y, TextureKeys.Pad).setDepth(2);
-      this.padByCell.set(`${c},${r}`, { x, y, taken: false });
+      const img = this.add.image(x, y, T.Pad).setDepth(2).setDisplaySize(CELL * 1.05, CELL * 1.05);
+      this.padByCell.set(`${c},${r}`, { x, y, taken: false, img });
     }
-    // HUD strip background
     this.add.rectangle(0, HUD_TOP, GAME_WIDTH, GAME_HEIGHT - HUD_TOP, 0x141019, 1).setOrigin(0, 0).setDepth(30);
+  }
+
+  /** Ambient weather per map: falling leaves on the Normal map, rain on the Hard
+   *  map. Particle textures are baked to tiny canvas textures (no asset needed).
+   *  Drawn above the ground (depth 6) but below the HUD (depth 30). */
+  private drawWeather(): void {
+    const id = this.map.id;
+    if (id === 1) this.spawnLeaves();
+    else if (id === 2) this.spawnRain();
+  }
+
+  private ensureDot(key: string, w: number, h: number, color: number, round = false): void {
+    if (this.textures.exists(key)) return;
+    const c = this.textures.createCanvas(key, w, h)!;
+    const ctx = c.getContext();
+    ctx.fillStyle = Phaser.Display.Color.IntegerToColor(color).rgba;
+    if (round) { ctx.beginPath(); ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, 7); ctx.fill(); }
+    else ctx.fillRect(0, 0, w, h);
+    c.refresh();
+  }
+
+  private spawnLeaves(): void {
+    // a few leaf-colour blobs drifting down + swaying
+    for (const [k, col] of [['leaf-a', 0xd9a441], ['leaf-b', 0xc4632a], ['leaf-c', 0x7fa84a]] as const) {
+      this.ensureDot(k, 6, 4, col, true);
+    }
+    // one emitter per leaf colour so each drifts independently (avoids the typed
+    // multi-texture API); staggered frequencies read as a varied leaf-fall.
+    const emitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
+    (['leaf-a', 'leaf-b', 'leaf-c'] as const).forEach((tex, i) => {
+      const em = this.add.particles(0, 0, tex, {
+        x: { min: 0, max: GAME_WIDTH }, y: -10,
+        lifespan: 7000, frequency: 850 + i * 200, quantity: 1,
+        speedY: { min: 18, max: 34 }, speedX: { min: -14, max: 14 },
+        scale: { min: 0.8, max: 1.6 }, rotate: { min: 0, max: 360 },
+        alpha: { start: 0.9, end: 0.65 },
+      }).setDepth(6);
+      emitters.push(em);
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => emitters.forEach((e) => e.destroy()));
+  }
+
+  private spawnRain(): void {
+    this.ensureDot('raindrop', 2, 12, 0xbcd4f0);
+    const em = this.add.particles(0, 0, 'raindrop', {
+      x: { min: -40, max: GAME_WIDTH }, y: -16,
+      lifespan: 900, frequency: 24, quantity: 2,
+      speedY: { min: 620, max: 760 }, speedX: { min: 90, max: 130 }, // slanted rain
+      scaleY: { min: 0.8, max: 1.4 }, scaleX: 1,
+      alpha: { start: 0.5, end: 0.2 },
+    }).setDepth(6);
+    // a faint blue overcast tint over the field
+    this.add.rectangle(0, 0, GAME_WIDTH, FIELD_H, 0x2a4a6a, 0.12).setOrigin(0, 0).setDepth(5);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => em.destroy());
+  }
+
+  /** Draw the road as a smooth, rounded dirt ribbon following the path centreline,
+   *  hand-styled to match the reference: dirt-textured body with rounded turns, a
+   *  ragged grass-blade fringe along both edges, scattered pebbles and faint cracks.
+   *  Baked to a CanvasTexture (Phaser 4 WebGL has no geometry masks). */
+  private drawRoad(): void {
+    const pts = (this.waypoints.length ? this.waypoints : pathWaypoints(this.map)).map((p) => ({ x: p.x, y: p.y }));
+    if (pts.length < 2) return;
+    const roadW = Math.round(CELL * 0.72);
+
+    const key = `road-${this.map.id}`;
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const canvas = this.textures.createCanvas(key, GAME_WIDTH, FIELD_H)!;
+    const ctx = canvas.getContext();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const trace = () => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    };
+    // deterministic PRNG so the look is stable across reloads (no Math.random)
+    let seed = 1337 + this.map.id * 911;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+    // 1. dirt body: STROKE the path with the dirt pattern. (We must stroke, not
+    //    clip+fill — ctx.clip() uses the path's FILL region, which for a zig-zag
+    //    polyline is the whole enclosed polygon, so the dirt would balloon across
+    //    the field and cover the grass pads. Stroking keeps it a true ribbon.)
+    const dirtImg = this.textures.get(TextureKeys.Path).getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const pat = ctx.createPattern(dirtImg, 'repeat');
+    ctx.save();
+    trace(); ctx.lineWidth = roadW; ctx.strokeStyle = pat ?? '#a5875a'; ctx.stroke();
+    // dirt detail clipped to the ribbon: build a polygon hull of the stroked segments
+    // and clip to it (so speckles/pebbles stay on the dirt only).
+    ctx.beginPath();
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len * (roadW / 2), ny = dx / len * (roadW / 2);
+      ctx.moveTo(a.x + nx, a.y + ny); ctx.lineTo(b.x + nx, b.y + ny);
+      ctx.lineTo(b.x - nx, b.y - ny); ctx.lineTo(a.x - nx, a.y - ny); ctx.closePath();
+    }
+    ctx.clip();
+    for (let i = 0; i < 240; i++) {
+      const x = rnd() * GAME_WIDTH, y = rnd() * FIELD_H, s = 1 + rnd() * 2;
+      ctx.fillStyle = rnd() < 0.5 ? 'rgba(120,92,56,0.45)' : 'rgba(196,170,120,0.45)';
+      ctx.fillRect(x, y, s, s);
+    }
+    for (let i = 0; i < 22; i++) {
+      const x = rnd() * GAME_WIDTH, y = rnd() * FIELD_H, r = 1.6 + rnd() * 2;
+      ctx.fillStyle = '#8a8f9e'; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.4, 0, 7); ctx.fill();
+    }
+    ctx.restore();
+
+    // 2. soft grass-blade fringe along both dirt edges — the ONLY edge treatment, so
+    //    the road blends into grass without a hard rectangle or a dark-green border.
+    const half = roadW / 2;
+    const blades = ['#3f7a4a', '#56a05f', '#6fb86a'];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      const ux = dx / len, uy = dy / len;     // along
+      const nx = -uy, ny = ux;                // normal
+      for (let d = 0; d < len; d += 2) {
+        const px = a.x + ux * d, py = a.y + uy * d;
+        for (const side of [1, -1] as const) {
+          const ex = px + nx * half * side, ey = py + ny * half * side; // dirt edge point
+          const bl = 1.5 + rnd() * 2.5;        // short fine blades onto the dirt
+          ctx.strokeStyle = blades[(Math.floor(d) + (side > 0 ? 0 : 1)) % blades.length] as string;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(ex, ey);
+          ctx.lineTo(ex - nx * bl * side + (rnd() - 0.5) * 1.5, ey - ny * bl * side + (rnd() - 0.5) * 1.5);
+          ctx.stroke();
+        }
+      }
+    }
+
+    canvas.refresh();
+    this.add.image(0, 0, key).setOrigin(0, 0).setDepth(1);
+  }
+
+  /** Sprinkle small ground extras on a deterministic set of empty grass cells. */
+  private scatterExtras(path: Set<string>, extras: string[]): void {
+    const taken = new Set<string>(this.map.pads.map(([c, r]) => `${c},${r}`));
+    for (const d of this.map.decor) taken.add(`${d.cell[0]},${d.cell[1]}`);
+    const cols = GAME_WIDTH / CELL, rows = FIELD_H / CELL;
+    let i = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const key = `${c},${r}`;
+        if (path.has(key) || taken.has(key)) continue;
+        // deterministic sparse scatter (~1 in 9 empty cells), edges favoured
+        if ((c * 7 + r * 13) % 9 !== 0) continue;
+        const { x, y } = cellCenter(c, r);
+        const tex = extras[(c + r) % extras.length];
+        const spr = this.add.image(x, y, tex).setOrigin(0.5, 0.7).setDepth(3 + y * 0.001).setAlpha(0.95);
+        spr.setScale((CELL * 0.7) / Math.max(spr.width, spr.height));
+        if (++i > 14) return;
+      }
+    }
   }
 
   // ── input: open hero-picker on a pad, or select a placed hero ─────────────────
@@ -161,6 +340,7 @@ export class GameScene extends Phaser.Scene {
     const h = new Hero(this, id, col, row, pad.x, pad.y);
     this.heroes.push(h);
     pad.taken = true;
+    pad.img.setTexture(TextureKeys.PadOn); // blue → green glow once occupied
     return h;
   }
 
@@ -194,10 +374,15 @@ export class GameScene extends Phaser.Scene {
   // ── main loop ─────────────────────────────────────────────────────────────────
   update(time: number, deltaMs: number): void {
     if (this.over) return;
-    const dt = deltaMs / 1000;
+    // slow-motion during the boss-kill cinematic scales all game-logic movement
+    // (zombies, projectiles, DoT ticks) — tweens/anims are slowed via timeScale.
+    const dt = (deltaMs / 1000) * this.slowmo;
 
     if (this.waveActive && this.spawnQueue.length > 0 && time >= this.nextSpawnAt) {
-      this.spawnZombie(this.spawnQueue.shift()!);
+      const next = this.spawnQueue.shift()!;
+      // the real boss is the final spawn of a boss wave (id matches this map's boss)
+      const asBoss = this.spawnQueue.length === 0 && this.wave % 5 === 0 && next === (MAP_BOSS[this.map.id] ?? 'boss');
+      this.spawnZombie(next, asBoss);
       this.nextSpawnAt = time + Tuning.spawnInterval;
     }
 
@@ -216,9 +401,16 @@ export class GameScene extends Phaser.Scene {
         this.audio.play(AudioKeys.Lose);
         this.cameras.main.shake(120, 0.006);
         if (this.lives <= 0) { this.gameOver(); return; }
-      } else if (z.hp <= 0) {
-        // died from a DoT tick this frame
+      } else if (z.hp <= 0 && !z.dying) {
+        // died from a DoT tick this frame (skip if its death anim already started,
+        // else it would be "killed" — and rewarded — every frame until it despawns)
         this.killZombie(z);
+        continue;
+      }
+      // boss hero-kill skill: on cooldown, blast the nearest hero in reach
+      if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
+        this.bossKillHero(z);
+        z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
       }
     }
 
@@ -253,7 +445,7 @@ export class GameScene extends Phaser.Scene {
     // wave end?
     if (this.waveActive && this.spawnQueue.length === 0 && alive === 0) {
       this.waveActive = false;
-      this.gold += 45 + this.wave * 8;
+      this.gold += Tuning.waveRewardBase + this.wave * Tuning.waveRewardPerWave;
       this.refreshHud();
       if (this.wave >= Tuning.waveCount) { this.win(); return; }
       this.beginCountdown(Tuning.betweenSeconds); // auto-start the next wave after a breather
@@ -353,6 +545,71 @@ export class GameScene extends Phaser.Scene {
         for (const z of live) {
           if (z.dead) continue;
           if (Math.hypot(z.x - pr.x, z.y - pr.y) <= r) this.damageZombie(z, pr.damage, null, live, now);
+        }
+        break;
+      }
+      case 'bounceball': {
+        // Shiba: a rubber ball that hits the target, then BOUNCES to the nearest
+        // adjacent zombie, and again — `bounces` total hops (2/3/4 by tier). Each
+        // bounce keeps near-full damage (slight 0.9 falloff so it stays punchy).
+        let current = hit;
+        const hitSet = new Set<Zombie>([current]);
+        this.damageZombie(current, pr.damage, null, live, now);
+        const bounces = pr.tier.bounces ?? 2; // scales per upgrade tier (2 → 3 → 4)
+        const range = def.chainRange ?? 90;
+        let dmg = pr.damage;
+        for (let b = 0; b < bounces; b++) {
+          let next: Zombie | null = null, best = Infinity;
+          for (const z of live) {
+            if (z.dead || hitSet.has(z)) continue;
+            const d = Math.hypot(z.x - current.x, z.y - current.y);
+            if (d <= range && d < best) { best = d; next = z; }
+          }
+          if (!next) break;
+          dmg *= 0.9;
+          this.ballBounceFx(current.x, current.y, next.x, next.y, def.tint);
+          this.damageZombie(next, dmg, null, live, now);
+          hitSet.add(next); current = next;
+        }
+        break;
+      }
+      case 'gnaw': {
+        // Jibgor: a relentless bite. Each hit deals damage AND adds a vulnerability
+        // stack, so the same zombie takes more and more from every subsequent bite.
+        this.damageZombie(hit, pr.damage, null, live, now);
+        hit.gnaw();
+        break;
+      }
+      case 'roar': {
+        // Lionyori: the shot lands and she lets out a ferocious roar — zombies near
+        // the impact are damaged and briefly FROZEN in fear (stun).
+        this.novaFx(pr.x, pr.y, def.splashRadius ?? 56, def.tint);
+        this.audio.play(AudioKeys.Explode);
+        this.cameras.main.shake(50, 0.0022);
+        const r = def.splashRadius ?? 56;
+        for (const z of live) {
+          if (z.dead) continue;
+          if (Math.hypot(z.x - pr.x, z.y - pr.y) <= r) {
+            this.damageZombie(z, pr.damage, null, live, now);
+            z.applyStun(def.stunDuration ?? 0.8, now);
+          }
+        }
+        break;
+      }
+      case 'aircannon': {
+        // Mr.Hoang (Doraemon's Air Cannon): a compressed-air blast that PIERCES a
+        // line of zombies and knocks every one of them back down the road.
+        this.damageZombie(hit, pr.damage, null, live, now);
+        hit.knockBack(def.knockback ?? 30);
+        let pierced = 0;
+        const max = def.pierce ?? 3;
+        for (const z of live) {
+          if (z === hit || z.dead) continue;
+          if (Math.hypot(z.x - pr.x, z.y - pr.y) <= 26) {
+            this.damageZombie(z, pr.damage, null, live, now);
+            z.knockBack(def.knockback ?? 30);
+            if (++pierced >= max) break;
+          }
         }
         break;
       }
@@ -456,7 +713,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private killZombie(z: Zombie): void {
-    if (z.dead) return;
+    if (z.dead || z.dying) return; // already dying → don't award gold again
     let reward = z.bounty;
     // professor gold aura: +bonus if a professor is nearby
     for (const h of this.heroes) {
@@ -471,6 +728,84 @@ export class GameScene extends Phaser.Scene {
     // death sound only (no Explode — it was the "drum" stacking on mass kills).
     this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieDie : AudioKeys.ZombieDie2);
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
+  }
+
+  /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
+   *  to a crawl for 3s, lock a red targeting reticle onto the doomed hero (camera
+   *  eases toward it), then snap back to full speed and execute it. */
+  private bossKillHero(boss: Zombie): void {
+    if (this.cinematicActive) return; // one execution cinematic at a time
+    const REACH = 150;
+    let target: Hero | null = null, best = REACH;
+    for (const h of this.heroes) {
+      const d = Math.hypot(h.x - boss.x, h.y - boss.y);
+      if (d < best) { best = d; target = h; }
+    }
+    if (!target) return;
+    const victim = target;
+    this.cinematicActive = true;
+    boss.playBossAttack();
+    this.audio.play(AudioKeys.BossKillSlow); // tense slow-mo sting
+
+    // ── enter slow-motion: game logic crawls, anims slow, time eases down ──
+    this.slowmo = 0.12;
+    this.anims.globalTimeScale = 0.18;
+    this.tweens.add({ targets: this.cameras.main, zoom: 1.35, duration: 500, ease: 'Quad.out' });
+    this.cameras.main.pan(victim.x, victim.y, 500, Phaser.Math.Easing.Quadratic.Out);
+
+    // dark vignette to focus attention
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x080008, 0.4).setOrigin(0, 0).setDepth(18).setScrollFactor(0).setAlpha(0);
+    this.tweens.add({ targets: dim, alpha: 1, duration: 400 });
+
+    // ── target-lock reticle on the doomed hero ──
+    const lock = this.add.container(victim.x, victim.y).setDepth(22);
+    const ring1 = this.add.circle(0, 0, 40, 0x000000, 0).setStrokeStyle(3, 0xff2a2a, 0.95);
+    const ring2 = this.add.circle(0, 0, 26, 0x000000, 0).setStrokeStyle(2, 0xff6b6b, 0.9);
+    const cross = this.add.graphics();
+    cross.lineStyle(2, 0xff2a2a, 0.95);
+    for (const a of [0, 90, 180, 270]) {
+      const rad = Phaser.Math.DegToRad(a);
+      cross.lineBetween(Math.cos(rad) * 18, Math.sin(rad) * 18, Math.cos(rad) * 46, Math.sin(rad) * 46);
+    }
+    lock.add([ring1, ring2, cross]);
+    this.tweens.add({ targets: ring1, angle: 360, duration: 1600, repeat: -1 });        // spin outer
+    this.tweens.add({ targets: ring2, angle: -360, duration: 1300, repeat: -1 });        // spin inner
+    this.tweens.add({ targets: lock, scale: { from: 1.8, to: 1 }, duration: 450, ease: 'Back.out' });
+    this.tweens.add({ targets: lock, alpha: { from: 0.4, to: 1 }, duration: 220, yoyo: true, repeat: -1 }); // pulse
+    victim.setTint(0xff8888); // mark the doomed hero
+
+    // ── after 3s of real time, snap back and execute ──
+    this.time.delayedCall(3000, () => {
+      lock.destroy();
+      this.tweens.add({ targets: dim, alpha: 0, duration: 200, onComplete: () => dim.destroy() });
+      // restore normal speed
+      this.slowmo = 1;
+      this.anims.globalTimeScale = 1;
+      this.tweens.add({ targets: this.cameras.main, zoom: 1, duration: 260, ease: 'Quad.in' });
+      this.cameras.main.pan(GAME_WIDTH / 2, GAME_HEIGHT / 2, 260, Phaser.Math.Easing.Quadratic.In);
+
+      this.cinematicActive = false;
+      if (!victim.active) return; // hero already removed some other way
+      // the kill blow
+      const g = this.add.graphics().setDepth(20);
+      g.lineStyle(4, 0xff2a2a, 0.95).lineBetween(boss.x, boss.y, victim.x, victim.y);
+      g.fillStyle(0xff2a2a, 0.5).fillCircle(victim.x, victim.y, 26);
+      this.tweens.add({ targets: g, alpha: 0, duration: 320, onComplete: () => g.destroy() });
+      this.boom(victim.x, victim.y, 0.8);
+      this.cameras.main.shake(200, 0.01);
+      this.audio.play(AudioKeys.Push); // the kill blow
+      this.removeHero(victim);
+    });
+  }
+
+  /** Remove a hero from play and free its pad (used by sell + boss kill). */
+  private removeHero(h: Hero, refund = 0): void {
+    if (refund > 0) { this.gold += refund; this.refreshHud(); }
+    const pad = this.padByCell.get(`${h.col},${h.row}`);
+    if (pad) { pad.taken = false; pad.img.setTexture(TextureKeys.Pad); }
+    this.heroes = this.heroes.filter((x) => x !== h);
+    if (this.selectedHero === h) this.clearSelection();
+    h.destroyAll();
   }
 
   // ── waves ─────────────────────────────────────────────────────────────────────
@@ -514,30 +849,139 @@ export class GameScene extends Phaser.Scene {
     this.refreshHud();
     const count = Math.round(Tuning.enemyCountBase + (this.wave - 1) * Tuning.enemyCountPerWave);
     const q: ZombieId[] = [];
-    const boss = this.wave % 5 === 0; // boss every 5th wave
+    const isBossWave = this.wave % 5 === 0; // boss every 5th wave
+    // minion pool depends on the map: harder maps can roll lower-tier bosses as
+    // ordinary minions (cross-difficulty mixing). 'walker' is the always-on base.
+    const pool = MAP_MINIONS[this.map.id] ?? ['walker', 'slow', 'brute'];
+    const elite = pool.filter((z) => z === 'boss' || z === 'khoai'); // boss-as-minion
     for (let i = 0; i < count; i++) {
       const r = Math.random();
-      if (this.wave >= 6 && r < 0.25) q.push('brute');
-      else if (this.wave >= 3 && r < 0.45) q.push('slow');
+      // rare elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
+      if (elite.length && this.wave >= 7 && r < 0.06) q.push(Phaser.Utils.Array.GetRandom(elite));
+      else if (this.wave >= 6 && pool.includes('brute') && r < 0.28) q.push('brute');
+      else if (this.wave >= 3 && pool.includes('slow') && r < 0.5) q.push('slow');
       else q.push('walker');
     }
-    if (boss) {
-      q.push('boss');
-      this.audio.playMusic(MusicKeys.Boss);          // dramatic boss track
-      this.audio.play(AudioKeys.ZombieBossSfx);      // boss roar on the wave start
+    if (isBossWave) {
+      const bossId = MAP_BOSS[this.map.id] ?? 'boss';
+      q.push(bossId);
+      this.audio.playMusic(MusicKeys.Boss);
+      this.audio.play(AudioKeys.ZombieBossSfx);
+      this.showBossIntro(bossId);
     } else {
-      this.audio.playMusic(MusicKeys.Bg);            // ensure normal track on non-boss waves
+      this.audio.playMusic(MusicKeys.Bg);
+      this.showWaveBanner(this.wave); // caution-tape "WAVE X" sweep
     }
     this.spawnQueue = q;
     this.nextSpawnAt = 0;
   }
 
-  private spawnZombie(id: ZombieId): void {
+  /** Caution-tape "WAVE N" banner: a diagonal yellow/black hazard strip that pops
+   *  in (fade + scale up), holds, then fades out shrinking — shown on non-boss waves. */
+  private showWaveBanner(wave: number): void {
+    const bandH = 86, cy = GAME_HEIGHT * 0.32;
+    const root = this.add.container(GAME_WIDTH / 2, cy).setDepth(94).setAngle(-7);
+    // hazard band: dark base + diagonal yellow stripes drawn via Graphics
+    const w = GAME_WIDTH + 120;
+    const g = this.add.graphics();
+    g.fillStyle(0x1a1a1a, 1).fillRect(-w / 2, -bandH / 2, w, bandH);
+    g.fillStyle(0xffc60a, 1);
+    const sw = 34; // stripe width
+    for (let x = -w / 2 - bandH; x < w / 2; x += sw * 2) {
+      g.beginPath();
+      g.moveTo(x, bandH / 2); g.lineTo(x + sw, bandH / 2);
+      g.lineTo(x + sw + bandH, -bandH / 2); g.lineTo(x + bandH, -bandH / 2);
+      g.closePath(); g.fillPath();
+    }
+    // top + bottom accent edges
+    g.fillStyle(0xff3b30, 1).fillRect(-w / 2, -bandH / 2 - 3, w, 3).fillRect(-w / 2, bandH / 2, w, 3);
+    // the label, in Bangers, on a small dark plate so it reads over the stripes
+    const plate = this.add.rectangle(0, 0, 260, 56, 0x1a1a1a, 0.92).setStrokeStyle(3, 0xffc60a);
+    const label = this.add.text(0, 0, `WAVE ${wave}`, {
+      fontFamily: Fonts.Display, fontSize: '46px', color: '#ffffff', stroke: '#1a1a1a', strokeThickness: 6,
+    }).setOrigin(0.5);
+    root.add([g, plate, label]);
+    this.audio.play(AudioKeys.Place);
+    // pop in (fade + scale up, overshoot) → hold → fade out shrinking
+    root.setAlpha(0).setScale(0.5);
+    this.tweens.chain({
+      targets: root,
+      tweens: [
+        { alpha: 1, scale: 1, duration: 300, ease: 'Back.out' }, // pop in
+        { alpha: 1, duration: 900 },                              // hold
+        { alpha: 0, scale: 0.8, duration: 280, ease: 'Quad.in' },  // fade + shrink out
+      ],
+      onComplete: () => root.destroy(),
+    });
+  }
+
+  /** Game-style boss intro: red screen flash + a centred banner with the boss's
+   *  English name, shown for ~2.5s when a boss wave begins. */
+  // Boss reveal (Zombie-Catchers-style): the boss looms BIG behind, and the boss
+  // name sits IN FRONT, overlapping the lower half of the sprite, in chunky toxic-
+  // green zombie lettering. Dim vignette backdrop, no stripes.
+  private showBossIntro(bossId: ZombieId): void {
+    const info = ZOMBIES[bossId].boss;
+    const name = info?.name ?? 'BOSS';
+    const fillCol = info?.fill ?? '#5ee62e';
+    const outlineCol = info?.outline ?? '#0a2a0c';
+    const glowCol = info?.glow ?? 0x3a1d5a;
+    const sheetKey: Record<string, string> = {
+      boss: TextureKeys.ZombieBossStand, khoai: TextureKeys.ZombieKhoaiStand, hakj: TextureKeys.ZombieHakjStand,
+    };
+    const root = this.add.container(0, 0).setDepth(96).setAlpha(0);
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT * 0.40;
+
+    // 0. quick red flash
+    const flash = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0xff1a1a, 0.5).setOrigin(0, 0).setDepth(95);
+    this.tweens.add({ targets: flash, alpha: 0, duration: 700, onComplete: () => flash.destroy() });
+
+    // 1. dark vignette backdrop + a soft glow behind boss (tinted to the boss theme)
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x080510, 0.7).setOrigin(0, 0);
+    const glow = this.add.circle(cx, cy - 6, 150, glowCol, 0.55);
+    root.add([dim, glow]);
+
+    // 2. the boss, BIG, behind — playing its attack-1 animation (from the sheet)
+    const boss = this.add.sprite(cx, cy, sheetKey[bossId] ?? TextureKeys.ZombieBossStand, 0);
+    const fit = 270 / Math.max(boss.width, boss.height);
+    boss.setOrigin(0.5, 0.5);
+    if (this.anims.exists(`${bossId}-attackA`)) boss.play({ key: `${bossId}-attackA`, repeat: -1, frameRate: 8 });
+    root.add(boss);
+
+    // 3. boss name IN FRONT, overlapping the boss's lower half. Chunky "goo" zombie
+    //    lettering themed per boss: bright themed fill, dark themed rim, white middle.
+    const ny = cy + fit * boss.height * 0.30; // lower third of the sprite
+    const mk = (col: string, sw: number, dy = 0) => this.add.text(cx, ny + dy, name.toUpperCase(), {
+      fontFamily: Fonts.Zombie, fontSize: '58px',
+      color: col, stroke: col, strokeThickness: sw, align: 'center', wordWrap: { width: GAME_WIDTH - 20 },
+    }).setOrigin(0.5);
+    const rim = mk(outlineCol, 14, 3);    // dark themed rim (drop)
+    const white = mk('#f3fff7', 9, 1);    // white outline
+    const fill = mk(fillCol, 2);          // bright themed fill
+    fill.setShadow(0, 3, outlineCol, 0, true, true);
+    root.add([rim, white, fill]);
+
+    this.cameras.main.shake(300, 0.007);
+    // pop the boss in (from slightly small), bounce the title up into place
+    boss.setScale(fit * 0.62);
+    this.tweens.add({ targets: boss, scale: fit, duration: 380, ease: 'Back.out' });
+    for (const t of [rim, white, fill]) { t.setScale(0.6); this.tweens.add({ targets: t, scale: 1, duration: 420, ease: 'Back.out' }); }
+    this.tweens.add({ targets: root, alpha: 1, duration: 200, yoyo: true, hold: 2100, ease: 'Quad.easeOut',
+      onComplete: () => root.destroy() });
+  }
+
+  private spawnZombie(id: ZombieId, asBoss = false): void {
     const z = this.zombies.find((x) => x.dead);
     if (!z) return;
     const def = ZOMBIES[id];
     const hpScale = Math.pow(1 + Tuning.enemyHpPerWave, this.wave - 1) * this.map.enemyHpMul;
     z.spawn(def, Math.round(def.hp * hpScale), Tuning.enemySpeed, Tuning.bountyBase, this.waypoints);
+    // mark the wave's headline boss so it gets the hero-kill skill (elite minions
+    // of a boss type stay ordinary — no skill, no popup).
+    if (asBoss && def.boss) {
+      z.bossInfo = def.boss;
+      z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
+    }
   }
 
   // ── juice ─────────────────────────────────────────────────────────────────────
@@ -561,6 +1005,22 @@ export class GameScene extends Phaser.Scene {
     const g = this.add.graphics().setDepth(13);
     g.lineStyle(2, Phaser.Display.Color.HexStringToColor(hex).color, 0.9).lineBetween(x1, y1, x2, y2);
     this.tweens.add({ targets: g, alpha: 0, duration: 140, onComplete: () => g.destroy() });
+  }
+  // A little ball that hops from one zombie to the next on an arc (Shiba bounce).
+  private ballBounceFx(x1: number, y1: number, x2: number, y2: number, hex: string): void {
+    const color = Phaser.Display.Color.HexStringToColor(hex).color;
+    const ball = this.add.circle(x1, y1, 5, color, 1).setDepth(14).setStrokeStyle(1, 0x1a1c2c, 0.6);
+    const arc = -Math.min(40, Math.hypot(x2 - x1, y2 - y1) * 0.35); // pop upward mid-flight
+    this.tweens.add({
+      targets: ball, x: x2, duration: 150, ease: 'Quad.easeIn',
+      onUpdate: (tw) => { const t = tw.progress; ball.y = y1 + (y2 - y1) * t + arc * Math.sin(Math.PI * t); },
+      onComplete: () => {
+        // a small splat where it lands
+        const s = this.add.circle(x2, y2, 6, color, 0.7).setDepth(13);
+        this.tweens.add({ targets: s, radius: 12, alpha: 0, duration: 160, onComplete: () => s.destroy() });
+        ball.destroy();
+      },
+    });
   }
   private healFx(x: number, y: number): void {
     const p = this.add.image(x, y, TextureKeys.Spark).setDepth(13).setTint(0xa7f070);
@@ -598,8 +1058,9 @@ export class GameScene extends Phaser.Scene {
     // above is left clean. Footer rows, top → bottom:
     //   stats row (lives · gold · wave) → countdown → START/SKIP → hint
     const statY = HUD_TOP + 10;
-    // lives (zombie icon + count) on the left
-    this.add.image(18, statY + 8, TextureKeys.ZombieWalker).setScale(0.5).setDepth(61);
+    // lives (zombie-girl icon + count) on the left — idle frame of her sheet, scaled to ~26px
+    const livesIcon = this.add.image(18, statY + 8, TextureKeys.ZombieGirlStand, 0).setDepth(61);
+    livesIcon.setScale(26 / (livesIcon.height || 26));
     this.livesText = this.add.text(34, statY, `${Tuning.startLives}`, { fontFamily: 'monospace', fontSize: '16px', color: '#ff6b6b', stroke: '#1a1c2c', strokeThickness: 3 }).setDepth(61);
     // gold centred
     this.goldText = this.add.text(GAME_WIDTH / 2, statY, `$${this.gold}`, { fontFamily: 'monospace', fontSize: '16px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 3 }).setOrigin(0.5, 0).setDepth(61);
@@ -641,8 +1102,9 @@ export class GameScene extends Phaser.Scene {
     const header = this.add.text(12, 16, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
     this.heroPicker.add([dim, header]);
 
-    // ── LEFT: hero list (3 columns of avatar tiles) ──
-    const listX = 10, listY = 40, tileW = 74, tileH = 60, cols = 2;
+    // ── LEFT: hero list (2 columns of avatar tiles) ──
+    // 25 heroes → 13 rows; tileH sized so the last row still fits in GAME_HEIGHT (800).
+    const listX = 10, listY = 38, tileW = 74, tileH = 56, cols = 2;
     this.listHighlights.clear();
     HERO_IDS.forEach((id, i) => {
       const def = HEROES[id];
@@ -774,8 +1236,10 @@ export class GameScene extends Phaser.Scene {
     const [c, r] = this.selectedPadKey.split(',').map(Number);
     const cost = HEROES[id].tiers[0].cost;
     if (this.gold < cost) { this.audio.play(AudioKeys.Lose); return; }
-    if (this.placeHero(id, c, r)) {
+    const placed = this.placeHero(id, c, r);
+    if (placed) {
       this.gold -= cost;
+      placed.spent = cost; // seed sell-refund tracking
       this.refreshHud();
       this.audio.play(AudioKeys.Place);
     }
@@ -797,26 +1261,44 @@ export class GameScene extends Phaser.Scene {
     const w = GAME_WIDTH - 16;
     const bg = this.add.rectangle(0, 0, w, 88, 0x241c34, 0.98).setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(h.def.tint).color);
     const icon = fitImage(this.add.image(-w / 2 + 26, -20, h.def.tex), 40);
-    const title = this.add.text(-w / 2 + 50, -38, `${h.def.name}  Lv${h.tier + 1}`, { fontFamily: 'monospace', fontSize: '13px', color: '#ffffff' });
+    const title = this.add.text(-w / 2 + 50, -38, `${h.def.name}  Lv${h.tier + 1}/${MAX_LEVEL}`, { fontFamily: 'monospace', fontSize: '13px', color: '#ffffff' });
     const stats = this.add.text(-w / 2 + 50, -20, `DMG ${h.stats.damage} · RNG ${h.stats.range} · ${(1000 / h.stats.fireInterval).toFixed(1)}/s`, { fontFamily: 'monospace', fontSize: '10px', color: '#cdd6e6' });
-    const blurb = this.add.text(-w / 2 + 14, 4, h.def.blurb, { fontFamily: 'monospace', fontSize: '10px', color: h.def.tint, wordWrap: { width: w - 120 } });
+    const blurb = this.add.text(-w / 2 + 14, 4, h.def.blurb, { fontFamily: 'monospace', fontSize: '9px', color: h.def.tint, wordWrap: { width: w - 150 } });
     this.upgradePanel.add([bg, icon, title, stats, blurb]);
+
+    // UP (upgrade) button — top-right
     if (h.canUpgrade) {
-      const btn = this.add.text(w / 2 - 64, 0, `UP $${h.nextUpgradeCost}`, { fontFamily: 'monospace', fontSize: '14px', color: '#a7f070', backgroundColor: '#2a2038', padding: { x: 10, y: 6 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      const btn = this.add.text(w / 2 - 58, -22, `UP $${h.nextUpgradeCost}`, { fontFamily: 'monospace', fontSize: '13px', color: '#a7f070', backgroundColor: '#2a2038', padding: { x: 10, y: 5 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
       btn.on('pointerup', () => {
-        if (this.gold >= h.nextUpgradeCost) {
-          this.gold -= h.nextUpgradeCost;
+        const cost = h.nextUpgradeCost;
+        if (this.gold >= cost) {
+          this.gold -= cost;
+          h.spent += cost;
           h.upgrade();
           this.refreshHud();
           this.audio.play(AudioKeys.Place);
           h.setSelected(true);
           this.showUpgradePanel(h);
+        } else {
+          this.audio.play(AudioKeys.Lose);
         }
       });
       this.upgradePanel.add(btn);
     } else {
-      this.upgradePanel.add(this.add.text(w / 2 - 64, 0, 'MAX', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f' }).setOrigin(0.5));
+      this.upgradePanel.add(this.add.text(w / 2 - 58, -22, 'MAX', { fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f' }).setOrigin(0.5));
     }
+
+    // SELL button — bottom-right (refund 60% of total spent)
+    const refund = Math.round(h.spent * 0.6);
+    const sell = this.add.text(w / 2 - 58, 22, `SELL $${refund}`, { fontFamily: 'monospace', fontSize: '13px', color: '#ff9d5c', backgroundColor: '#382028', padding: { x: 10, y: 5 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    sell.name = 'hero-sell';
+    sell.on('pointerup', () => {
+      this.removeHero(h, refund);
+      this.audio.play(AudioKeys.Click);
+      this.upgradePanel.setVisible(false);
+    });
+    this.upgradePanel.add(sell);
+
     this.upgradePanel.setVisible(true);
     this.showStartBtn(false);
   }
@@ -854,7 +1336,7 @@ export class GameScene extends Phaser.Scene {
   }
   private endOverlay(msg: string, color: string): void {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.72).setOrigin(0).setDepth(90);
-    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, msg, { fontFamily: 'monospace', fontSize: '24px', color, align: 'center', stroke: '#1a1c2c', strokeThickness: 6 }).setOrigin(0.5).setDepth(91);
+    this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, msg, { fontFamily: Fonts.Display, fontSize: '40px', color, align: 'center', stroke: '#1a1c2c', strokeThickness: 7, lineSpacing: 6 }).setOrigin(0.5).setDepth(91);
     this.time.delayedCall(700, () => { this.input.once('pointerup', () => this.scene.start(SceneKeys.MapSelect)); });
   }
 }

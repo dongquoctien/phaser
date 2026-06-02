@@ -19,6 +19,9 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
   // single death sound, not a wall of them. ~350ms feels punchy without spamming.
   [AudioKeys.ZombieDie]: { volume: 0.3, throttle: 350, group: 'die' },
   [AudioKeys.ZombieDie2]: { volume: 0.3, throttle: 350, group: 'die' },
+  // boss hero-execution: slow-mo sting on enter, "push" blow on the kill.
+  [AudioKeys.BossKillSlow]: { volume: 0.6, throttle: 0 },
+  [AudioKeys.Push]: { volume: 0.7, throttle: 0 },
 };
 
 const MUSIC_VOL = 0.35;
@@ -60,6 +63,13 @@ export class Audio {
   // user gesture; it also re-suspends after a tab/app switch (iOS 17.5+). Resume
   // on the first pointer down and whenever the page regains visibility, so audio
   // isn't silently dead on iPhone/iPad.
+  //
+  // The flip side — and the real bug this also fixes: when the tab goes to the
+  // background, the browser throttles rAF but the game loop can still tick a few
+  // frames and enqueue sound.play() calls. Those buffers schedule against a
+  // context the browser is suspending, then ALL fire together (rapid + very loud)
+  // the instant you return. So we hard-mute + suspend the context on hide, and
+  // only unmute/resume on return — nothing gets queued while hidden.
   private installIosUnlock(): void {
     const sm = this.scene.sound as Phaser.Sound.WebAudioSoundManager;
     const ctx = sm.context as AudioContext | undefined;
@@ -69,7 +79,18 @@ export class Audio {
     };
     this.scene.input.on(Phaser.Input.Events.POINTER_DOWN, resume);
     const onVis = () => {
-      if (!document.hidden) resume();
+      if (document.hidden) {
+        // pause the manager (stops queuing/playback) and suspend the context so
+        // no audio is buffered up while we're backgrounded
+        this.scene.sound.pauseAll();
+        if (ctx.state === 'running') void ctx.suspend();
+      } else {
+        if (ctx.state === 'suspended') void ctx.resume();
+        // reset throttle clocks so the first sound after returning isn't gated,
+        // and (more importantly) old timestamps don't let a burst slip through
+        this.lastPlayed = {};
+        this.scene.sound.resumeAll();
+      }
     };
     document.addEventListener('visibilitychange', onVis);
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

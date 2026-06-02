@@ -12,14 +12,27 @@ export type SceneKey = (typeof SceneKeys)[keyof typeof SceneKeys];
 // Pixel-art (Sweetie-16, 32×32 sprites) baked via src/pixel. One key per art piece.
 // 15 hero sprites come from the user's reference images (1/2/3.png) — chibi pets.
 export const TextureKeys = {
-  // Tiles / map
-  Grass: 'grass',
-  Path: 'path',
+  // Tiles / map — real art cut from the user's asset sheet (public/tiles/*.png),
+  // loaded as images in PreloadScene. Grass/dirt are mirror-tiled in-engine for
+  // a seamless field; pads + decor are detailed sprites with transparency.
+  Grass: 'grass',       // = grass variant 0 (back-compat alias)
+  Path: 'path',         // = dirt road body tile
+  GrassFringe: 'grass-fringe', // ragged grass lip overhanging the road edge (real art)
+  RoadStraight: 'road-straight', // real horizontal road tile (grass top+bottom)
+  RoadCorner: 'road-corner',     // real corner tile (dirt South+East; rotate/flip for others)
   Tree: 'tree',
   Rock: 'rock',
-  Pad: 'pad', // empty hero pad (build slot)
+  Pad: 'pad',           // empty hero pad (blue glow)
+  PadOn: 'pad-on',      // occupied hero pad (green glow)
+  // 5 grass variants — one chosen at random per cell so the field never repeats
+  Grass0: 'grass0', Grass1: 'grass1', Grass2: 'grass2', Grass3: 'grass3', Grass4: 'grass4',
+  // decor variants (picked at random per decor cell for variety)
+  TreeRound: 'tree-round', TreePine: 'tree-pine', TreeBig: 'tree-big',
+  TreeSmall1: 'tree-small1', TreeSmall2: 'tree-small2',
+  RockBig1: 'rock-big1', RockBig2: 'rock-big2', RockMed1: 'rock-med1', RockMed2: 'rock-med2',
+  Bush: 'bush', Flowers: 'flowers', Log: 'log', Mushroom: 'mushroom',
 
-  // 21 heroes (user's named sprites; each id matches HEROES in roster.ts)
+  // 25 heroes (user's named sprites; each id matches HEROES in roster.ts)
   // image 1
   HeroEvilCat: 'hero-evilcat',   // black cat w/ spellbook — arcane pierce
   HeroMymy: 'hero-mymy',         // samurai bear w/ katana — melee cleave
@@ -44,6 +57,11 @@ export const TextureKeys = {
   HeroAnzu: 'hero-anzu',         // blue wink — buff aura
   HeroNini: 'hero-nini',         // long hair — execute
   HeroHakj: 'hero-hakj',         // blue fish — water bounce
+  // image 4
+  HeroChuotChu: 'hero-chuotchu', // mouse in orange shirt — multishot
+  HeroMeoMeo: 'hero-meomeo',     // long-fur tabby cat — frost slow
+  HeroDoraemon: 'hero-doraemon', // robot cat — chain gadget
+  HeroShiba: 'hero-shiba',       // shiba dog — splash + spreading damage
 
   // Zombies (walker grid kept only for the HUD lives icon)
   ZombieWalker: 'zombie-walker', // grid, used for the HUD lives icon
@@ -56,6 +74,9 @@ export const TextureKeys = {
   ZombieSpeedLie: 'zombie-speed-lie',     // slow — death
   ZombieBruteStand: 'zombie-brute-stand', // brute (satchel girl) — same anim set as girl
   ZombieBruteLie: 'zombie-brute-lie',     // brute — death/rise
+  // per-map bosses: khoai (Normal map king), hakj (Hard map fish king)
+  ZombieKhoaiStand: 'zombie-khoai-stand', ZombieKhoaiLie: 'zombie-khoai-lie',
+  ZombieHakjStand: 'zombie-hakj-stand', ZombieHakjLie: 'zombie-hakj-lie',
 
   // FX / projectiles
   ProjArcane: 'proj-arcane',
@@ -84,6 +105,8 @@ export const AudioKeys = {
   ZombieBossSfx: 'zombie-boss',
   ZombieDie: 'zombie-die',
   ZombieDie2: 'zombie-die2',
+  BossKillSlow: 'boss-kill-slow', // tense sting during the slow-mo hero-execution
+  Push: 'push',                   // the actual hero-kill blow
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 
@@ -93,6 +116,14 @@ export const MusicKeys = {
   Boss: 'boss-music',
 } as const;
 export type MusicKey = (typeof MusicKeys)[keyof typeof MusicKeys];
+
+// Font families. Bangers = bold impact display font (OFL) for titles + banners;
+// monospace stays for small HUD numbers where legibility beats style.
+export const Fonts = {
+  Display: 'Bangers, Impact, sans-serif',
+  Zombie: 'Creepster, Bangers, Impact, sans-serif', // dripping horror font for boss titles
+  Mono: 'monospace',
+} as const;
 
 export const RegistryKeys = {
   BestWave: 'bestWave',

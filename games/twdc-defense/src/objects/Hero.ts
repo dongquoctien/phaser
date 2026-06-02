@@ -17,7 +17,9 @@ export class Hero extends Phaser.GameObjects.Image {
   readonly def: HeroDef & { tiers: HeroTier[] };
   readonly col: number;
   readonly row: number;
+  private readonly homeX: number; // true pad x; attacks always lunge from + return here
   tier = 0;
+  spent = 0; // total gold sunk into this hero (buy + upgrades); drives sell refund
   private nextFireAt = 0;
   private turret: Phaser.GameObjects.Image | null = null; // none for now; heroes face forward
   private ring: Phaser.GameObjects.Arc;
@@ -34,6 +36,7 @@ export class Hero extends Phaser.GameObjects.Image {
     this.def = def;
     this.col = col;
     this.row = row;
+    this.homeX = x; // pad anchor — lunges restore to this, never drift
     // Hero sprites are pixel-art PNGs (~56px tall). Scale to fit a pad. Pixel art
     // wants integer-ish scale for crispness; pick the nearest integer step (min 1)
     // so the nearest-neighbor upscale stays clean instead of a blurry fraction.
@@ -111,7 +114,10 @@ export class Hero extends Phaser.GameObjects.Image {
     this.chatter('attack'); // occasional bark
     const reach = 4 * this.baseScale; // px to lunge forward
     const dx = Math.cos(angle) * reach;
-    const restX = this.x; // pad position never moves; capture for safe restore
+    const restX = this.homeX; // ALWAYS restore to the pad anchor (fast firers like
+    // DongDong would otherwise drift: a new lunge starts before the last restores,
+    // capturing the already-displaced x and creeping the hero away from its pad).
+    this.x = restX; // snap home before the new lunge so it never accumulates
     this.idleTween?.pause();
     this.scene.tweens.killTweensOf(this);
     this.scene.tweens.chain({
