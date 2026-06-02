@@ -467,7 +467,8 @@ export class GameScene extends Phaser.Scene {
     }
     this.gold += reward;
     this.refreshHud();
-    this.boom(z.x, z.y);
+    this.boom(z.x, z.y, 0.3); // small flash...
+    this.shatter(z.x, z.y);   // ...plus chunks bursting apart
     // death sound only (no Explode — it was the "drum" stacking on mass kills).
     this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieDie : AudioKeys.ZombieDie2);
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
@@ -565,6 +566,31 @@ export class GameScene extends Phaser.Scene {
   private healFx(x: number, y: number): void {
     const p = this.add.image(x, y, TextureKeys.Spark).setDepth(13).setTint(0xa7f070);
     this.tweens.add({ targets: p, y: y - 18, alpha: 0, duration: 500, onComplete: () => p.destroy() });
+  }
+
+  // Death "shatter": a burst of little chunks that fly out radially, spin, fall
+  // under gravity, and fade — so a kill pops apart instead of a single static
+  // flash. Chunk count is small (cheap on mass kills); colours are zombie-flesh.
+  private shatter(x: number, y: number): void {
+    const COLORS = [0x6aaa5a, 0x4f8a44, 0x2a7a3a, 0xb13e53]; // green flesh + a blood red
+    const n = 8;
+    for (let i = 0; i < n; i++) {
+      const ang = (Math.PI * 2 * i) / n + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const speed = Phaser.Math.FloatBetween(40, 95);
+      const vx = Math.cos(ang) * speed;
+      const vy = Math.sin(ang) * speed - Phaser.Math.FloatBetween(20, 60); // initial upward kick
+      const size = Phaser.Math.Between(2, 4);
+      const chunk = this.add.rectangle(x, y, size, size, COLORS[i % COLORS.length])
+        .setDepth(14).setAngle(Phaser.Math.Between(0, 360));
+      const dur = Phaser.Math.Between(380, 620);
+      const gx = x + vx * (dur / 1000);
+      const gy = y + vy * (dur / 1000) + 90 * (dur / 1000) * (dur / 1000); // + gravity drop
+      this.tweens.add({
+        targets: chunk, x: gx, y: gy, angle: chunk.angle + Phaser.Math.Between(-220, 220),
+        alpha: 0, duration: dur, ease: 'Quad.easeIn',
+        onComplete: () => chunk.destroy(),
+      });
+    }
   }
 
   // ── HUD + hero picker + upgrade panel ─────────────────────────────────────────
