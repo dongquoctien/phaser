@@ -3,7 +3,7 @@ import { AudioKeys, type AudioKey, type MusicKey, RegistryKeys } from '../types/
 
 // Throttled SFX helper with a WebAudio cache guard + persisted mute (phaser-audio
 // skill). playPitched adds ±10% rate so spammed shots don't fatigue.
-const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }> = {
+const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string; raw?: boolean }> = {
   [AudioKeys.Shoot]: { volume: 0.13, throttle: 45 },
   [AudioKeys.Hit]: { volume: 0.15, throttle: 40 },
   [AudioKeys.Explode]: { volume: 0.38, throttle: 80 },
@@ -12,8 +12,8 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
   [AudioKeys.Click]: { volume: 0.5, throttle: 0 },
   // zombie sfx: growls are ambient (longer throttle so a wave doesn't roar), die
   // sounds fire per kill, boss roar is a one-off on spawn.
-  [AudioKeys.ZombieGrrr]: { volume: 0.3, throttle: 900, group: 'grrr' },
-  [AudioKeys.ZombieGrrr1]: { volume: 0.3, throttle: 900, group: 'grrr' },
+  [AudioKeys.ZombieGrrr]: { volume: 0.15, throttle: 900, group: 'grrr' }, // halved (ambient growl)
+  [AudioKeys.ZombieGrrr1]: { volume: 0.15, throttle: 900, group: 'grrr' },
   [AudioKeys.ZombieBossSfx]: { volume: 0.6, throttle: 0 },
   // die sounds share ONE throttle group so a mass-kill (AoE/nova/cleave) plays a
   // single death sound, not a wall of them. ~350ms feels punchy without spamming.
@@ -22,15 +22,22 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
   // boss hero-execution: slow-mo sting on enter, "push" blow on the kill.
   [AudioKeys.BossKillSlow]: { volume: 0.6, throttle: 0 },
   [AudioKeys.Push]: { volume: 0.7, throttle: 0 },
+  // game-over plays at TRUE full volume (raw = bypass the global VOL_SCALE).
+  [AudioKeys.GameOver]: { volume: 1.0, throttle: 0, raw: true },
 };
 
-const MUSIC_VOL = 0.35;
+// Global volume scale applied to every SFX + music — drop everything 30% (×0.7).
+const VOL_SCALE = 0.7;
+const MUSIC_VOL = 0.35 * VOL_SCALE;
+// per-track music multiplier (1 = normal). Boss track plays at full music volume.
+const MUSIC_TRACK_VOL: Partial<Record<MusicKey, number>> = { 'boss-music': 1.0 };
 
 export class Audio {
   private scene: Phaser.Scene;
   private lastPlayed: Record<string, number> = {}; // keyed by throttle slot (group or key)
   private music?: Phaser.Sound.BaseSound; // current looping track
   private musicKey?: MusicKey;
+  private pageHidden = false; // true while the tab is backgrounded — drop all sound
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -48,7 +55,8 @@ export class Audio {
     if (!this.scene.cache.audio.exists(key)) return;
     this.stopMusic();
     this.musicKey = key;
-    this.music = this.scene.sound.add(key, { loop: true, volume: MUSIC_VOL });
+    const vol = MUSIC_VOL * (MUSIC_TRACK_VOL[key] ?? 1);
+    this.music = this.scene.sound.add(key, { loop: true, volume: vol });
     this.music.play();
   }
 
@@ -80,16 +88,19 @@ export class Audio {
     this.scene.input.on(Phaser.Input.Events.POINTER_DOWN, resume);
     const onVis = () => {
       if (document.hidden) {
-        // pause the manager (stops queuing/playback) and suspend the context so
-        // no audio is buffered up while we're backgrounded
-        this.scene.sound.pauseAll();
+        // Backgrounded: stop EVERYTHING and suspend the context. The pageHidden
+        // flag also makes playInternal/playMusic no-op so the game loop can't
+        // enqueue any sound while hidden (the queued buffers were what fired all
+        // at once — loud — on return).
+        this.pageHidden = true;
+        this.scene.sound.stopAll();
         if (ctx.state === 'running') void ctx.suspend();
       } else {
+        this.pageHidden = false;
         if (ctx.state === 'suspended') void ctx.resume();
-        // reset throttle clocks so the first sound after returning isn't gated,
-        // and (more importantly) old timestamps don't let a burst slip through
-        this.lastPlayed = {};
-        this.scene.sound.resumeAll();
+        this.lastPlayed = {}; // clear stale throttle timestamps
+        // restart the looping music that stopAll() killed
+        if (this.musicKey) { const k = this.musicKey; this.musicKey = undefined; this.playMusic(k); }
       }
     };
     document.addEventListener('visibilitychange', onVis);
@@ -106,6 +117,7 @@ export class Audio {
   }
 
   private playInternal(key: AudioKey, rate: number): void {
+    if (this.pageHidden) return; // never enqueue sound while backgrounded
     if (this.scene.sound.mute) return;
     if (!this.scene.cache.audio.exists(key)) return;
     const cfg = SFX[key];
@@ -114,7 +126,8 @@ export class Audio {
     const slot = cfg.group ?? key;
     if (cfg.throttle > 0 && now - (this.lastPlayed[slot] ?? -1e9) < cfg.throttle) return;
     this.lastPlayed[slot] = now;
-    this.scene.sound.play(key, { volume: cfg.volume, rate });
+    const volume = cfg.raw ? cfg.volume : cfg.volume * VOL_SCALE; // raw bypasses global scale
+    this.scene.sound.play(key, { volume, rate });
   }
 
   toggleMute(): boolean {

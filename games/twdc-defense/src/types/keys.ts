@@ -107,6 +107,7 @@ export const AudioKeys = {
   ZombieDie2: 'zombie-die2',
   BossKillSlow: 'boss-kill-slow', // tense sting during the slow-mo hero-execution
   Push: 'push',                   // the actual hero-kill blow
+  GameOver: 'game-over',          // played once on defeat (full volume)
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 
