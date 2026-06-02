@@ -24,7 +24,9 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
   [AudioKeys.Push]: { volume: 0.7, throttle: 0 },
 };
 
-const MUSIC_VOL = 0.35;
+// Global volume scale applied to every SFX + music — drop everything 30% (×0.7).
+const VOL_SCALE = 0.7;
+const MUSIC_VOL = 0.35 * VOL_SCALE;
 
 export class Audio {
   private scene: Phaser.Scene;
@@ -119,7 +121,7 @@ export class Audio {
     const slot = cfg.group ?? key;
     if (cfg.throttle > 0 && now - (this.lastPlayed[slot] ?? -1e9) < cfg.throttle) return;
     this.lastPlayed[slot] = now;
-    this.scene.sound.play(key, { volume: cfg.volume, rate });
+    this.scene.sound.play(key, { volume: cfg.volume * VOL_SCALE, rate });
   }
 
   toggleMute(): boolean {
