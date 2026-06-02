@@ -347,9 +347,9 @@ export interface ZombieDef {
 
 export const ZOMBIES: Record<ZombieId, ZombieDef> = {
   // walker = the zombie-girl sheet; slow = bucket-head (tanky, slow).
-  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 55, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
-  slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 162, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
-  brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 188, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
+  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 57, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
+  slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 169, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
+  brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 195, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
   // ── bosses (one per map). skillCdMs = how often it destroys a hero (Easy slow → Hard fast).
   //    Title colours are themed per boss (toxic-green queen / blood-red king / drowned-cyan).
   // HP from this PR (boss +20%); cooldown from main (PR #21 -5s).
