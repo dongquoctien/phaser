@@ -110,6 +110,63 @@ is NOT the bake `px` (which only enlarges the source texture) nor the on-screen
   `games/flappy-bird/src/scenes/PreloadScene.ts` (`generateTextures()` bakes the
   bird/pipe/ground).
 
+## Converting an existing image → pixel art (`scripts/pixelate.mjs`)
+
+When the user supplies a PNG (their own art, or an AI "faux-pixel" image — soft
+edges, off-grid blocks, hundreds of colours) and wants it to look like real pixel
+art / render crisp under `pixelArt: true`, **do not hand-redraw it**. Use the repo
+tool **`scripts/pixelate.mjs`** (Node + `pngjs`, no native deps):
+
+```bash
+node scripts/pixelate.mjs <input.png>                    # default: 56px tall, 24 colours
+node scripts/pixelate.mjs <input.png> --h 72 --colors 32 # more facial detail
+node scripts/pixelate.mjs <input.png> --h 56 --colors 16 # chunkier / retro
+# batch a folder:
+for f in games/<game>/public/heroes/*.png; do node scripts/pixelate.mjs "$f"; done
+```
+
+Pipeline (the classic image→pixel recipe): auto-trim transparent border → **box-
+average downscale** to a small grid (merges AA into solid blocks better than nearest
+for AA'd sources) → **median-cut palette** quantization → **hard alpha cutoff** (no
+semi-transparent fringe) → write at grid resolution. **Output stays SMALL on
+purpose** — let Phaser nearest-neighbor-upscale it; never bake the upscale in.
+Defaults to `public/heroes-pixel/` (keeps originals); `--out` overrides.
+
+**The crispness trap after pixelating:** a sprite scaled by a *fraction*
+(`targetH / srcH` = e.g. 0.26×) re-blurs the pixels you just sharpened. After
+pixelating, scale by an **integer** (or pick `targetH` = a multiple of the sprite
+height). See `games/twdc-defense/src/objects/Hero.ts` (`baseScale` = nearest
+integer, min 1) for the pattern.
+
+**Note: only image PNGs need this.** Sprites already authored as char-grids and
+baked via `bakeSprite` (`src/pixel`) are *already* crisp pixel art — pixelating
+them is wrong. (In twdc-defense the 21 heroes were user PNGs → pixelated; the
+zombies/tiles/FX are `baseArt.json` grids → left as-is.)
+
+## Procedural animation from ONE static sprite (no spritesheet)
+
+A pixelated image is **one pose** — it cannot become a real walk/attack cycle by
+conversion (those frames don't exist in the source). Three levels, cheap→expensive:
+
+- **Level 1 — fake it with transforms/tweens (DEFAULT for casual/TD games).** From
+  a single image: `setFlipX` to face, a perpetual idle "breath" (tween `scaleY`),
+  an attack squash+lunge (`scaleX/scaleY` + a few px toward the target), a hit
+  flash (`setTint` + shake), a death topple (spin-flatten + fade), a walk **gait**
+  (bob + lurch + tilt phased by distance travelled — sum two sines so it *bounces*,
+  not a robotic single sine). Canonical implementations in this repo:
+  `Hero.ts` (`startIdle`/`playAttack`/`playHit`) and `Zombie.ts`
+  (`applyGait`/`playDeath`/`playEndAttack`). **This is enough for tower-defense.**
+  Gotcha: drive a walk gait by **distance walked**, not wall-clock, so it stays in
+  sync across slow/fast units; render gait as an offset around the true path
+  position (don't accumulate, or the unit drifts off the road).
+- **Level 2 — cut-out rig:** slice the sprite into parts (head/arms/legs), tween
+  each → real swing/walk. Doable, medium fidelity.
+- **Level 3 — hand-drawn spritesheet** (`load.spritesheet` + `anims.create`): the
+  only path to authentic multi-frame pixel animation, but the frames must be
+  *drawn* (by an artist / AI / procedurally) — they can't be derived from one
+  image. Build the anim system, but be honest that you can't auto-generate frames
+  that match a specific supplied character.
+
 ## Phaser 4 — pixel generators & crisp config
 
 **This project is on Phaser 4.1.0.** Full details: **`.claude/skills/PHASER4.md`**

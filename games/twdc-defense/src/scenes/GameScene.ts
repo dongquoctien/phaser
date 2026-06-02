@@ -208,7 +208,7 @@ export class GameScene extends Phaser.Scene {
       if (z.dead) continue;
       alive++;
       if (res === 'end') {
-        z.despawn();
+        z.playEndAttack(); // chomp at the base, then despawns itself
         this.lives -= 1;
         this.refreshHud();
         this.audio.play(AudioKeys.Lose);
@@ -220,8 +220,9 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // heroes act
-    const live = this.zombies.filter((z) => !z.dead);
+    // heroes act — exclude zombies mid death/end animation so heroes don't waste
+    // shots on something already leaving play.
+    const live = this.zombies.filter((z) => !z.dead && !z.dying);
     for (const h of this.heroes) {
       const intent = h.update(time, live);
       if (intent) this.resolveFire(h, intent, live, time);
@@ -460,7 +461,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshHud();
     this.boom(z.x, z.y);
     this.audio.play(AudioKeys.Explode);
-    z.despawn();
+    z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
   }
 
   // ── waves ─────────────────────────────────────────────────────────────────────
