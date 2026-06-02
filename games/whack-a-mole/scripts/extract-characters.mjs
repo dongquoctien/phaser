@@ -21,10 +21,14 @@ const SRC = 'D:/Docs-Game/game-v/twdc-defense';
 const OUT = path.join(import.meta.dirname, '..', 'art-src', 'chars');
 
 // Grid layout of each sheet — the background-removed versions.
+// Sheet 4 is laid out differently: a "spec card" with the real 32x32 sprites in
+// the TOP HALF (4 columns) and a label + small preview below. We only want the
+// top-half row, so it carries `topFrac` (cut from y=0 down to topFrac*H).
 const SHEETS = {
   s1: { file: '1-removebg-preview.png', cols: 3, rows: 3 },
   s2: { file: '2-removebg-preview.png', cols: 3, rows: 2 },
   s3: { file: '3-removebg-preview.png', cols: 3, rows: 2 },
+  s4: { file: '4-removebg-preview.png', cols: 4, rows: 1, topFrac: 0.47 },
 };
 
 // The roster: which cell -> what game name. (r,c) is the cell. ALL 21 cells of
@@ -54,6 +58,11 @@ const ROSTER = [
   { sheet: 's3', r: 1, c: 0, name: 'kid-blue' }, // blue-outfit kid
   { sheet: 's3', r: 1, c: 1, name: 'woman' }, // long-hair woman
   { sheet: 's3', r: 1, c: 2, name: 'blob' }, // blue blob (friendly)
+  // --- sheet 4 (4 cols, top half only) ---
+  { sheet: 's4', r: 0, c: 0, name: 'rat-man' }, // rat in orange shirt
+  { sheet: 's4', r: 0, c: 1, name: 'cat-fluffy' }, // fluffy grey cat
+  { sheet: 's4', r: 0, c: 2, name: 'doraemon' }, // doraemon
+  { sheet: 's4', r: 0, c: 3, name: 'shiba' }, // shiba dog (friendly)
 ];
 
 const TARGET_H = 96; // baked source height; on-screen scale is set in-game
@@ -66,7 +75,10 @@ const TARGET_H = 96; // baked source height; on-screen scale is set in-game
     const src = path.join(SRC, sheet.file);
     const m = await sharp(src).metadata();
     const cw = Math.floor(m.width / sheet.cols);
-    const ch = Math.floor(m.height / sheet.rows);
+    // topFrac sheets only use a top band; otherwise split the full height by rows.
+    const ch = sheet.topFrac
+      ? Math.floor(m.height * sheet.topFrac)
+      : Math.floor(m.height / sheet.rows);
 
     const out = path.join(OUT, `${item.name}.png`);
     // Slice the cell first; trimming a fully-bordered transparent cell can throw

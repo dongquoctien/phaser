@@ -23,6 +23,7 @@ const ALL_FRAMES = [
   'hamster', 'cat-tuxedo', 'man-glasses', 'boy-blue', 'cat-ragdoll',
   'kid-pig', 'kid-panda', 'kid-cat', 'kid-blue', 'woman',
   'capybara', 'alpaca', 'teddy', 'blob', 'rabbit',
+  'rat-man', 'cat-fluffy', 'doraemon', 'shiba', // sheet 4
   // (mole-boss handled separately)
 ];
 
