@@ -467,8 +467,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.gold += reward;
     this.refreshHud();
-    this.boom(z.x, z.y, 0.3); // small flash...
-    this.shatter(z.x, z.y);   // ...plus chunks bursting apart
+    this.shatter(z.x, z.y); // chunks burst apart (no explosion flash)
     // death sound only (no Explode — it was the "drum" stacking on mass kills).
     this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieDie : AudioKeys.ZombieDie2);
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
