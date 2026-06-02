@@ -256,19 +256,20 @@ export function heroStars(def: HeroDef & { tiers: HeroTier[] }): number {
 }
 
 // ── Zombies ──────────────────────────────────────────────────────────────────
-export type ZombieId = 'walker' | 'runner' | 'brute' | 'boss';
+export type ZombieId = 'walker' | 'slow' | 'brute' | 'boss';
 
 export interface ZombieDef {
   id: ZombieId; tex: TextureKey; hp: number; speedMul: number; bounty: number; scale: number;
-  /** when true, use the animated zombie-girl spritesheets instead of the static
-   *  baked grid; `scale` is then applied to the ~118x141 sheet cell. */
-  anim?: boolean;
+  /** when set, use animated spritesheets instead of a static baked grid; the
+   *  value is the sheet-set prefix (e.g. 'girl' → zombie-girl-stand/lie). `scale`
+   *  is then applied to that sheet's cell. */
+  sheet?: string;
 }
 
 export const ZOMBIES: Record<ZombieId, ZombieDef> = {
-  // walker uses the animated zombie-girl sheet; scale fits the ~141px cell to pad
-  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.4, anim: true },
-  runner: { id: 'runner', tex: TextureKeys.ZombieRunner, hp: 30, speedMul: 1.8, bounty: 1.1, scale: 0.8 },
+  // walker = the zombie-girl sheet; slow = bucket-head (tanky, slow); boss = crowned queen.
+  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
+  slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 130, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
   brute: { id: 'brute', tex: TextureKeys.ZombieBrute, hp: 150, speedMul: 0.7, bounty: 2.2, scale: 1.05 },
-  boss: { id: 'boss', tex: TextureKeys.ZombieBoss, hp: 700, speedMul: 0.5, bounty: 8, scale: 1.4 },
+  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 700, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss' },
 };

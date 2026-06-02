@@ -45,14 +45,16 @@ export const TextureKeys = {
   HeroNini: 'hero-nini',         // long hair — execute
   HeroHakj: 'hero-hakj',         // blue fish — water bounce
 
-  // Zombies
-  ZombieWalker: 'zombie-walker',
-  ZombieRunner: 'zombie-runner',
+  // Zombies (static baked grids — brute; walker icon for HUD)
+  ZombieWalker: 'zombie-walker', // grid, used for the HUD lives icon
   ZombieBrute: 'zombie-brute',
-  ZombieBoss: 'zombie-boss',
-  // animated zombie-girl spritesheets (cut from the reference sheet)
-  ZombieGirlStand: 'zombie-girl-stand', // cell 118x141: idle/walk/attackA/attackB/takeDamage/victory
-  ZombieGirlLie: 'zombie-girl-lie',     // cell 158x142: death/rise
+  // animated zombie spritesheets (cut from reference sheets by scripts/cut-zombie-sheet.mjs)
+  ZombieGirlStand: 'zombie-girl-stand',   // walker — idle/walk/attackA/attackB/takeDamage/victory
+  ZombieGirlLie: 'zombie-girl-lie',       // walker — death/rise
+  ZombieBossStand: 'zombie-boss-stand',   // boss — same anim set as girl
+  ZombieBossLie: 'zombie-boss-lie',       // boss — death/rise
+  ZombieSpeedStand: 'zombie-speed-stand', // slow (bucket-head) — idle/walk/attack/takeDamage/victory
+  ZombieSpeedLie: 'zombie-speed-lie',     // slow — death
 
   // FX / projectiles
   ProjArcane: 'proj-arcane',
@@ -75,8 +77,21 @@ export const AudioKeys = {
   Place: 'place',
   Lose: 'lose',
   Click: 'click',
+  // zombie sfx
+  ZombieGrrr: 'zombie-grrr',
+  ZombieGrrr1: 'zombie-grrr1',
+  ZombieBossSfx: 'zombie-boss',
+  ZombieDie: 'zombie-die',
+  ZombieDie2: 'zombie-die2',
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
+
+// Looping music tracks (handled separately from one-shot SFX in the Audio helper).
+export const MusicKeys = {
+  Bg: 'bg-music',
+  Boss: 'boss-music',
+} as const;
+export type MusicKey = (typeof MusicKeys)[keyof typeof MusicKeys];
 
 export const RegistryKeys = {
   BestWave: 'bestWave',

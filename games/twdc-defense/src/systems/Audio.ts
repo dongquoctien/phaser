@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { AudioKeys, type AudioKey, RegistryKeys } from '../types/keys';
+import { AudioKeys, type AudioKey, type MusicKey, RegistryKeys } from '../types/keys';
 
 // Throttled SFX helper with a WebAudio cache guard + persisted mute (phaser-audio
 // skill). playPitched adds ±10% rate so spammed shots don't fatigue.
@@ -10,17 +10,48 @@ const SFX: Record<AudioKey, { volume: number; throttle: number }> = {
   [AudioKeys.Place]: { volume: 0.4, throttle: 0 },
   [AudioKeys.Lose]: { volume: 0.6, throttle: 200 },
   [AudioKeys.Click]: { volume: 0.5, throttle: 0 },
+  // zombie sfx: growls are ambient (longer throttle so a wave doesn't roar), die
+  // sounds fire per kill, boss roar is a one-off on spawn.
+  [AudioKeys.ZombieGrrr]: { volume: 0.3, throttle: 900 },
+  [AudioKeys.ZombieGrrr1]: { volume: 0.3, throttle: 900 },
+  [AudioKeys.ZombieBossSfx]: { volume: 0.6, throttle: 0 },
+  [AudioKeys.ZombieDie]: { volume: 0.35, throttle: 60 },
+  [AudioKeys.ZombieDie2]: { volume: 0.35, throttle: 60 },
 };
+
+const MUSIC_VOL = 0.35;
 
 export class Audio {
   private scene: Phaser.Scene;
   private lastPlayed: Partial<Record<AudioKey, number>> = {};
+  private music?: Phaser.Sound.BaseSound; // current looping track
+  private musicKey?: MusicKey;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
     const muted = (scene.registry.get(RegistryKeys.Muted) as boolean) ?? false;
     scene.sound.setMute(muted);
     this.installIosUnlock();
+    // stop music when the scene shuts down so it doesn't leak across restarts
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMusic());
+  }
+
+  // ── music (looping track; only one plays at a time) ──────────────────────────
+  /** Start (or switch to) a looping music track. No-op if it's already playing. */
+  playMusic(key: MusicKey): void {
+    if (this.musicKey === key && this.music?.isPlaying) return;
+    if (!this.scene.cache.audio.exists(key)) return;
+    this.stopMusic();
+    this.musicKey = key;
+    this.music = this.scene.sound.add(key, { loop: true, volume: MUSIC_VOL });
+    this.music.play();
+  }
+
+  stopMusic(): void {
+    this.music?.stop();
+    this.music?.destroy();
+    this.music = undefined;
+    this.musicKey = undefined;
   }
 
   // iOS Safari starts the WebAudio context "suspended" and only resumes it from a

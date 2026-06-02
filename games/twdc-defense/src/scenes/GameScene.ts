@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, AudioKeys, TextureKeys, mapBestKey, mapClearedKey } from '../types/keys';
+import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, mapBestKey, mapClearedKey } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, CELL, FIELD_H, HUD_TOP, Tuning } from '../config';
 import { Zombie } from '../objects/Zombie';
 import { Projectile } from '../objects/Projectile';
@@ -25,6 +25,7 @@ export class GameScene extends Phaser.Scene {
   private waveActive = false;
   private spawnQueue: ZombieId[] = [];
   private nextSpawnAt = 0;
+  private nextGrowlAt = 0; // ambient zombie-growl timer
   private over = false;
   private countdownActive = false;
   private countdownEndsAt = 0; // scene-time (ms) when the next wave auto-starts
@@ -64,6 +65,7 @@ export class GameScene extends Phaser.Scene {
     this.selectedHero = null;
 
     this.audio = new Audio(this);
+    this.audio.playMusic(MusicKeys.Bg); // looping background music
     this.drawMap();
 
     this.projectiles = this.add.group({ classType: Projectile, maxSize: Tuning.poolBullets });
@@ -218,6 +220,12 @@ export class GameScene extends Phaser.Scene {
         // died from a DoT tick this frame
         this.killZombie(z);
       }
+    }
+
+    // ambient growls while zombies are on the field (throttled in Audio)
+    if (alive > 0 && time >= this.nextGrowlAt) {
+      this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieGrrr : AudioKeys.ZombieGrrr1);
+      this.nextGrowlAt = time + 2500 + Math.random() * 3500;
     }
 
     // heroes act — exclude zombies mid death/end animation so heroes don't waste
@@ -461,6 +469,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshHud();
     this.boom(z.x, z.y);
     this.audio.play(AudioKeys.Explode);
+    this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieDie : AudioKeys.ZombieDie2);
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
   }
 
@@ -509,10 +518,16 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < count; i++) {
       const r = Math.random();
       if (this.wave >= 6 && r < 0.25) q.push('brute');
-      else if (this.wave >= 3 && r < 0.45) q.push('runner');
+      else if (this.wave >= 3 && r < 0.45) q.push('slow');
       else q.push('walker');
     }
-    if (boss) q.push('boss');
+    if (boss) {
+      q.push('boss');
+      this.audio.playMusic(MusicKeys.Boss);          // dramatic boss track
+      this.audio.play(AudioKeys.ZombieBossSfx);      // boss roar on the wave start
+    } else {
+      this.audio.playMusic(MusicKeys.Bg);            // ensure normal track on non-boss waves
+    }
     this.spawnQueue = q;
     this.nextSpawnAt = 0;
   }

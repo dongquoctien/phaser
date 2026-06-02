@@ -40,9 +40,10 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private pathX = 0;     // true on-path position (gait offsets render around it, never accumulate)
   private pathY = 0;
 
-  // animated mode (zombie-girl spritesheet). When true, real anims replace the
-  // procedural gait/topple; the stand sheet is ~118px so it scales down a lot.
+  // animated mode (spritesheet). When set, real anims replace the procedural
+  // gait/topple. `sheet` is the anim-key prefix ('girl'|'boss'|'speed').
   private animated = false;
+  private sheet = '';        // anim key prefix, '' = not animated
   private busyAnimUntil = 0; // while a one-shot anim (takeDamage) plays, don't override with walk
 
   constructor(scene: Phaser.Scene) {
@@ -53,13 +54,14 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   }
 
   spawn(def: ZombieDef, hp: number, baseSpeed: number, bountyBase: number, waypoints: { x: number; y: number }[]): void {
-    this.animated = !!def.anim;
+    this.sheet = def.sheet ?? '';
+    this.animated = !!this.sheet;
     this.setTexture(def.tex).setScale(def.scale);
     this.setOrigin(0.5, this.animated ? 0.78 : 0.5); // feet near bottom for the tall sheet
     this.baseScale = def.scale;
     this.busyAnimUntil = 0;
     this.gait = Math.random() * Math.PI * 2; // desync the herd
-    if (this.animated) this.play('zg-walk'); // looping shuffle
+    if (this.animated) this.play(`${this.sheet}-walk`); // looping shuffle
     this.hp = hp;
     this.maxHp = hp;
     this.baseSpeed = baseSpeed * def.speedMul;
@@ -138,7 +140,8 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     if (this.animated) {
       // real anim drives the look; just make sure we're walking once a one-shot
       // (takeDamage) finishes.
-      if (now >= this.busyAnimUntil && this.anims.currentAnim?.key !== 'zg-walk') this.play('zg-walk');
+      const walk = `${this.sheet}-walk`;
+      if (now >= this.busyAnimUntil && this.anims.currentAnim?.key !== walk) this.play(walk);
       this.pathX = this.x; this.pathY = this.y; // keep these synced for bars/knockback
     } else {
       this.applyGait();
@@ -189,7 +192,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
       // frame briefly, then fade out and despawn.
       this.scene.tweens.killTweensOf(this);
       this.setOrigin(0.5, 0.6); // lying frames are centred, not feet-anchored
-      this.play('zg-death');
+      this.play(`${this.sheet}-death`);
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
         this.scene.tweens.add({
           targets: this, alpha: 0, delay: 250, duration: 300, ease: 'Quad.in',
@@ -230,7 +233,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
 
     if (this.animated) {
       // real bite at the base, then fade out
-      this.play(Math.random() < 0.5 ? 'zg-attackA' : 'zg-attackB');
+      this.play(`${this.sheet}-${Math.random() < 0.5 ? 'attackA' : 'attackB'}`);
       this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
         this.scene.tweens.add({
           targets: this, alpha: 0, duration: 160, ease: 'Quad.in',
@@ -261,7 +264,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     // animated: brief hurt reaction (skipped for tiny poison ticks so it doesn't
     // freeze the walk). The walk resumes in step() once busyAnimUntil passes.
     if (this.animated && amount >= 2) {
-      this.play('zg-takeDamage', true);
+      this.play(`${this.sheet}-takeDamage`, true);
       this.busyAnimUntil = this.scene.time.now + 220;
     }
     this.updateBars();
