@@ -21,8 +21,9 @@ export class PreloadScene extends Phaser.Scene {
     // this.load.atlas(AtlasKeys.UI, 'assets/ui.png', 'assets/ui.json');
     // this.load.atlas(AtlasKeys.FX, 'assets/fx.png', 'assets/fx.json');
 
-    // Audio (provide both formats for browser coverage):
-    // this.load.audio(AudioKeys.Music, ['assets/music.ogg', 'assets/music.mp3']);
+    // Audio — ALWAYS dual-format, m4a FIRST. iOS Safari can't decode Ogg, so an
+    // Ogg-only game is silent on every iPhone/iPad. See the phaser-audio skill.
+    // this.load.audio(AudioKeys.Sfx, ['assets/sfx.m4a', 'assets/sfx.ogg']);
   }
 
   create(): void {
