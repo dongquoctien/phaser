@@ -1,10 +1,14 @@
 import Phaser from 'phaser';
 import { type ZombieDef } from '../types/roster';
 
-// A pooled zombie that walks the waypoint path. Plain Image moved manually (no
+// A pooled zombie that walks the waypoint path. A Sprite (moved manually, no
 // physics body). Carries status effects layered by hero skills: slow, poison
 // (DoT), stun, knockback. Heroes query it via the scene's zombie list.
-export class Zombie extends Phaser.GameObjects.Image {
+//
+// Two visual modes: `animated` zombies (the zombie-girl, used for `walker`) play
+// real spritesheet anims (walk/takeDamage/death/...); the rest are a single
+// static baked grid animated procedurally (gait/topple). One class serves both.
+export class Zombie extends Phaser.GameObjects.Sprite {
   hp = 0;
   maxHp = 0;
   baseSpeed = 0;
@@ -36,6 +40,11 @@ export class Zombie extends Phaser.GameObjects.Image {
   private pathX = 0;     // true on-path position (gait offsets render around it, never accumulate)
   private pathY = 0;
 
+  // animated mode (zombie-girl spritesheet). When true, real anims replace the
+  // procedural gait/topple; the stand sheet is ~118px so it scales down a lot.
+  private animated = false;
+  private busyAnimUntil = 0; // while a one-shot anim (takeDamage) plays, don't override with walk
+
   constructor(scene: Phaser.Scene) {
     super(scene, 0, 0, 'zombie-walker');
     this.setActive(false).setVisible(false);
@@ -44,9 +53,13 @@ export class Zombie extends Phaser.GameObjects.Image {
   }
 
   spawn(def: ZombieDef, hp: number, baseSpeed: number, bountyBase: number, waypoints: { x: number; y: number }[]): void {
+    this.animated = !!def.anim;
     this.setTexture(def.tex).setScale(def.scale);
+    this.setOrigin(0.5, this.animated ? 0.78 : 0.5); // feet near bottom for the tall sheet
     this.baseScale = def.scale;
+    this.busyAnimUntil = 0;
     this.gait = Math.random() * Math.PI * 2; // desync the herd
+    if (this.animated) this.play('zg-walk'); // looping shuffle
     this.hp = hp;
     this.maxHp = hp;
     this.baseSpeed = baseSpeed * def.speedMul;
@@ -75,7 +88,8 @@ export class Zombie extends Phaser.GameObjects.Image {
     this.dead = true;
     this.dying = false;
     this.pathX = 0; this.pathY = 0; // clear gait state for the next pooled use
-    this.setRotation(0).setAngle(0).setAlpha(1);
+    this.setRotation(0).setAngle(0).setAlpha(1).setScale(this.baseScale);
+    if (this.animated) { this.stop(); this.setOrigin(0.5, 0.78); }
     this.setActive(false).setVisible(false);
     this.hpBarBg.setVisible(false);
     this.hpBar.setVisible(false);
@@ -116,11 +130,19 @@ export class Zombie extends Phaser.GameObjects.Image {
       } else {
         this.x += (dx / d) * move;
         this.y += (dy / d) * move;
+        if (this.animated && Math.abs(dx) > 0.1) this.setFlipX(dx < 0); // face travel dir
         this.dist += move;
         move = 0;
       }
     }
-    this.applyGait();
+    if (this.animated) {
+      // real anim drives the look; just make sure we're walking once a one-shot
+      // (takeDamage) finishes.
+      if (now >= this.busyAnimUntil && this.anims.currentAnim?.key !== 'zg-walk') this.play('zg-walk');
+      this.pathX = this.x; this.pathY = this.y; // keep these synced for bars/knockback
+    } else {
+      this.applyGait();
+    }
     this.updateBars();
     return null;
   }
@@ -161,6 +183,22 @@ export class Zombie extends Phaser.GameObjects.Image {
     this.dying = true;
     this.hpBarBg.setVisible(false);
     this.hpBar.setVisible(false);
+
+    if (this.animated) {
+      // play the real collapse anim (switches to the lying sheet), hold the last
+      // frame briefly, then fade out and despawn.
+      this.scene.tweens.killTweensOf(this);
+      this.setOrigin(0.5, 0.6); // lying frames are centred, not feet-anchored
+      this.play('zg-death');
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        this.scene.tweens.add({
+          targets: this, alpha: 0, delay: 250, duration: 300, ease: 'Quad.in',
+          onComplete: () => { this.setAlpha(1); this.despawn(); onDone?.(); },
+        });
+      });
+      return;
+    }
+
     this.setTint(0xb13e53); // brief red death flush
     this.scene.tweens.killTweensOf(this);
     this.scene.tweens.add({
@@ -189,6 +227,19 @@ export class Zombie extends Phaser.GameObjects.Image {
     // direction from the last waypoint we passed toward the exit
     const prev = this.waypoints[Math.max(0, this.wpIndex - 1)] ?? { x: this.x - 1, y: this.y };
     const dx = Math.sign(this.x - prev.x) || 1;
+
+    if (this.animated) {
+      // real bite at the base, then fade out
+      this.play(Math.random() < 0.5 ? 'zg-attackA' : 'zg-attackB');
+      this.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => {
+        this.scene.tweens.add({
+          targets: this, alpha: 0, duration: 160, ease: 'Quad.in',
+          onComplete: () => { this.setAlpha(1); this.despawn(); onDone?.(); },
+        });
+      });
+      return;
+    }
+
     this.scene.tweens.killTweensOf(this);
     this.scene.tweens.chain({
       targets: this,
@@ -207,6 +258,12 @@ export class Zombie extends Phaser.GameObjects.Image {
     this.hp -= amount;
     this.flash();
     if (this.hp <= 0) { this.hp = 0; return true; }
+    // animated: brief hurt reaction (skipped for tiny poison ticks so it doesn't
+    // freeze the walk). The walk resumes in step() once busyAnimUntil passes.
+    if (this.animated && amount >= 2) {
+      this.play('zg-takeDamage', true);
+      this.busyAnimUntil = this.scene.time.now + 220;
+    }
     this.updateBars();
     return false;
   }
@@ -269,7 +326,9 @@ export class Zombie extends Phaser.GameObjects.Image {
     // hang bars off the true path position (pathX/Y), not the bobbing render
     // position, so the bar stays steady while the sprite shambles under it.
     const bx = this.pathX || this.x;
-    const by = (this.pathY || this.y) - 16;
+    // animated sprite is feet-anchored (origin .78) and taller → lift the bar more
+    const headLift = this.animated ? this.displayHeight * 0.74 : 16;
+    const by = (this.pathY || this.y) - headLift;
     this.hpBarBg.setPosition(bx, by).setVisible(true);
     this.hpBar.setPosition(bx - 12, by).setVisible(true);
     this.hpBar.width = 24 * Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, AudioKeys } from '../types/keys';
+import { SceneKeys, AudioKeys, TextureKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { bakeArt } from '../art';
 import { HEROES, HERO_IDS } from '../types/roster';
@@ -22,11 +22,54 @@ export class PreloadScene extends Phaser.Scene {
     for (const id of HERO_IDS) {
       this.load.image(HEROES[id].tex, `heroes-pixel/${id}.png`);
     }
+
+    // animated zombie-girl spritesheets (cut from the reference sheet by
+    // scripts/_cut-sheet.mjs). Two sheets with different cell sizes: standing
+    // anims, and the wide lying-down death/rise anims.
+    this.load.spritesheet(TextureKeys.ZombieGirlStand, 'enemies/zombie-girl-stand.png', {
+      frameWidth: 118, frameHeight: 141,
+    });
+    this.load.spritesheet(TextureKeys.ZombieGirlLie, 'enemies/zombie-girl-lie.png', {
+      frameWidth: 158, frameHeight: 142,
+    });
   }
 
   create(): void {
     bakeArt(this);
+    this.createZombieGirlAnims();
     this.scene.start(SceneKeys.Menu);
+  }
+
+  // Define the zombie-girl animations. Frame index = row*cols + col. Standing
+  // sheet is 6 cols wide; lying sheet is 5 cols wide.
+  private createZombieGirlAnims(): void {
+    const stand = TextureKeys.ZombieGirlStand;
+    const lie = TextureKeys.ZombieGirlLie;
+    const SC = 6; // standing sheet columns
+    const LC = 5; // lying sheet columns
+
+    const mk = (
+      key: string, sheet: string, row: number, cols: number, n: number,
+      frameRate: number, repeat: number, yoyo = false,
+    ) => {
+      if (this.anims.exists(key)) return;
+      this.anims.create({
+        key,
+        frames: Array.from({ length: n }, (_, i) => ({ key: sheet, frame: row * cols + i })),
+        frameRate, repeat, yoyo,
+      });
+    };
+
+    // standing sheet rows: 0 idle(4) 1 walk(6) 2 attackA(5) 3 attackB(6) 4 takeDamage(3) 5 victory(4)
+    mk('zg-idle', stand, 0, SC, 4, 4, -1, true);
+    mk('zg-walk', stand, 1, SC, 6, 9, -1);
+    mk('zg-attackA', stand, 2, SC, 5, 12, 0);
+    mk('zg-attackB', stand, 3, SC, 6, 12, 0);
+    mk('zg-takeDamage', stand, 4, SC, 3, 14, 0);
+    mk('zg-victory', stand, 5, SC, 4, 6, -1);
+    // lying sheet rows: 0 death(3) 1 rise(5)
+    mk('zg-death', lie, 0, LC, 3, 8, 0);
+    mk('zg-rise', lie, 1, LC, 5, 9, 0);
   }
 
   private drawProgressBar(): void {

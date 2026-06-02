@@ -50,6 +50,9 @@ export const TextureKeys = {
   ZombieRunner: 'zombie-runner',
   ZombieBrute: 'zombie-brute',
   ZombieBoss: 'zombie-boss',
+  // animated zombie-girl spritesheets (cut from the reference sheet)
+  ZombieGirlStand: 'zombie-girl-stand', // cell 118x141: idle/walk/attackA/attackB/takeDamage/victory
+  ZombieGirlLie: 'zombie-girl-lie',     // cell 158x142: death/rise
 
   // FX / projectiles
   ProjArcane: 'proj-arcane',

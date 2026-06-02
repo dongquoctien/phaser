@@ -260,10 +260,14 @@ export type ZombieId = 'walker' | 'runner' | 'brute' | 'boss';
 
 export interface ZombieDef {
   id: ZombieId; tex: TextureKey; hp: number; speedMul: number; bounty: number; scale: number;
+  /** when true, use the animated zombie-girl spritesheets instead of the static
+   *  baked grid; `scale` is then applied to the ~118x141 sheet cell. */
+  anim?: boolean;
 }
 
 export const ZOMBIES: Record<ZombieId, ZombieDef> = {
-  walker: { id: 'walker', tex: TextureKeys.ZombieWalker, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.85 },
+  // walker uses the animated zombie-girl sheet; scale fits the ~141px cell to pad
+  walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 44, speedMul: 1.0, bounty: 1, scale: 0.4, anim: true },
   runner: { id: 'runner', tex: TextureKeys.ZombieRunner, hp: 30, speedMul: 1.8, bounty: 1.1, scale: 0.8 },
   brute: { id: 'brute', tex: TextureKeys.ZombieBrute, hp: 150, speedMul: 0.7, bounty: 2.2, scale: 1.05 },
   boss: { id: 'boss', tex: TextureKeys.ZombieBoss, hp: 700, speedMul: 0.5, bounty: 8, scale: 1.4 },
