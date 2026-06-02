@@ -7,3 +7,12 @@ explode.ogg — impactGlass_heavy_000   (Impact Sounds)
 place.ogg   — bong_001                (Interface Sounds)
 lose.ogg    — impactGlass_heavy_000   (Impact Sounds)
 click.ogg   — click_001               (Interface Sounds)
+
+Music + zombie SFX (mp3) supplied by the project owner:
+bg-music.mp3       — background loop
+boss-music.mp3     — boss-wave track
+zombie-boss.mp3    — boss roar (on boss spawn)
+zombie-grrr.mp3    — ambient growl
+zombie-grrr1.mp3   — ambient growl (variant)
+zombie-die.mp3     — zombie death
+zombie-die2.mp3    — zombie death (variant)

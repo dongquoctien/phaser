@@ -6,6 +6,8 @@ dist-preview/
 .vite/
 .playwright-mcp/
 .claude/scheduled_tasks.lock
+.claude/worktrees/
+*.tsbuildinfo
 # transient verification screenshots (game cover.png committed by hand is NOT ignored)
 hub-*.png
 *-menu.png

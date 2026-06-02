@@ -1,0 +1,9 @@
+Bangers — by Vernon Adams (Google Fonts)
+License: SIL Open Font License 1.1 (OFL) — free for commercial use, embedding, modification.
+Source: https://fonts.google.com/specimen/Bangers
+Used for game titles + wave banners in TWDC Defense.
+
+Creepster — by Font Diner (Google Fonts)
+License: SIL Open Font License 1.1 (OFL) — free for commercial use, embedding, modification.
+Source: https://fonts.google.com/specimen/Creepster
+Used for the dripping zombie BOSS intro titles in TWDC Defense.
