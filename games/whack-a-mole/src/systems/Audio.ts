@@ -1,15 +1,16 @@
 import Phaser from 'phaser';
 import { AudioKeys, type AudioKey, RegistryKeys } from '../types/keys';
 
-// Thin SFX helper. play() is throttled per-key, mute persists in the registry,
-// and a cache guard skips play() before WebAudio has decoded the clip (the clip
-// isn't in cache until after the first user gesture → sound.play would throw
-// "not found in cache"). Same pattern as the other games (phaser-audio skill).
+// Throttled SFX helper with a WebAudio cache guard, persisted mute, and an iOS
+// resume fix (phaser-audio skill). playPitched adds ±10% rate so repeated bonks
+// don't fatigue the ear.
 const SFX: Record<AudioKey, { volume: number; throttle: number }> = {
-  [AudioKeys.Hop]: { volume: 0.3, throttle: 40 },
-  [AudioKeys.Splash]: { volume: 0.5, throttle: 120 },
-  [AudioKeys.Crash]: { volume: 0.55, throttle: 120 },
-  [AudioKeys.Score]: { volume: 0.4, throttle: 60 },
+  [AudioKeys.Bonk]: { volume: 0.35, throttle: 40 },
+  [AudioKeys.Boss]: { volume: 0.5, throttle: 60 },
+  [AudioKeys.Oops]: { volume: 0.5, throttle: 80 },
+  [AudioKeys.Combo]: { volume: 0.45, throttle: 120 },
+  [AudioKeys.Click]: { volume: 0.5, throttle: 0 },
+  [AudioKeys.TimeUp]: { volume: 0.6, throttle: 200 },
 };
 
 export class Audio {
@@ -21,6 +22,34 @@ export class Audio {
     const muted = (scene.registry.get(RegistryKeys.Muted) as boolean) ?? false;
     scene.sound.setMute(muted);
     this.installIosUnlock();
+  }
+
+  play(key: AudioKey): void {
+    this.playInternal(key, 1);
+  }
+  playPitched(key: AudioKey): void {
+    this.playInternal(key, Phaser.Math.FloatBetween(0.9, 1.1));
+  }
+
+  private playInternal(key: AudioKey, rate: number): void {
+    if (this.scene.sound.mute) return;
+    if (!this.scene.cache.audio.exists(key)) return; // not decoded yet — skip
+    const cfg = SFX[key];
+    const now = this.scene.time.now;
+    if (cfg.throttle > 0 && now - (this.lastPlayed[key] ?? -1e9) < cfg.throttle) return;
+    this.lastPlayed[key] = now;
+    this.scene.sound.play(key, { volume: cfg.volume, rate });
+  }
+
+  toggleMute(): boolean {
+    const next = !this.scene.sound.mute;
+    this.scene.sound.setMute(next);
+    this.scene.registry.set(RegistryKeys.Muted, next);
+    return next;
+  }
+
+  get muted(): boolean {
+    return this.scene.sound.mute;
   }
 
   // iOS Safari starts the WebAudio context "suspended" and only resumes it from a
@@ -42,26 +71,5 @@ export class Audio {
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       document.removeEventListener('visibilitychange', onVis);
     });
-  }
-
-  play(key: AudioKey): void {
-    if (this.scene.sound.mute) return;
-    if (!this.scene.cache.audio.exists(key)) return;
-    const cfg = SFX[key];
-    const now = this.scene.time.now;
-    if (cfg.throttle > 0 && now - (this.lastPlayed[key] ?? -1e9) < cfg.throttle) return;
-    this.lastPlayed[key] = now;
-    this.scene.sound.play(key, { volume: cfg.volume });
-  }
-
-  toggleMute(): boolean {
-    const next = !this.scene.sound.mute;
-    this.scene.sound.setMute(next);
-    this.scene.registry.set(RegistryKeys.Muted, next);
-    return next;
-  }
-
-  get muted(): boolean {
-    return this.scene.sound.mute;
   }
 }

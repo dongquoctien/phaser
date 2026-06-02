@@ -3,16 +3,19 @@ import {
   SceneKeys,
   AtlasKeys,
   TexKeys,
+  AudioKeys,
   Weapons,
   REG_WEAPON,
   type WeaponId,
 } from '../types/keys';
 import { WEAPON_TEX } from '../systems/art';
+import { Audio } from '../systems/Audio';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
 export class MenuScene extends Phaser.Scene {
   private weapon: WeaponId = 'swatter';
   private picks: { id: WeaponId; ring: Phaser.GameObjects.Rectangle }[] = [];
+  private audio!: Audio;
 
   constructor() {
     super(SceneKeys.Menu);
@@ -20,6 +23,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     this.picks = [];
+    this.audio = new Audio(this);
     // keep the previous choice across visits; default to swatter
     this.weapon = (this.registry.get(REG_WEAPON) as WeaponId) ?? 'swatter';
 
@@ -172,6 +176,7 @@ export class MenuScene extends Phaser.Scene {
   private selectWeapon(id: WeaponId): void {
     this.weapon = id;
     this.registry.set(REG_WEAPON, id);
+    this.audio.play(AudioKeys.Click);
     this.picks.forEach((p) => {
       p.ring.setVisible(p.id === id);
       if (p.id === id) {
@@ -208,7 +213,10 @@ export class MenuScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    const go = () => this.scene.start(SceneKeys.Game);
+    const go = () => {
+      this.audio.play(AudioKeys.Click); // also the gesture that unlocks audio
+      this.scene.start(SceneKeys.Game);
+    };
     start.once('pointerup', go);
     this.input.keyboard?.once('keydown', go);
   }

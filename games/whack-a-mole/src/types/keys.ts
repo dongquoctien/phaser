@@ -35,5 +35,15 @@ export type WeaponId = (typeof Weapons)[number];
 export const REG_WEAPON = 'weapon';
 
 export const AudioKeys = {
-  // sound is added by the phaser-audio skill later
+  Bonk: 'bonk', // hitting an enemy
+  Boss: 'boss', // hitting the boss
+  Oops: 'oops', // whacking a friendly (penalty)
+  Combo: 'combo', // combo milestone (x2 / x3)
+  Click: 'click', // menu / weapon select
+  TimeUp: 'timeup', // round over
+} as const;
+export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
+
+export const RegistryKeys = {
+  Muted: 'muted', // persisted mute flag across scene restarts
 } as const;
