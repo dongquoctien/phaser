@@ -39,6 +39,8 @@ phaser/
 - **String-key constants** in `types/` — never raw string literals for scene/asset keys.
 - Arcade physics by default (Matter only if polygon collisions are truly needed).
 - `physics.arcade.debug` and any FPS overlay are **off** in the production config.
+- **Audio that works on iOS** — if the game has sound, ship `.m4a` AND `.ogg` for every
+  clip and load `[m4a, ogg]` (iOS can't decode Ogg → silent iPhone). See `phaser-audio`.
 
 ## 0a. Art strategy — SVG by default, pixel ONLY when asked
 
@@ -145,6 +147,10 @@ Research has two purposes (do both):
      if needed to do it deterministically.
    - **Every screenshot eyeballed** — `Read` each PNG back and judge it (overlap,
      occlusion, clipping, readability), not just save it.
+   - **iOS-safe audio (if the game has sound)** — every clip has an `.m4a` next to its
+     `.ogg`, `PreloadScene` loads `[m4a, ogg]` (m4a first), and the context resumes on
+     gesture. MCP can't run Safari, but Ogg-only ships a silent iPhone — verify the
+     files + load order exist. See `phaser-audio`.
 
    Do not report "it works" off a boot-only run. If the smoke-test surfaces an
    overlap/occlusion or a loop that doesn't advance, **fix it and re-verify** before
