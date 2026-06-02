@@ -27,6 +27,8 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string }
 // Global volume scale applied to every SFX + music — drop everything 30% (×0.7).
 const VOL_SCALE = 0.7;
 const MUSIC_VOL = 0.35 * VOL_SCALE;
+// per-track music multiplier (1 = normal). Boss track is half-volume.
+const MUSIC_TRACK_VOL: Partial<Record<MusicKey, number>> = { 'boss-music': 0.5 };
 
 export class Audio {
   private scene: Phaser.Scene;
@@ -51,7 +53,8 @@ export class Audio {
     if (!this.scene.cache.audio.exists(key)) return;
     this.stopMusic();
     this.musicKey = key;
-    this.music = this.scene.sound.add(key, { loop: true, volume: MUSIC_VOL });
+    const vol = MUSIC_VOL * (MUSIC_TRACK_VOL[key] ?? 1);
+    this.music = this.scene.sound.add(key, { loop: true, volume: vol });
     this.music.play();
   }
 
