@@ -6,7 +6,7 @@ import { Projectile } from '../objects/Projectile';
 import { Hero } from '../objects/Hero';
 import { Audio } from '../systems/Audio';
 import { HEROES, HERO_IDS, ZOMBIES, MAP_BOSS, MAP_MINIONS, MAX_LEVEL, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
-import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, isInsideGrid, type MapDef } from '../types/map';
+import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, padCenter, isInsideGrid, type MapDef } from '../types/map';
 
 declare const __DEV__: boolean;
 
@@ -160,7 +160,7 @@ export class GameScene extends Phaser.Scene {
 
     // 4. hero pads (blue when empty; green once a hero stands on it)
     for (const [c, r] of this.map.pads) {
-      const { x, y } = cellCenter(c, r);
+      const { x, y } = padCenter(c, r); // nudged down for top-row pads so heroes aren't clipped
       const img = this.add.image(x, y, T.Pad).setDepth(2).setDisplaySize(CELL * 1.05, CELL * 1.05);
       this.padByCell.set(`${c},${r}`, { x, y, taken: false, img });
     }
