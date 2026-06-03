@@ -13,9 +13,9 @@ type LinePool = Partial<Record<VoiceEvent, string[]>>;
 
 // Shared fallback pools for any hero without a specific line for an event.
 export const GENERIC: Record<VoiceEvent, string[]> = {
-  place: ['Ready!', 'On it!', 'In position!', "Let's go!"],
-  attack: ['Take that!', 'Gotcha!', 'Pow!', 'None shall pass!', 'Back off!'],
-  upgrade: ['Stronger now!', 'Level up!', 'Awesome!', 'Feeling great!'],
+  place: ['Ready!', 'On it!', 'In position!', "Let's go!", 'Reporting in!', 'Standing guard.'],
+  attack: ['Take that!', 'Gotcha!', 'Pow!', 'None shall pass!', 'Back off!', 'Eat this!', 'Down you go!'],
+  upgrade: ['Stronger now!', 'Level up!', 'Awesome!', 'Feeling great!', 'I can feel the power!', 'New trick unlocked!'],
 };
 
 // Per-hero flavor. Only override where a hero has personality worth voicing; the
@@ -87,6 +87,43 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
     attack: ['Finish it!', 'Weak ones fall!', 'Execute!'],
   },
   hakj: { place: ['HAKJ joins in!'], attack: ['Frostbite!', 'Chills down your spine!'] },
+  // ── image 4 ──
+  chuotchu: {
+    place: ['Squeak!', 'Survived three cats.', 'Jibgor reporting!'],
+    attack: ['Nibble nibble!', 'One more bite!', 'And again!', 'Chomp chomp!'],
+    upgrade: ['Sharper teeth!', 'Bite harder now!'],
+  },
+  meomeo: {
+    place: ['*soft meow*', 'Lionyori is here.', 'Remember your place.'],
+    attack: ['ROAR!', 'Fear me!', 'Freeze, prey!', 'Hear me roar!'],
+    upgrade: ['My roar grows!', 'Louder now!'],
+  },
+  shiba: {
+    place: ['Bork bork!', 'Wanna play fetch?', 'Such ready. Much doom.'],
+    attack: ['Fetch!', 'Bounce bounce!', 'Get it!', 'Good throw!'],
+    upgrade: ['More bounce!', 'So strong, very wow!'],
+  },
+  // ── new heroes ──
+  hudong: {
+    place: ['Gold awaits.', 'Everything I touch...', 'Treasure time!'],
+    attack: ['Turn to gold!', 'Cha-ching!', 'Golden touch!', 'Pure profit!'],
+    upgrade: ['Richer and richer!', 'More gold!'],
+  },
+  morgan: {
+    place: ['Feel the chill.', 'Winter has come.', 'My penguin is ready.'],
+    attack: ['Freeze solid!', 'Deep freeze!', 'Shatter!', 'Stay frozen!'],
+    upgrade: ['Colder still!', 'The ice deepens!'],
+  },
+  yugitoh: {
+    place: ['*yawn* ...ready.', 'The spirits circle.', 'Hmm. A riddle.'],
+    attack: ['Spirits, defend!', 'Come no closer.', 'Round and round.', 'Begone, fool.'],
+    upgrade: ['More spirits heed me.', 'The circle widens.'],
+  },
+  xxking: {
+    place: ['Never lost a match.', 'Step up then.', 'Who is next?'],
+    attack: ['Combo!', 'Again! Again!', 'Stay on target!', 'Finish him!'],
+    upgrade: ['Faster fists!', 'Bigger combos!'],
+  },
 };
 
 /** Pick a random voice line for a hero+event, or null if none defined. */
