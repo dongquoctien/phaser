@@ -132,6 +132,18 @@ export function cellCenter(col: number, row: number): { x: number; y: number } {
   return { x: col * CELL + CELL / 2, y: row * CELL + CELL / 2 };
 }
 
+// Hero sprites are ~56px tall with a high origin (0.62), so a pad at grid row 0
+// (centre y = 20) would clip the hero's head above the field's top edge. For pads
+// that sit too close to the top we nudge the pad — and therefore the hero placed on
+// it — straight down by just enough that the full sprite stays on-field. Both the
+// pad render and hero placement read this single y, so they always stay aligned.
+const HERO_HALF_ABOVE = 36; // pixels the tallest sprite reaches above its centre
+const PAD_TOP_MARGIN = 3; // breathing room above the head
+export function padCenter(col: number, row: number): { x: number; y: number } {
+  const { x, y } = cellCenter(col, row);
+  return { x, y: Math.max(y, HERO_HALF_ABOVE + PAD_TOP_MARGIN) };
+}
+
 /** Pixel waypoints along a map's road (cell centres). */
 export function pathWaypoints(map: MapDef): { x: number; y: number }[] {
   return map.path.map(([c, r]) => cellCenter(c, r));

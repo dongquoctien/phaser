@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
-import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, Fonts, mapBestKey, mapClearedKey } from '../types/keys';
+import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, Fonts, RegistryKeys, mapBestKey, mapClearedKey } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, CELL, FIELD_H, HUD_TOP, Tuning } from '../config';
 import { Zombie } from '../objects/Zombie';
 import { Projectile } from '../objects/Projectile';
 import { Hero } from '../objects/Hero';
 import { Audio } from '../systems/Audio';
 import { HEROES, HERO_IDS, ZOMBIES, MAP_BOSS, MAP_MINIONS, MAX_LEVEL, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
-import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, isInsideGrid, type MapDef } from '../types/map';
+import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, padCenter, isInsideGrid, type MapDef } from '../types/map';
 
 declare const __DEV__: boolean;
 
@@ -46,6 +46,10 @@ export class GameScene extends Phaser.Scene {
   private pickerOpenedBy = -1; // pointer id of the tap that opened the picker (-1 = none)
   private detailBox!: Phaser.GameObjects.Container; // hero-detail pane inside the picker
   private listHighlights = new Map<HeroId, Phaser.GameObjects.Rectangle>();
+  private listPane!: Phaser.GameObjects.Container; // scrollable hero-list column
+  private listScrollMin = 0; // most-negative listPane.y (scrolled to bottom); 0 = top
+  private listScrollTop = 0;  // listPane.y at the top of the list (resting position)
+  private listDragged = false; // true if the last pointer interaction was a scroll-drag (suppresses the tap-select)
 
   constructor() {
     super(SceneKeys.Game);
@@ -92,11 +96,21 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onFieldTap, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.off('pointerdown', this.onFieldTap, this));
 
+    // ── hero drag-to-merge ── (handlers live on the scene input; heroes opt in via
+    // setInteractive({draggable:true}) in placeHero). Dragging a max-level hero onto
+    // another same-type max-level hero merges them.
+    this.input.on(Phaser.Input.Events.DRAG_START, this.onHeroDragStart, this);
+    this.input.on(Phaser.Input.Events.DRAG, this.onHeroDrag, this);
+    this.input.on(Phaser.Input.Events.DRAG_END, this.onHeroDragEnd, this);
+
     // Wave 1 waits for a manual START press (no countdown). The official clock /
     // first wave only begins when the player taps START — gives unlimited prep time.
     this.awaitingFirstStart = true;
     this.showStartBtn(true);
     this.refreshCountdown(); // shows the START label (no timer)
+
+    // first-time tutorial overlay (once per player, persisted in the registry)
+    if (!this.registry.get(RegistryKeys.TipsSeen)) this.showTutorial();
 
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       (this as unknown as Record<string, unknown>).__dev = {
@@ -150,7 +164,7 @@ export class GameScene extends Phaser.Scene {
 
     // 4. hero pads (blue when empty; green once a hero stands on it)
     for (const [c, r] of this.map.pads) {
-      const { x, y } = cellCenter(c, r);
+      const { x, y } = padCenter(c, r); // nudged down for top-row pads so heroes aren't clipped
       const img = this.add.image(x, y, T.Pad).setDepth(2).setDisplaySize(CELL * 1.05, CELL * 1.05);
       this.padByCell.set(`${c},${r}`, { x, y, taken: false, img });
     }
@@ -346,7 +360,69 @@ export class GameScene extends Phaser.Scene {
     this.heroes.push(h);
     pad.taken = true;
     pad.img.setTexture(TextureKeys.PadOn); // blue → green glow once occupied
+    // make the hero draggable so max-level same-type heroes can be merged
+    h.setInteractive({ draggable: true, useHandCursor: true });
     return h;
+  }
+
+  // ── drag-to-merge ──────────────────────────────────────────────────────────────
+  private onHeroDragStart(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
+    const h = obj as Hero;
+    if (!(h instanceof Hero) || this.over || this.cinematicActive) return;
+    // only a max-level hero can be dragged to merge; otherwise it's a no-op drag
+    h.setDepth(30); // float above others while dragging
+    h.dragging = true;
+    this.clearSelection();
+  }
+
+  private onHeroDrag(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject, dragX: number, dragY: number): void {
+    const h = obj as Hero;
+    if (!(h instanceof Hero) || !h.dragging) return;
+    h.x = dragX; h.y = dragY;
+    // highlight a valid merge target under the cursor
+    const tgt = this.mergeTargetUnder(h, dragX, dragY);
+    for (const o of this.heroes) o.setSelected(o === tgt);
+  }
+
+  private onHeroDragEnd(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
+    const h = obj as Hero;
+    if (!(h instanceof Hero)) return;
+    h.dragging = false;
+    h.setDepth(11);
+    for (const o of this.heroes) o.setSelected(false);
+    const tgt = this.mergeTargetUnder(h, h.x, h.y);
+    if (tgt) { this.mergeHeroes(h, tgt); return; }
+    // no valid target → snap back to its pad
+    const pad = this.padByCell.get(`${h.col},${h.row}`);
+    if (pad) { h.x = pad.x; h.y = pad.y; h.snapHome(); }
+  }
+
+  /** A hero is a valid merge target for `src` if it's a DIFFERENT hero, same type,
+   *  both at max level, the target isn't already at 3 merge tiers, and the cursor
+   *  is over it. */
+  private mergeTargetUnder(src: Hero, x: number, y: number): Hero | null {
+    if (!src.isMaxLevel) return null;
+    let best: Hero | null = null, bestD = 34; // must be within ~34px of a hero
+    for (const o of this.heroes) {
+      if (o === src || !o.isMaxLevel || o.heroId !== src.heroId || o.mergeTiers >= 3) continue;
+      const d = Math.hypot(o.x - x, o.y - y);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    return best;
+  }
+
+  /** Merge `src` into `tgt`: tgt gains +5%/shield tier, src is removed (pad freed). */
+  private mergeHeroes(src: Hero, tgt: Hero): void {
+    if (!tgt.mergeOnce()) { // target already maxed merges → snap src back
+      const pad = this.padByCell.get(`${src.col},${src.row}`);
+      if (pad) { src.x = pad.x; src.y = pad.y; src.snapHome(); }
+      return;
+    }
+    this.audio.play(AudioKeys.Place);
+    this.boom(tgt.x, tgt.y, 0.5);
+    this.cameras.main.shake(80, 0.004);
+    this.removeHero(src); // source consumed; its pad reverts to empty
+    this.markTip('merge'); // player discovered merging
   }
 
   private selectHero(h: Hero): void {
@@ -401,11 +477,12 @@ export class GameScene extends Phaser.Scene {
       alive++;
       if (res === 'end') {
         z.playEndAttack(); // chomp at the base, then despawns itself
-        const cost = z.bossInfo ? 10 : 1; // a boss reaching the gate costs 10 lives
+        // gate cost: real boss 10, elite minion (boss-type) 3, ordinary 1
+        const cost = z.bossInfo ? 10 : z.isElite ? 3 : 1;
         this.lives -= cost;
         this.refreshHud();
         this.audio.play(AudioKeys.Lose);
-        this.cameras.main.shake(z.bossInfo ? 200 : 120, z.bossInfo ? 0.01 : 0.006);
+        this.cameras.main.shake(z.bossInfo ? 200 : z.isElite ? 150 : 120, z.bossInfo ? 0.01 : z.isElite ? 0.008 : 0.006);
         if (this.lives <= 0) { this.gameOver(); return; }
       } else if (z.hp <= 0 && !z.dying) {
         // died from a DoT tick this frame (skip if its death anim already started,
@@ -413,9 +490,18 @@ export class GameScene extends Phaser.Scene {
         this.killZombie(z);
         continue;
       }
-      // boss hero-kill skill: on cooldown, blast the nearest hero in reach
+      // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
+      // (Elite minions do NOT attack heroes — they're just tougher walkers.)
       if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
-        this.bossKillHero(z);
+        // The boss ALWAYS gets its kill. But the slow-mo cinematic zooms the main
+        // camera (which the UI rides on), so if a menu is open we'd warp/shut it
+        // mid-interaction. In that case do a QUICK, no-cinematic kill instead — the
+        // hero still dies, the menu stays put.
+        if (this.heroPicker.visible || this.upgradePanel.visible) {
+          this.bossKillHeroQuick(z);
+        } else {
+          this.bossKillHero(z);
+        }
         z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
       }
     }
@@ -478,7 +564,7 @@ export class GameScene extends Phaser.Scene {
         if (!intent.target) return;
         this.audio.playPitched(AudioKeys.Shoot);
         const isCrit = def.skill === 'crit' && Math.random() < (def.critChance ?? 0);
-        const buff = this.buffAt(h.x, h.y);
+        const buff = this.buffAt(h.x, h.y) * h.mergeMult; // merge adds +5%/tier
         const dmg = (isCrit ? s.damage * (def.critMul ?? 1) : s.damage) * buff;
         if (def.skill === 'multishot') {
           // fire a bolt at each of the N front-most targets
@@ -499,11 +585,19 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'melee': {
-        const mdmg = s.damage * this.buffAt(h.x, h.y);
+        const mdmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
         if (def.skill === 'cleave') {
           const hits = h.inRange(live, s.range);
           for (const z of hits) this.damageZombie(z, mdmg, h, live, now);
           this.slashFx(h.x, h.y, def.tint);
+        } else if (def.skill === 'combo') {
+          // xxKingxx: hammer the SAME target for rising bonus damage. The hero
+          // tracks a combo counter that grows while she keeps hitting one zombie
+          // and resets the instant she switches target (or it dies).
+          if (!intent.target) return;
+          const mult = h.comboHit(intent.target, def.comboStep ?? 0.25, def.comboMax ?? 5);
+          this.damageZombie(intent.target, mdmg * mult, h, live, now);
+          this.comboFx(intent.target.x, intent.target.y, def.tint, h.comboCount);
         } else {
           // doublestrike: two quick hits on one target
           if (!intent.target) return;
@@ -514,8 +608,21 @@ export class GameScene extends Phaser.Scene {
         this.audio.playPitched(AudioKeys.Hit);
         break;
       }
+      case 'orbit': {
+        // Yugitoh: orbs damage every zombie they sweep over. The Hero owns the orb
+        // visuals + rotation; here we just tick damage to zombies within orbRadius.
+        const odmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
+        const r = def.orbRadius ?? 52;
+        for (const z of live) {
+          if (z.dead || z.dying) continue;
+          if (Phaser.Math.Distance.Between(z.x, z.y, h.x, h.y) <= r) {
+            this.damageZombie(z, odmg, h, live, now);
+          }
+        }
+        break;
+      }
       case 'nova': {
-        const ndmg = s.damage * this.buffAt(h.x, h.y);
+        const ndmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
         const hits = h.inRange(live, s.range);
         this.novaFx(h.x, h.y, s.range, def.tint);
         this.audio.play(AudioKeys.Explode);
@@ -607,20 +714,31 @@ export class GameScene extends Phaser.Scene {
         }
         break;
       }
-      case 'aircannon': {
-        // Mr.Hoang (Doraemon's Air Cannon): a compressed-air blast that PIERCES a
-        // line of zombies and knocks every one of them back down the road.
-        this.damageZombie(hit, pr.damage, null, live, now);
-        hit.knockBack(def.knockback ?? 30);
-        let pierced = 0;
-        const max = def.pierce ?? 3;
-        for (const z of live) {
-          if (z === hit || z.dead) continue;
-          if (Math.hypot(z.x - pr.x, z.y - pr.y) <= 26) {
-            this.damageZombie(z, pr.damage, null, live, now);
-            z.knockBack(def.knockback ?? 30);
-            if (++pierced >= max) break;
-          }
+      case 'midas': {
+        // Hudong (Golden Touch): a chance per hit to GOLDIFY the target. If the
+        // zombie is wounded (at/below the threshold) it instantly turns to gold —
+        // an instant kill that drops a pile of bonus gold. Otherwise: normal hit.
+        const frac = hit.maxHp > 0 ? hit.hp / hit.maxHp : 1;
+        if (Math.random() < (def.goldifyChance ?? 0.18) && frac <= (def.goldifyThreshold ?? 0.5)) {
+          this.goldifyFx(hit.x, hit.y);
+          this.gold += def.goldDrop ?? 14; // bonus on top of the kill bounty
+          hit.applyDamage(hit.hp + 1); // ensure lethal
+          if (hit.hp <= 0) this.killZombie(hit);
+        } else {
+          this.damageZombie(hit, pr.damage, null, live, now);
+        }
+        break;
+      }
+      case 'freeze': {
+        // Morgan Le Fay (Deep Freeze): every hit lands frost damage AND a freeze
+        // stack. Enough stacks HARD-FREEZE the zombie (full stop). A frozen zombie
+        // is brittle — it takes bonus (brittle) damage from this hit.
+        const wasFrozen = hit.isFrozen(now);
+        const dmg = wasFrozen ? pr.damage * (def.brittleMul ?? 2) : pr.damage;
+        if (wasFrozen) this.iceShatterFx(hit.x, hit.y);
+        this.damageZombie(hit, dmg, null, live, now);
+        if (!hit.dead && !hit.dying) {
+          hit.addFreezeStack(def.freezeStacksToFreeze ?? 3, def.freezeDuration ?? 1.8, now);
         }
         break;
       }
@@ -741,19 +859,52 @@ export class GameScene extends Phaser.Scene {
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
   }
 
+  /** Pick the boss's victim: FOCUS merged heroes first (gold shields to break),
+   *  else the nearest ordinary hero within reach. Null if nothing is close enough. */
+  private pickBossVictim(boss: Zombie): Hero | null {
+    const REACH = 150;
+    const pick = (onlyMerged: boolean): Hero | null => {
+      let t: Hero | null = null, best = REACH;
+      for (const h of this.heroes) {
+        if (onlyMerged && !h.hasShield) continue;
+        const d = Math.hypot(h.x - boss.x, h.y - boss.y);
+        if (d < best) { best = d; t = h; }
+      }
+      return t;
+    };
+    return pick(true) ?? pick(false);
+  }
+
+  /** Deliver the kill blow on a victim (beam + boom + shake + sound). A gold shield
+   *  from merging absorbs it (hero survives, loses a tier); otherwise the hero dies. */
+  private bossKillBlow(boss: Zombie, victim: Hero): void {
+    const g = this.add.graphics().setDepth(20);
+    g.lineStyle(4, 0xff2a2a, 0.95).lineBetween(boss.x, boss.y, victim.x, victim.y);
+    g.fillStyle(0xff2a2a, 0.5).fillCircle(victim.x, victim.y, 26);
+    this.tweens.add({ targets: g, alpha: 0, duration: 320, onComplete: () => g.destroy() });
+    this.boom(victim.x, victim.y, 0.8);
+    this.cameras.main.shake(200, 0.01);
+    this.audio.play(AudioKeys.Push);
+    if (victim.consumeShield()) return; // shielded → survives
+    this.removeHero(victim);
+  }
+
+  /** Quick, no-cinematic hero kill — used when a menu is open so we don't zoom the
+   *  camera (and warp/close the UI). The boss still claims its victim instantly. */
+  private bossKillHeroQuick(boss: Zombie): void {
+    const victim = this.pickBossVictim(boss);
+    if (!victim) return;
+    boss.playBossAttack();
+    this.bossKillBlow(boss, victim);
+  }
+
   /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
    *  to a crawl for 3s, lock a red targeting reticle onto the doomed hero (camera
    *  eases toward it), then snap back to full speed and execute it. */
   private bossKillHero(boss: Zombie): void {
     if (this.cinematicActive) return; // one execution cinematic at a time
-    const REACH = 150;
-    let target: Hero | null = null, best = REACH;
-    for (const h of this.heroes) {
-      const d = Math.hypot(h.x - boss.x, h.y - boss.y);
-      if (d < best) { best = d; target = h; }
-    }
-    if (!target) return;
-    const victim = target;
+    const victim = this.pickBossVictim(boss);
+    if (!victim) return;
     this.cinematicActive = true;
     // close any open menu first — UI lives on the main camera, so the cinematic
     // zoom would otherwise scale the hero-picker / upgrade panel too.
@@ -800,15 +951,7 @@ export class GameScene extends Phaser.Scene {
 
       this.cinematicActive = false;
       if (!victim.active) return; // hero already removed some other way
-      // the kill blow
-      const g = this.add.graphics().setDepth(20);
-      g.lineStyle(4, 0xff2a2a, 0.95).lineBetween(boss.x, boss.y, victim.x, victim.y);
-      g.fillStyle(0xff2a2a, 0.5).fillCircle(victim.x, victim.y, 26);
-      this.tweens.add({ targets: g, alpha: 0, duration: 320, onComplete: () => g.destroy() });
-      this.boom(victim.x, victim.y, 0.8);
-      this.cameras.main.shake(200, 0.01);
-      this.audio.play(AudioKeys.Push); // the kill blow
-      this.removeHero(victim);
+      this.bossKillBlow(boss, victim); // red beam + boom + shake, then shield/kill
     });
   }
 
@@ -876,8 +1019,8 @@ export class GameScene extends Phaser.Scene {
     const elite = pool.filter((z) => z === 'boss' || z === 'khoai'); // boss-as-minion
     for (let i = 0; i < count; i++) {
       const r = Math.random();
-      // rare elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
-      if (elite.length && this.wave >= 7 && r < 0.06) q.push(Phaser.Utils.Array.GetRandom(elite));
+      // elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
+      if (elite.length && this.wave >= 7 && r < 0.15) q.push(Phaser.Utils.Array.GetRandom(elite));
       else if (this.wave >= 6 && pool.includes('brute') && r < 0.28) q.push('brute');
       else if (this.wave >= 3 && pool.includes('slow') && r < 0.5) q.push('slow');
       else q.push('walker');
@@ -1001,6 +1144,8 @@ export class GameScene extends Phaser.Scene {
     if (asBoss && def.boss) {
       z.bossInfo = def.boss;
       z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
+    } else if (def.boss) {
+      z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate (no hero-kill)
     }
   }
 
@@ -1045,6 +1190,49 @@ export class GameScene extends Phaser.Scene {
   private healFx(x: number, y: number): void {
     const p = this.add.image(x, y, TextureKeys.Spark).setDepth(13).setTint(0xa7f070);
     this.tweens.add({ targets: p, y: y - 18, alpha: 0, duration: 500, onComplete: () => p.destroy() });
+  }
+
+  // Hudong's GOLDIFY: a gold flash + a fountain of coin-sparks and a "$" pop.
+  private goldifyFx(x: number, y: number): void {
+    const flash = this.add.circle(x, y, 10, 0xffd23f, 0.9).setDepth(14);
+    this.tweens.add({ targets: flash, radius: 30, alpha: 0, duration: 300, ease: 'Quad.easeOut', onComplete: () => flash.destroy() });
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8 + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const coin = this.add.circle(x, y, 3, 0xffe066, 1).setStrokeStyle(1, 0x7a5a00).setDepth(15);
+      const sp = Phaser.Math.FloatBetween(40, 80);
+      this.tweens.add({
+        targets: coin, x: x + Math.cos(ang) * sp, y: y + Math.sin(ang) * sp - 30, alpha: 0,
+        duration: Phaser.Math.Between(360, 540), ease: 'Quad.easeIn', onComplete: () => coin.destroy(),
+      });
+    }
+    const t = this.add.text(x, y - 12, '$$$', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f', stroke: '#7a5a00', strokeThickness: 4 }).setOrigin(0.5).setDepth(20);
+    this.tweens.add({ targets: t, y: y - 34, alpha: 0, duration: 600, ease: 'Quad.out', onComplete: () => t.destroy() });
+  }
+
+  // Morgan's ICE SHATTER: jagged cyan shards burst out when a frozen zombie is hit.
+  private iceShatterFx(x: number, y: number): void {
+    const ring = this.add.circle(x, y, 6, 0x9bd6ff, 0.5).setDepth(13);
+    this.tweens.add({ targets: ring, radius: 22, alpha: 0, duration: 220, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 7; i++) {
+      const ang = (Math.PI * 2 * i) / 7 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const sp = Phaser.Math.FloatBetween(45, 90);
+      const shard = this.add.triangle(x, y, 0, 0, 4, 10, -4, 10, 0xd6f1ff, 0.95)
+        .setStrokeStyle(1, 0x4aa6e6).setDepth(15).setAngle(Phaser.Math.Between(0, 360));
+      this.tweens.add({
+        targets: shard, x: x + Math.cos(ang) * sp, y: y + Math.sin(ang) * sp, alpha: 0,
+        angle: shard.angle + Phaser.Math.Between(-180, 180), duration: Phaser.Math.Between(300, 460),
+        ease: 'Quad.easeIn', onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  // xxKingxx's COMBO: a slash plus a rising combo counter once the chain is going.
+  private comboFx(x: number, y: number, hex: string, count: number): void {
+    this.slashFx(x, y, hex);
+    if (count >= 1) {
+      const t = this.add.text(x, y - 16, `x${count + 1}`, { fontFamily: 'monospace', fontSize: `${10 + Math.min(count, 5)}px`, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 3 }).setOrigin(0.5).setDepth(20);
+      this.tweens.add({ targets: t, y: y - 30, alpha: 0, scale: 1.3, duration: 420, ease: 'Quad.out', onComplete: () => t.destroy() });
+    }
   }
 
   // Death "shatter": a burst of little chunks that fly out radially, spin, fall
@@ -1122,9 +1310,16 @@ export class GameScene extends Phaser.Scene {
     const header = this.add.text(12, 16, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
     this.heroPicker.add([dim, header]);
 
-    // ── LEFT: hero list (2 columns of avatar tiles) ──
-    // 25 heroes → 13 rows; tileH sized so the last row still fits in GAME_HEIGHT (800).
+    // ── LEFT: hero list (2 columns of avatar tiles) — SCROLLABLE ──
+    // The roster keeps growing (28 heroes → 14 rows), which overflows the 800px
+    // screen. So the tiles live in a `listPane` container we scroll vertically
+    // (drag or wheel); the header / detail / close are added AFTER it so they draw
+    // on top and hide any tiles that scroll past the top edge (Phaser 4 WebGL has
+    // no geometry masks — draw-order is the clip).
     const listX = 10, listY = 38, tileW = 74, tileH = 56, cols = 2;
+    this.listScrollTop = 0;
+    this.listPane = this.add.container(0, this.listScrollTop);
+    this.heroPicker.add(this.listPane);
     this.listHighlights.clear();
     HERO_IDS.forEach((id, i) => {
       const def = HEROES[id];
@@ -1136,10 +1331,16 @@ export class GameScene extends Phaser.Scene {
       const name = this.add.text(tx, ty + 18, def.name, { fontFamily: 'monospace', fontSize: '8px', color: '#cdd6e6' }).setOrigin(0.5);
       const hit = this.add.zone(tx, ty, tileW - 6, tileH - 6).setInteractive({ useHandCursor: true });
       hit.name = `pick:${id}`;
-      hit.on('pointerup', (p: Phaser.Input.Pointer) => this.previewHero(id, p));
+      hit.on('pointerup', (p: Phaser.Input.Pointer) => { if (!this.listDragged) this.previewHero(id, p); });
       this.listHighlights.set(id, hl);
-      this.heroPicker.add([cell, hl, icon, name, hit]);
+      this.listPane.add([cell, hl, icon, name, hit]);
     });
+    // scroll bounds: how far up the pane can slide so the last row sits on-screen.
+    const rows = Math.ceil(HERO_IDS.length / cols);
+    const listBottom = listY + rows * tileH;        // content height (px)
+    const visibleBottom = GAME_HEIGHT - 8;          // keep an 8px breathing gap
+    this.listScrollMin = Math.min(0, visibleBottom - listBottom);
+    this.installListScroll(listX, tileW * cols);
 
     // ── RIGHT: detail pane (rebuilt per selection in renderDetail) ──
     const detailX = listX + cols * tileW + 12;
@@ -1157,11 +1358,42 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker.add([closeBtn, closeX]);
   }
 
+  /** Make the hero LIST column scroll vertically (drag or mouse-wheel). Only acts
+   *  while the picker is open and the pointer is over the list column, so it never
+   *  fights with the detail pane / field input. `colX`/`colW` bound the hit area. */
+  private installListScroll(colX: number, colW: number): void {
+    const clamp = (y: number) => Phaser.Math.Clamp(y, this.listScrollMin, this.listScrollTop);
+    const overList = (p: Phaser.Input.Pointer) =>
+      this.heroPicker.visible && p.x >= colX - 4 && p.x <= colX + colW + 4;
+
+    // drag-to-scroll
+    let dragging = false, lastY = 0, downY = 0;
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
+      if (!overList(p)) return;
+      dragging = true; lastY = p.y; downY = p.y; this.listDragged = false;
+    });
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+      if (!dragging || !p.isDown) return;
+      this.listPane.y = clamp(this.listPane.y + (p.y - lastY));
+      lastY = p.y;
+      if (Math.abs(p.y - downY) > 6) this.listDragged = true; // a real drag → suppress the tap-select
+    });
+    this.input.on(Phaser.Input.Events.POINTER_UP, () => { dragging = false; });
+
+    // mouse-wheel scroll
+    this.input.on(Phaser.Input.Events.POINTER_WHEEL, (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      if (!overList(p)) return;
+      this.listPane.y = clamp(this.listPane.y - dy * 0.5);
+    });
+  }
+
   private openHeroPicker(padKey: string, pointerId = -1): void {
     this.clearSelection();
     this.selectedPadKey = padKey;
     this.pickerOpenedBy = pointerId; // swallow this tap's pointerup (see isOpeningTap)
     this.showStartBtn(false);
+    this.listPane.y = this.listScrollTop; // always open scrolled to the top
+    this.listDragged = false;
     this.heroPicker.setVisible(true);
     // pre-select a random hero so the detail pane isn't empty on open
     const randomId = Phaser.Utils.Array.GetRandom(HERO_IDS as HeroId[]);
@@ -1363,6 +1595,46 @@ export class GameScene extends Phaser.Scene {
     const best = (this.registry.get(key) as number) ?? 0;
     if (this.wave > best) this.registry.set(key, this.wave);
   }
+  // ── tutorial / tips ────────────────────────────────────────────────────────────
+  /** First-time tutorial: a dismissible card listing the core actions. Shown once
+   *  (persisted via RegistryKeys.TipsSeen), tap anywhere to begin. */
+  private showTutorial(): void {
+    const root = this.add.container(0, 0).setDepth(98);
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.82).setOrigin(0).setInteractive();
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT * 0.42;
+    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 360, 0x1c1730, 0.98).setStrokeStyle(3, 0xff3b30);
+    const title = this.add.text(cx, cy - 150, 'HOW TO PLAY', {
+      fontFamily: Fonts.Display, fontSize: '34px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 6,
+    }).setOrigin(0.5);
+    const tips = [
+      '🟦  Tap a blue PAD to pick & place a hero',
+      '▶  Press START to begin wave 1',
+      '⬆  Tap a hero → UP to upgrade (max Lv10)',
+      '💰  SELL a hero to refund 60% of its cost',
+      '✨  Drag a MAX-LEVEL hero onto another of the',
+      '      SAME type to MERGE: +5% power + a gold',
+      '      shield (max 3) that blocks a boss hit',
+      '👑  A boss reaching the gate costs 10 lives!',
+    ].join('\n');
+    const body = this.add.text(cx, cy - 18, tips, {
+      fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'left', lineSpacing: 7,
+    }).setOrigin(0.5);
+    const go = this.add.text(cx, cy + 150, 'TAP TO START', {
+      fontFamily: Fonts.Display, fontSize: '24px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 5,
+      backgroundColor: '#c0241a', padding: { x: 18, y: 6 },
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: go, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
+    root.add([dim, card, title, body, go]);
+    dim.once('pointerup', () => {
+      this.registry.set(RegistryKeys.TipsSeen, true);
+      root.destroy();
+    });
+  }
+
+  /** Hook for per-action discovery hints (currently a no-op placeholder beyond the
+   *  one-time tutorial; kept so feature code can flag a discovered mechanic). */
+  private markTip(_key: string): void { /* reserved for future contextual hints */ }
+
   private endOverlay(msg: string, color: string): void {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.72).setOrigin(0).setDepth(90);
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, msg, { fontFamily: Fonts.Display, fontSize: '40px', color, align: 'center', stroke: '#1a1c2c', strokeThickness: 7, lineSpacing: 6 }).setOrigin(0.5).setDepth(91);
