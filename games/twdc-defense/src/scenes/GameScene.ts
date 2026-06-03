@@ -414,12 +414,13 @@ export class GameScene extends Phaser.Scene {
     return best;
   }
 
-  /** Merge `src` into `tgt`: tgt gains the source's worth in tiers — a plain max
-   *  hero is worth 1 tier; a source that was already merged carries its OWN tier
-   *  count over (so a +5% source adds +5%, a +10% source adds +10%). Each tier =
-   *  +5% damage + 1 gold shield, capped at 3. src is removed (pad freed). */
+  /** Merge `src` into `tgt` with CONSERVED value (Clash-Royale style): the source's
+   *  full worth carries over. A plain max hero is worth 1 tier; a source already at
+   *  N tiers is worth N+1 (itself + the heroes it had absorbed). So +5%(1) into a
+   *  plain hero → +10%(2); two +5% heroes → +15%(3). Each tier = +5% damage + 1 gold
+   *  shield, capped at 3. src is removed (pad freed). */
   private mergeHeroes(src: Hero, tgt: Hero): void {
-    if (!tgt.mergeOnce(Math.max(1, src.mergeTiers))) { // target already maxed merges → snap src back
+    if (!tgt.mergeOnce(src.mergeTiers + 1)) { // target already maxed merges → snap src back
       const pad = this.padByCell.get(`${src.col},${src.row}`);
       if (pad) { src.x = pad.x; src.y = pad.y; src.snapHome(); }
       return;

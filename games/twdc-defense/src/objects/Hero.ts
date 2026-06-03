@@ -252,10 +252,11 @@ export class Hero extends Phaser.GameObjects.Image {
     });
   }
 
-  /** Apply a merge worth `add` tiers (so +5% damage + 1 gold shield each), refresh
-   *  visuals, pop FX. The source contributes its own base tier PLUS any tiers it had
-   *  already merged, so stacking two merged heroes carries their bonuses over instead
-   *  of throwing them away. Caps at 3 tiers. Returns true if anything was gained. */
+  /** Add `add` merge tiers (each = +5% damage + 1 gold shield), refresh visuals,
+   *  pop FX. Merge value is CONSERVED (Clash-Royale style): the caller passes the
+   *  full worth of the consumed source — a plain max hero is worth 1 tier, a hero
+   *  that was already merged is worth its tiers + 1 — so two +5% heroes combine to
+   *  +15%, never losing value. Caps at 3 tiers. Returns true if anything was gained. */
   mergeOnce(add = 1): boolean {
     if (this.mergeTiers >= 3) return false;
     this.mergeTiers = Math.min(3, this.mergeTiers + Math.max(1, add));
