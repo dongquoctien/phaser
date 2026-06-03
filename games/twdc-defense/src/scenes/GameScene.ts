@@ -1465,7 +1465,7 @@ export class GameScene extends Phaser.Scene {
       '⬆  Tap a hero → UP to upgrade (max Lv10)',
       '💰  SELL a hero to refund 60% of its cost',
       '✨  Drag a MAX-LEVEL hero onto another of the',
-      '      SAME type to MERGE: +3% power + a gold',
+      '      SAME type to MERGE: +5% power + a gold',
       '      shield (max 3) that blocks a boss hit',
       '👑  A boss reaching the gate costs 10 lives!',
     ].join('\n');

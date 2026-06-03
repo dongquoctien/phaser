@@ -20,7 +20,7 @@ export class Hero extends Phaser.GameObjects.Image {
   private readonly homeX: number; // true pad x; attacks always lunge from + return here
   tier = 0;
   spent = 0; // total gold sunk into this hero (buy + upgrades); drives sell refund
-  // ── merge state ── each merge adds +3% damage AND a gold-shield tier (max 3).
+  // ── merge state ── each merge adds +5% damage AND a gold-shield tier (max 3).
   // A boss hit consumes one shield tier (hero survives, loses that tier's bonus).
   mergeTiers = 0;
   dragging = false; // true while being dragged for a merge
@@ -71,8 +71,8 @@ export class Hero extends Phaser.GameObjects.Image {
   get nextUpgradeCost(): number { return this.canUpgrade ? this.def.tiers[this.tier + 1].cost : 0; }
   /** True once the hero is fully upgraded (the only state that may be merged). */
   get isMaxLevel(): boolean { return this.tier >= this.def.tiers.length - 1; }
-  /** Damage multiplier from merges: +3% per merge tier (max 3 → +9%). */
-  get mergeMult(): number { return 1 + 0.03 * this.mergeTiers; }
+  /** Damage multiplier from merges: +5% per merge tier (max 3 → +15%). */
+  get mergeMult(): number { return 1 + 0.05 * this.mergeTiers; }
   get hasShield(): boolean { return this.mergeTiers > 0; }
 
   /** Returns a FireIntent when ready to act this frame, else null. */
@@ -242,7 +242,7 @@ export class Hero extends Phaser.GameObjects.Image {
     });
   }
 
-  /** Apply one merge: +1 tier (so +3% more damage), refresh visuals, pop FX.
+  /** Apply one merge: +1 tier (so +5% more damage), refresh visuals, pop FX.
    *  No-op past 3 tiers. Returns true if it actually merged. */
   mergeOnce(): boolean {
     if (this.mergeTiers >= 3) return false;
@@ -259,7 +259,7 @@ export class Hero extends Phaser.GameObjects.Image {
     return true;
   }
 
-  /** Boss hit lands on a shielded hero: pop one shield tier (lose its +3% too).
+  /** Boss hit lands on a shielded hero: pop one shield tier (lose its +5% too).
    *  Returns true if a shield absorbed the hit (hero survives). */
   consumeShield(): boolean {
     if (this.mergeTiers <= 0) return false;
@@ -310,7 +310,7 @@ export class Hero extends Phaser.GameObjects.Image {
       this.shieldPips.push(pip);
     }
     // persistent "+x%" label below the feet
-    const pct = this.mergeTiers * 3;
+    const pct = this.mergeTiers * 5;
     if (pct > 0) {
       if (!this.mergePct) {
         this.mergePct = this.scene.add.text(this.x, this.y + 18, '', {
@@ -325,7 +325,7 @@ export class Hero extends Phaser.GameObjects.Image {
 
   /** A floating "+x%" that rises and fades (juice on each merge / shield change). */
   private floatPct(): void {
-    const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 3}%`, {
+    const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 5}%`, {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f', stroke: '#7a5a00', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(20);
     this.scene.tweens.add({ targets: t, y: t.y - 22, alpha: 0, duration: 700, ease: 'Quad.out', onComplete: () => t.destroy() });
