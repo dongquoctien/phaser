@@ -42,7 +42,7 @@ export const TextureKeys = {
   HeroMimi: 'hero-mimi',         // pink cat w/ camera — crit sniper
   HeroChippy: 'hero-chippy',     // hamster in beanie — frost slow
   HeroGauEm: 'hero-gauem',       // alpaca — spit splash
-  HeroNormal: 'hero-normal',     // tuxedo cat — chain lightning
+  HeroNormal: 'hero-normal',     // orange chainsaw critter — chain lightning
   // image 2
   HeroKenken: 'hero-kenken',     // professor — gold aura
   HeroOldBear: 'hero-oldbear',   // bear w/ boba — sticky slow

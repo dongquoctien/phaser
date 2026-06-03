@@ -193,7 +193,7 @@ export const HEROES: Record<HeroId, Full> = {
     id: 'normal', name: 'Normal', tex: TextureKeys.HeroNormal, proj: TextureKeys.ProjBolt, projSpeed: 600,
     attack: 'projectile', skill: 'chain', chainJumps: 3, chainRange: 70, tint: '#7df9ff',
     blurb: 'Lightning leaps from zombie to zombie (3 jumps).',
-    lore: 'Just a "normal" tuxedo cat — except for the static electricity that follows him everywhere. Pet him at your own risk; zombies certainly do not survive it.',
+    lore: 'A perfectly "normal" little orange critter — if you ignore the chainsaw growing out of his head and the live current crackling off it. Adorable, loyal, and absolutely lethal to anything undead.',
     tiers: tiers({ range: 140, fireInterval: 850, damage: 20, cost: 115 }, { damage: 32, cost: 150 }, { damage: 50, cost: 250, chainJumps: 4 } as Partial<HeroTier>),
   },
   // ── image 2 ──
