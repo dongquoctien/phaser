@@ -369,7 +369,10 @@ export class GameScene extends Phaser.Scene {
   private onHeroDragStart(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
     const h = obj as Hero;
     if (!(h instanceof Hero) || this.over || this.cinematicActive) return;
-    // only a max-level hero can be dragged to merge; otherwise it's a no-op drag
+    // Only a MAX-LEVEL hero can be merge-dragged. A lower-level hero shouldn't be
+    // draggable at all — leave it on its pad so the tap opens its upgrade panel
+    // instead of yanking it around to no effect.
+    if (!h.isMaxLevel) return;
     h.setDepth(30); // float above others while dragging
     h.dragging = true;
     this.clearSelection();
@@ -386,7 +389,7 @@ export class GameScene extends Phaser.Scene {
 
   private onHeroDragEnd(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
     const h = obj as Hero;
-    if (!(h instanceof Hero)) return;
+    if (!(h instanceof Hero) || !h.dragging) return; // not a merge-drag → nothing to settle
     h.dragging = false;
     h.setDepth(11);
     for (const o of this.heroes) o.setSelected(false);
