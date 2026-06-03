@@ -819,11 +819,18 @@ export class GameScene extends Phaser.Scene {
   private bossKillHero(boss: Zombie): void {
     if (this.cinematicActive) return; // one execution cinematic at a time
     const REACH = 150;
-    let target: Hero | null = null, best = REACH;
-    for (const h of this.heroes) {
-      const d = Math.hypot(h.x - boss.x, h.y - boss.y);
-      if (d < best) { best = d; target = h; }
-    }
+    // The boss FOCUSES merged heroes first (they have gold shields to break), then
+    // falls back to the nearest ordinary hero if no merged one is in reach.
+    const pick = (onlyMerged: boolean): Hero | null => {
+      let t: Hero | null = null, best = REACH;
+      for (const h of this.heroes) {
+        if (onlyMerged && !h.hasShield) continue;
+        const d = Math.hypot(h.x - boss.x, h.y - boss.y);
+        if (d < best) { best = d; t = h; }
+      }
+      return t;
+    };
+    const target = pick(true) ?? pick(false);
     if (!target) return;
     const victim = target;
     this.cinematicActive = true;
@@ -1454,7 +1461,7 @@ export class GameScene extends Phaser.Scene {
       '⬆  Tap a hero → UP to upgrade (max Lv10)',
       '💰  SELL a hero to refund 60% of its cost',
       '✨  Drag a MAX-LEVEL hero onto another of the',
-      '      SAME type to MERGE: +5% power + a gold',
+      '      SAME type to MERGE: +3% power + a gold',
       '      shield (max 3) that blocks a boss hit',
       '👑  A boss reaching the gate costs 10 lives!',
     ].join('\n');
