@@ -16,7 +16,7 @@ export interface CharDef {
   weight: number; // relative spawn probability
 }
 
-// Every character frame in the atlas (21). mole-boss is reserved as the boss.
+// Every character frame in the atlas (29). mole-boss is reserved as the boss.
 const BOSS_FRAME = 'mole-boss';
 const ALL_FRAMES = [
   'cat-black', 'bear-samurai', 'schoolgirl', 'monster-green', 'cat-pink',
@@ -24,6 +24,7 @@ const ALL_FRAMES = [
   'kid-pig', 'kid-panda', 'kid-cat', 'kid-blue', 'woman',
   'capybara', 'alpaca', 'teddy', 'blob', 'rabbit',
   'rat-man', 'cat-fluffy', 'doraemon', 'shiba', // sheet 4
+  'hudong', 'morgan', 'yugi-cat', 'king-girl', 'chainsaw-dog', // new-heros
   // (mole-boss handled separately)
 ];
 
