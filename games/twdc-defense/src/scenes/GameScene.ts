@@ -487,14 +487,10 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
       // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
+      // (Elite minions do NOT attack heroes — they're just tougher walkers.)
       if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
         this.bossKillHero(z);
         z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
-      // elite minion (boss-type walking in a wave): a quick NO-cinematic hero kill
-      // on a slower 12s cooldown, and only while no boss cinematic is playing.
-      } else if (z.isElite && !this.cinematicActive && this.heroes.length && time >= z.nextHeroKillAt) {
-        this.eliteKillHero(z);
-        z.nextHeroKillAt = time + 12000;
       }
     }
 
@@ -819,32 +815,6 @@ export class GameScene extends Phaser.Scene {
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
   }
 
-  /** Elite minion hero-kill: a quick, NO-cinematic strike on the nearest hero in
-   *  reach (merged heroes prioritised, so their shields can soak it). */
-  private eliteKillHero(elite: Zombie): void {
-    const REACH = 140;
-    const pick = (onlyMerged: boolean): Hero | null => {
-      let t: Hero | null = null, best = REACH;
-      for (const h of this.heroes) {
-        if (onlyMerged && !h.hasShield) continue;
-        const d = Math.hypot(h.x - elite.x, h.y - elite.y);
-        if (d < best) { best = d; t = h; }
-      }
-      return t;
-    };
-    const target = pick(true) ?? pick(false);
-    if (!target) return;
-    elite.playBossAttack();
-    const g = this.add.graphics().setDepth(20);
-    g.lineStyle(3, 0xff5b3b, 0.9).lineBetween(elite.x, elite.y, target.x, target.y);
-    this.tweens.add({ targets: g, alpha: 0, duration: 260, onComplete: () => g.destroy() });
-    this.boom(target.x, target.y, 0.6);
-    this.cameras.main.shake(120, 0.006);
-    this.audio.play(AudioKeys.Push);
-    if (target.consumeShield()) return; // a gold shield soaks the blow
-    this.removeHero(target);
-  }
-
   /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
    *  to a crawl for 3s, lock a red targeting reticle onto the doomed hero (camera
    *  eases toward it), then snap back to full speed and execute it. */
@@ -1115,8 +1085,7 @@ export class GameScene extends Phaser.Scene {
       z.bossInfo = def.boss;
       z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
     } else if (def.boss) {
-      z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate
-      z.nextHeroKillAt = this.time.now + 12000; // elite hero-kill on a slow 12s cd
+      z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate (no hero-kill)
     }
   }
 
