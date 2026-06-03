@@ -20,6 +20,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
    *  when a boss type walks in as an elite minion (set only on real boss waves). */
   bossInfo?: { name: string; skillCdMs: number };
   nextHeroKillAt = 0; // next time this boss may destroy a hero (scene clock ms)
+  isElite = false; // a boss-type walking in as a tougher minion (no skill/popup); costs 3 lives at the gate
 
   // status
   private slowFactor = 1; // 1 = normal; <1 = slowed
@@ -79,6 +80,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.reachedEnd = false;
     this.bossInfo = undefined; // set by the scene only when this is the wave's real boss
     this.nextHeroKillAt = 0;
+    this.isElite = false;
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0;
     this.poisonDps = 0; this.poisonUntil = 0; this.vulnStacks = 0;
     // precompute segment lengths for distance-based ordering

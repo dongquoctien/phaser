@@ -473,11 +473,12 @@ export class GameScene extends Phaser.Scene {
       alive++;
       if (res === 'end') {
         z.playEndAttack(); // chomp at the base, then despawns itself
-        const cost = z.bossInfo ? 10 : 1; // a boss reaching the gate costs 10 lives
+        // gate cost: real boss 10, elite minion (boss-type) 3, ordinary 1
+        const cost = z.bossInfo ? 10 : z.isElite ? 3 : 1;
         this.lives -= cost;
         this.refreshHud();
         this.audio.play(AudioKeys.Lose);
-        this.cameras.main.shake(z.bossInfo ? 200 : 120, z.bossInfo ? 0.01 : 0.006);
+        this.cameras.main.shake(z.bossInfo ? 200 : z.isElite ? 150 : 120, z.bossInfo ? 0.01 : z.isElite ? 0.008 : 0.006);
         if (this.lives <= 0) { this.gameOver(); return; }
       } else if (z.hp <= 0 && !z.dying) {
         // died from a DoT tick this frame (skip if its death anim already started,
@@ -957,8 +958,8 @@ export class GameScene extends Phaser.Scene {
     const elite = pool.filter((z) => z === 'boss' || z === 'khoai'); // boss-as-minion
     for (let i = 0; i < count; i++) {
       const r = Math.random();
-      // rare elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
-      if (elite.length && this.wave >= 7 && r < 0.06) q.push(Phaser.Utils.Array.GetRandom(elite));
+      // elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
+      if (elite.length && this.wave >= 7 && r < 0.15) q.push(Phaser.Utils.Array.GetRandom(elite));
       else if (this.wave >= 6 && pool.includes('brute') && r < 0.28) q.push('brute');
       else if (this.wave >= 3 && pool.includes('slow') && r < 0.5) q.push('slow');
       else q.push('walker');
@@ -1082,6 +1083,8 @@ export class GameScene extends Phaser.Scene {
     if (asBoss && def.boss) {
       z.bossInfo = def.boss;
       z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
+    } else if (def.boss) {
+      z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate
     }
   }
 
