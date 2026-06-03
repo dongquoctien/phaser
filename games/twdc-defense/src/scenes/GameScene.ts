@@ -493,8 +493,16 @@ export class GameScene extends Phaser.Scene {
       // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
       // (Elite minions do NOT attack heroes — they're just tougher walkers.)
       if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
-        this.bossKillHero(z);
-        z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
+        // Don't yank a menu out from under the player: if the hero-picker or the
+        // upgrade panel is open, hold the skill and retry shortly. The cinematic
+        // zooms the main camera (which the UI rides on), so firing now would slam
+        // the open menu shut mid-interaction.
+        if (this.heroPicker.visible || this.upgradePanel.visible) {
+          z.nextHeroKillAt = time + 600; // re-check soon, once the menu is closed
+        } else {
+          this.bossKillHero(z);
+          z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
+        }
       }
     }
 
