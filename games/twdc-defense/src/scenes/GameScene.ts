@@ -493,16 +493,16 @@ export class GameScene extends Phaser.Scene {
       // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
       // (Elite minions do NOT attack heroes — they're just tougher walkers.)
       if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
-        // Don't yank a menu out from under the player: if the hero-picker or the
-        // upgrade panel is open, hold the skill and retry shortly. The cinematic
-        // zooms the main camera (which the UI rides on), so firing now would slam
-        // the open menu shut mid-interaction.
+        // The boss ALWAYS gets its kill. But the slow-mo cinematic zooms the main
+        // camera (which the UI rides on), so if a menu is open we'd warp/shut it
+        // mid-interaction. In that case do a QUICK, no-cinematic kill instead — the
+        // hero still dies, the menu stays put.
         if (this.heroPicker.visible || this.upgradePanel.visible) {
-          z.nextHeroKillAt = time + 600; // re-check soon, once the menu is closed
+          this.bossKillHeroQuick(z);
         } else {
           this.bossKillHero(z);
-          z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
         }
+        z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
       }
     }
 
@@ -859,14 +859,10 @@ export class GameScene extends Phaser.Scene {
     z.playDeath(); // topple + fade, then despawns itself (gold already awarded)
   }
 
-  /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
-   *  to a crawl for 3s, lock a red targeting reticle onto the doomed hero (camera
-   *  eases toward it), then snap back to full speed and execute it. */
-  private bossKillHero(boss: Zombie): void {
-    if (this.cinematicActive) return; // one execution cinematic at a time
+  /** Pick the boss's victim: FOCUS merged heroes first (gold shields to break),
+   *  else the nearest ordinary hero within reach. Null if nothing is close enough. */
+  private pickBossVictim(boss: Zombie): Hero | null {
     const REACH = 150;
-    // The boss FOCUSES merged heroes first (they have gold shields to break), then
-    // falls back to the nearest ordinary hero if no merged one is in reach.
     const pick = (onlyMerged: boolean): Hero | null => {
       let t: Hero | null = null, best = REACH;
       for (const h of this.heroes) {
@@ -876,9 +872,39 @@ export class GameScene extends Phaser.Scene {
       }
       return t;
     };
-    const target = pick(true) ?? pick(false);
-    if (!target) return;
-    const victim = target;
+    return pick(true) ?? pick(false);
+  }
+
+  /** Deliver the kill blow on a victim (beam + boom + shake + sound). A gold shield
+   *  from merging absorbs it (hero survives, loses a tier); otherwise the hero dies. */
+  private bossKillBlow(boss: Zombie, victim: Hero): void {
+    const g = this.add.graphics().setDepth(20);
+    g.lineStyle(4, 0xff2a2a, 0.95).lineBetween(boss.x, boss.y, victim.x, victim.y);
+    g.fillStyle(0xff2a2a, 0.5).fillCircle(victim.x, victim.y, 26);
+    this.tweens.add({ targets: g, alpha: 0, duration: 320, onComplete: () => g.destroy() });
+    this.boom(victim.x, victim.y, 0.8);
+    this.cameras.main.shake(200, 0.01);
+    this.audio.play(AudioKeys.Push);
+    if (victim.consumeShield()) return; // shielded → survives
+    this.removeHero(victim);
+  }
+
+  /** Quick, no-cinematic hero kill — used when a menu is open so we don't zoom the
+   *  camera (and warp/close the UI). The boss still claims its victim instantly. */
+  private bossKillHeroQuick(boss: Zombie): void {
+    const victim = this.pickBossVictim(boss);
+    if (!victim) return;
+    boss.playBossAttack();
+    this.bossKillBlow(boss, victim);
+  }
+
+  /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
+   *  to a crawl for 3s, lock a red targeting reticle onto the doomed hero (camera
+   *  eases toward it), then snap back to full speed and execute it. */
+  private bossKillHero(boss: Zombie): void {
+    if (this.cinematicActive) return; // one execution cinematic at a time
+    const victim = this.pickBossVictim(boss);
+    if (!victim) return;
     this.cinematicActive = true;
     // close any open menu first — UI lives on the main camera, so the cinematic
     // zoom would otherwise scale the hero-picker / upgrade panel too.
@@ -925,17 +951,7 @@ export class GameScene extends Phaser.Scene {
 
       this.cinematicActive = false;
       if (!victim.active) return; // hero already removed some other way
-      // the blow: red beam + boom + shake
-      const g = this.add.graphics().setDepth(20);
-      g.lineStyle(4, 0xff2a2a, 0.95).lineBetween(boss.x, boss.y, victim.x, victim.y);
-      g.fillStyle(0xff2a2a, 0.5).fillCircle(victim.x, victim.y, 26);
-      this.tweens.add({ targets: g, alpha: 0, duration: 320, onComplete: () => g.destroy() });
-      this.boom(victim.x, victim.y, 0.8);
-      this.cameras.main.shake(200, 0.01);
-      this.audio.play(AudioKeys.Push);
-      // a gold shield (from merging) absorbs the blow → hero survives, loses a tier
-      if (victim.consumeShield()) return;
-      this.removeHero(victim);
+      this.bossKillBlow(boss, victim); // red beam + boom + shake, then shield/kill
     });
   }
 
