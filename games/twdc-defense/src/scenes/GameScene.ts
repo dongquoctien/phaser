@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, Fonts, mapBestKey, mapClearedKey } from '../types/keys';
+import { SceneKeys, AudioKeys, MusicKeys, TextureKeys, Fonts, RegistryKeys, mapBestKey, mapClearedKey } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT, CELL, FIELD_H, HUD_TOP, Tuning } from '../config';
 import { Zombie } from '../objects/Zombie';
 import { Projectile } from '../objects/Projectile';
@@ -92,11 +92,21 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointerdown', this.onFieldTap, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.input.off('pointerdown', this.onFieldTap, this));
 
+    // ── hero drag-to-merge ── (handlers live on the scene input; heroes opt in via
+    // setInteractive({draggable:true}) in placeHero). Dragging a max-level hero onto
+    // another same-type max-level hero merges them.
+    this.input.on(Phaser.Input.Events.DRAG_START, this.onHeroDragStart, this);
+    this.input.on(Phaser.Input.Events.DRAG, this.onHeroDrag, this);
+    this.input.on(Phaser.Input.Events.DRAG_END, this.onHeroDragEnd, this);
+
     // Wave 1 waits for a manual START press (no countdown). The official clock /
     // first wave only begins when the player taps START — gives unlimited prep time.
     this.awaitingFirstStart = true;
     this.showStartBtn(true);
     this.refreshCountdown(); // shows the START label (no timer)
+
+    // first-time tutorial overlay (once per player, persisted in the registry)
+    if (!this.registry.get(RegistryKeys.TipsSeen)) this.showTutorial();
 
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       (this as unknown as Record<string, unknown>).__dev = {
@@ -346,7 +356,69 @@ export class GameScene extends Phaser.Scene {
     this.heroes.push(h);
     pad.taken = true;
     pad.img.setTexture(TextureKeys.PadOn); // blue → green glow once occupied
+    // make the hero draggable so max-level same-type heroes can be merged
+    h.setInteractive({ draggable: true, useHandCursor: true });
     return h;
+  }
+
+  // ── drag-to-merge ──────────────────────────────────────────────────────────────
+  private onHeroDragStart(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
+    const h = obj as Hero;
+    if (!(h instanceof Hero) || this.over || this.cinematicActive) return;
+    // only a max-level hero can be dragged to merge; otherwise it's a no-op drag
+    h.setDepth(30); // float above others while dragging
+    h.dragging = true;
+    this.clearSelection();
+  }
+
+  private onHeroDrag(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject, dragX: number, dragY: number): void {
+    const h = obj as Hero;
+    if (!(h instanceof Hero) || !h.dragging) return;
+    h.x = dragX; h.y = dragY;
+    // highlight a valid merge target under the cursor
+    const tgt = this.mergeTargetUnder(h, dragX, dragY);
+    for (const o of this.heroes) o.setSelected(o === tgt);
+  }
+
+  private onHeroDragEnd(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
+    const h = obj as Hero;
+    if (!(h instanceof Hero)) return;
+    h.dragging = false;
+    h.setDepth(11);
+    for (const o of this.heroes) o.setSelected(false);
+    const tgt = this.mergeTargetUnder(h, h.x, h.y);
+    if (tgt) { this.mergeHeroes(h, tgt); return; }
+    // no valid target → snap back to its pad
+    const pad = this.padByCell.get(`${h.col},${h.row}`);
+    if (pad) { h.x = pad.x; h.y = pad.y; h.snapHome(); }
+  }
+
+  /** A hero is a valid merge target for `src` if it's a DIFFERENT hero, same type,
+   *  both at max level, the target isn't already at 3 merge tiers, and the cursor
+   *  is over it. */
+  private mergeTargetUnder(src: Hero, x: number, y: number): Hero | null {
+    if (!src.isMaxLevel) return null;
+    let best: Hero | null = null, bestD = 34; // must be within ~34px of a hero
+    for (const o of this.heroes) {
+      if (o === src || !o.isMaxLevel || o.heroId !== src.heroId || o.mergeTiers >= 3) continue;
+      const d = Math.hypot(o.x - x, o.y - y);
+      if (d < bestD) { bestD = d; best = o; }
+    }
+    return best;
+  }
+
+  /** Merge `src` into `tgt`: tgt gains +5%/shield tier, src is removed (pad freed). */
+  private mergeHeroes(src: Hero, tgt: Hero): void {
+    if (!tgt.mergeOnce()) { // target already maxed merges → snap src back
+      const pad = this.padByCell.get(`${src.col},${src.row}`);
+      if (pad) { src.x = pad.x; src.y = pad.y; src.snapHome(); }
+      return;
+    }
+    this.audio.play(AudioKeys.Place);
+    this.boom(tgt.x, tgt.y, 0.5);
+    this.cameras.main.shake(80, 0.004);
+    this.removeHero(src); // source consumed; its pad reverts to empty
+    this.markTip('merge'); // player discovered merging
   }
 
   private selectHero(h: Hero): void {
@@ -478,7 +550,7 @@ export class GameScene extends Phaser.Scene {
         if (!intent.target) return;
         this.audio.playPitched(AudioKeys.Shoot);
         const isCrit = def.skill === 'crit' && Math.random() < (def.critChance ?? 0);
-        const buff = this.buffAt(h.x, h.y);
+        const buff = this.buffAt(h.x, h.y) * h.mergeMult; // merge adds +5%/tier
         const dmg = (isCrit ? s.damage * (def.critMul ?? 1) : s.damage) * buff;
         if (def.skill === 'multishot') {
           // fire a bolt at each of the N front-most targets
@@ -499,7 +571,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'melee': {
-        const mdmg = s.damage * this.buffAt(h.x, h.y);
+        const mdmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
         if (def.skill === 'cleave') {
           const hits = h.inRange(live, s.range);
           for (const z of hits) this.damageZombie(z, mdmg, h, live, now);
@@ -515,7 +587,7 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'nova': {
-        const ndmg = s.damage * this.buffAt(h.x, h.y);
+        const ndmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
         const hits = h.inRange(live, s.range);
         this.novaFx(h.x, h.y, s.range, def.tint);
         this.audio.play(AudioKeys.Explode);
@@ -800,14 +872,16 @@ export class GameScene extends Phaser.Scene {
 
       this.cinematicActive = false;
       if (!victim.active) return; // hero already removed some other way
-      // the kill blow
+      // the blow: red beam + boom + shake
       const g = this.add.graphics().setDepth(20);
       g.lineStyle(4, 0xff2a2a, 0.95).lineBetween(boss.x, boss.y, victim.x, victim.y);
       g.fillStyle(0xff2a2a, 0.5).fillCircle(victim.x, victim.y, 26);
       this.tweens.add({ targets: g, alpha: 0, duration: 320, onComplete: () => g.destroy() });
       this.boom(victim.x, victim.y, 0.8);
       this.cameras.main.shake(200, 0.01);
-      this.audio.play(AudioKeys.Push); // the kill blow
+      this.audio.play(AudioKeys.Push);
+      // a gold shield (from merging) absorbs the blow → hero survives, loses a tier
+      if (victim.consumeShield()) return;
       this.removeHero(victim);
     });
   }
@@ -1363,6 +1437,46 @@ export class GameScene extends Phaser.Scene {
     const best = (this.registry.get(key) as number) ?? 0;
     if (this.wave > best) this.registry.set(key, this.wave);
   }
+  // ── tutorial / tips ────────────────────────────────────────────────────────────
+  /** First-time tutorial: a dismissible card listing the core actions. Shown once
+   *  (persisted via RegistryKeys.TipsSeen), tap anywhere to begin. */
+  private showTutorial(): void {
+    const root = this.add.container(0, 0).setDepth(98);
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.82).setOrigin(0).setInteractive();
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT * 0.42;
+    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 360, 0x1c1730, 0.98).setStrokeStyle(3, 0xa7f070);
+    const title = this.add.text(cx, cy - 150, 'HOW TO PLAY', {
+      fontFamily: Fonts.Display, fontSize: '34px', color: '#a7f070', stroke: '#1a1c2c', strokeThickness: 6,
+    }).setOrigin(0.5);
+    const tips = [
+      '🟦  Tap a blue PAD to pick & place a hero',
+      '▶  Press START to begin wave 1',
+      '⬆  Tap a hero → UP to upgrade (max Lv10)',
+      '💰  SELL a hero to refund 60% of its cost',
+      '✨  Drag a MAX-LEVEL hero onto another of the',
+      '      SAME type to MERGE: +5% power + a gold',
+      '      shield (max 3) that blocks a boss hit',
+      '👑  A boss reaching the gate costs 10 lives!',
+    ].join('\n');
+    const body = this.add.text(cx, cy - 18, tips, {
+      fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'left', lineSpacing: 7,
+    }).setOrigin(0.5);
+    const go = this.add.text(cx, cy + 150, 'TAP TO START', {
+      fontFamily: Fonts.Display, fontSize: '24px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 5,
+      backgroundColor: '#2a7a3a', padding: { x: 18, y: 6 },
+    }).setOrigin(0.5);
+    this.tweens.add({ targets: go, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
+    root.add([dim, card, title, body, go]);
+    dim.once('pointerup', () => {
+      this.registry.set(RegistryKeys.TipsSeen, true);
+      root.destroy();
+    });
+  }
+
+  /** Hook for per-action discovery hints (currently a no-op placeholder beyond the
+   *  one-time tutorial; kept so feature code can flag a discovered mechanic). */
+  private markTip(_key: string): void { /* reserved for future contextual hints */ }
+
   private endOverlay(msg: string, color: string): void {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.72).setOrigin(0).setDepth(90);
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, msg, { fontFamily: Fonts.Display, fontSize: '40px', color, align: 'center', stroke: '#1a1c2c', strokeThickness: 7, lineSpacing: 6 }).setOrigin(0.5).setDepth(91);

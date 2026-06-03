@@ -20,6 +20,10 @@ export class Hero extends Phaser.GameObjects.Image {
   private readonly homeX: number; // true pad x; attacks always lunge from + return here
   tier = 0;
   spent = 0; // total gold sunk into this hero (buy + upgrades); drives sell refund
+  // ── merge state ── each merge adds +5% damage AND a gold-shield tier (max 3).
+  // A boss hit consumes one shield tier (hero survives, loses that tier's bonus).
+  mergeTiers = 0;
+  dragging = false; // true while being dragged for a merge
   private nextFireAt = 0;
   private turret: Phaser.GameObjects.Image | null = null; // none for now; heroes face forward
   private ring: Phaser.GameObjects.Arc;
@@ -28,6 +32,10 @@ export class Hero extends Phaser.GameObjects.Image {
   private idleTween?: Phaser.Tweens.Tween;
   private bubble?: Phaser.GameObjects.Container; // active speech bubble (one at a time)
   private nextChatterAt = 0; // rate-limit attack chatter so it doesn't spam
+  // merge visuals
+  private mergeAura?: Phaser.GameObjects.Particles.ParticleEmitter; // fiery power-up aura
+  private mergePct?: Phaser.GameObjects.Text;     // "+x%" label below the hero
+  private shieldPips: Phaser.GameObjects.Arc[] = []; // gold shield dots above the hero
 
   constructor(scene: Phaser.Scene, id: HeroId, col: number, row: number, x: number, y: number) {
     const def = HEROES[id];
@@ -60,6 +68,11 @@ export class Hero extends Phaser.GameObjects.Image {
   get stats(): HeroTier { return this.def.tiers[this.tier]; }
   get canUpgrade(): boolean { return this.tier < this.def.tiers.length - 1; }
   get nextUpgradeCost(): number { return this.canUpgrade ? this.def.tiers[this.tier + 1].cost : 0; }
+  /** True once the hero is fully upgraded (the only state that may be merged). */
+  get isMaxLevel(): boolean { return this.tier >= this.def.tiers.length - 1; }
+  /** Damage multiplier from merges: +5% per merge tier (max 3 → +15%). */
+  get mergeMult(): number { return 1 + 0.05 * this.mergeTiers; }
+  get hasShield(): boolean { return this.mergeTiers > 0; }
 
   /** Returns a FireIntent when ready to act this frame, else null. */
   update(time: number, zombies: Zombie[]): FireIntent | null {
@@ -217,12 +230,98 @@ export class Hero extends Phaser.GameObjects.Image {
     this.ring.setRadius(this.stats.range).setVisible(on);
   }
 
+  /** Snap back to the pad after a cancelled drag (a little settle bounce). */
+  snapHome(): void {
+    this.refreshMergeVisuals(); // reposition aura/pips/label to the pad
+    this.scene.tweens.killTweensOf(this);
+    this.idleTween?.pause();
+    this.scene.tweens.add({
+      targets: this, scale: this.baseScale * 1.12, duration: 90, yoyo: true, ease: 'Quad.out',
+      onComplete: () => { this.setScale(this.baseScale); this.idleTween?.resume(); },
+    });
+  }
+
+  /** Apply one merge: +1 tier (so +5% more damage), refresh visuals, pop FX.
+   *  No-op past 3 tiers. Returns true if it actually merged. */
+  mergeOnce(): boolean {
+    if (this.mergeTiers >= 3) return false;
+    this.mergeTiers += 1;
+    this.refreshMergeVisuals();
+    this.floatPct();
+    // a punchy power-up pop + brief flame burst
+    this.scene.tweens.killTweensOf(this);
+    this.idleTween?.pause();
+    this.scene.tweens.add({
+      targets: this, scale: this.baseScale * 1.35, duration: 140, yoyo: true, ease: 'Back.out',
+      onComplete: () => { this.setScale(this.baseScale); this.idleTween?.resume(); },
+    });
+    return true;
+  }
+
+  /** Boss hit lands on a shielded hero: pop one shield tier (lose its +5% too).
+   *  Returns true if a shield absorbed the hit (hero survives). */
+  consumeShield(): boolean {
+    if (this.mergeTiers <= 0) return false;
+    this.mergeTiers -= 1;
+    this.refreshMergeVisuals();
+    this.floatPct();
+    // shield-break flash
+    this.setTint(0xffe066);
+    this.scene.time.delayedCall(140, () => { if (this.active) this.clearTint(); });
+    return true;
+  }
+
+  /** Rebuild the fiery aura + shield pips + "+x%" label for the current tier count. */
+  private refreshMergeVisuals(): void {
+    // fiery aura: on while merged
+    if (this.mergeTiers > 0 && !this.mergeAura) {
+      this.mergeAura = this.scene.add.particles(this.x, this.y - 6, 'spark', {
+        speed: { min: 8, max: 26 }, angle: { min: 250, max: 290 }, lifespan: 520,
+        scale: { start: 0.9, end: 0 }, alpha: { start: 0.8, end: 0 }, frequency: 90,
+        tint: [0xffd23f, 0xff8c3b, 0xff5b3b],
+      }).setDepth(10);
+    } else if (this.mergeTiers === 0 && this.mergeAura) {
+      this.mergeAura.destroy(); this.mergeAura = undefined;
+    }
+    // shield pips (gold dots) above the head — one per tier
+    for (const p of this.shieldPips) p.destroy();
+    this.shieldPips = [];
+    for (let i = 0; i < this.mergeTiers; i++) {
+      const px = this.x - (this.mergeTiers - 1) * 5 + i * 10;
+      const pip = this.scene.add.circle(px, this.y - 30, 3.5, 0xffd23f).setStrokeStyle(1, 0x7a5a00).setDepth(12);
+      this.shieldPips.push(pip);
+    }
+    // persistent "+x%" label below the feet
+    const pct = this.mergeTiers * 5;
+    if (pct > 0) {
+      if (!this.mergePct) {
+        this.mergePct = this.scene.add.text(this.x, this.y + 18, '', {
+          fontFamily: 'monospace', fontSize: '10px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 3,
+        }).setOrigin(0.5).setDepth(12);
+      }
+      this.mergePct.setText(`+${pct}%`);
+    } else if (this.mergePct) {
+      this.mergePct.destroy(); this.mergePct = undefined;
+    }
+  }
+
+  /** A floating "+5%" that rises and fades (juice on each merge / shield change). */
+  private floatPct(): void {
+    const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 5}%`, {
+      fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f', stroke: '#7a5a00', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(20);
+    this.scene.tweens.add({ targets: t, y: t.y - 22, alpha: 0, duration: 700, ease: 'Quad.out', onComplete: () => t.destroy() });
+  }
+
   destroyAll(): void {
     this.idleTween?.stop();
     this.scene.tweens.killTweensOf(this);
     this.bubble?.destroy();
     this.ring.destroy();
     this.turret?.destroy();
+    this.mergeAura?.destroy();
+    this.mergePct?.destroy();
+    for (const p of this.shieldPips) p.destroy();
     this.destroy();
   }
 }
