@@ -578,6 +578,14 @@ export class GameScene extends Phaser.Scene {
           const hits = h.inRange(live, s.range);
           for (const z of hits) this.damageZombie(z, mdmg, h, live, now);
           this.slashFx(h.x, h.y, def.tint);
+        } else if (def.skill === 'combo') {
+          // xxKingxx: hammer the SAME target for rising bonus damage. The hero
+          // tracks a combo counter that grows while she keeps hitting one zombie
+          // and resets the instant she switches target (or it dies).
+          if (!intent.target) return;
+          const mult = h.comboHit(intent.target, def.comboStep ?? 0.25, def.comboMax ?? 5);
+          this.damageZombie(intent.target, mdmg * mult, h, live, now);
+          this.comboFx(intent.target.x, intent.target.y, def.tint, h.comboCount);
         } else {
           // doublestrike: two quick hits on one target
           if (!intent.target) return;
@@ -586,6 +594,19 @@ export class GameScene extends Phaser.Scene {
           this.slashFx(intent.target.x, intent.target.y, def.tint);
         }
         this.audio.playPitched(AudioKeys.Hit);
+        break;
+      }
+      case 'orbit': {
+        // Yugitoh: orbs damage every zombie they sweep over. The Hero owns the orb
+        // visuals + rotation; here we just tick damage to zombies within orbRadius.
+        const odmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
+        const r = def.orbRadius ?? 52;
+        for (const z of live) {
+          if (z.dead || z.dying) continue;
+          if (Phaser.Math.Distance.Between(z.x, z.y, h.x, h.y) <= r) {
+            this.damageZombie(z, odmg, h, live, now);
+          }
+        }
         break;
       }
       case 'nova': {
@@ -681,20 +702,31 @@ export class GameScene extends Phaser.Scene {
         }
         break;
       }
-      case 'aircannon': {
-        // Mr.Hoang (Doraemon's Air Cannon): a compressed-air blast that PIERCES a
-        // line of zombies and knocks every one of them back down the road.
-        this.damageZombie(hit, pr.damage, null, live, now);
-        hit.knockBack(def.knockback ?? 30);
-        let pierced = 0;
-        const max = def.pierce ?? 3;
-        for (const z of live) {
-          if (z === hit || z.dead) continue;
-          if (Math.hypot(z.x - pr.x, z.y - pr.y) <= 26) {
-            this.damageZombie(z, pr.damage, null, live, now);
-            z.knockBack(def.knockback ?? 30);
-            if (++pierced >= max) break;
-          }
+      case 'midas': {
+        // Hudong (Golden Touch): a chance per hit to GOLDIFY the target. If the
+        // zombie is wounded (at/below the threshold) it instantly turns to gold —
+        // an instant kill that drops a pile of bonus gold. Otherwise: normal hit.
+        const frac = hit.maxHp > 0 ? hit.hp / hit.maxHp : 1;
+        if (Math.random() < (def.goldifyChance ?? 0.18) && frac <= (def.goldifyThreshold ?? 0.5)) {
+          this.goldifyFx(hit.x, hit.y);
+          this.gold += def.goldDrop ?? 14; // bonus on top of the kill bounty
+          hit.applyDamage(hit.hp + 1); // ensure lethal
+          if (hit.hp <= 0) this.killZombie(hit);
+        } else {
+          this.damageZombie(hit, pr.damage, null, live, now);
+        }
+        break;
+      }
+      case 'freeze': {
+        // Morgan Le Fay (Deep Freeze): every hit lands frost damage AND a freeze
+        // stack. Enough stacks HARD-FREEZE the zombie (full stop). A frozen zombie
+        // is brittle — it takes bonus (brittle) damage from this hit.
+        const wasFrozen = hit.isFrozen(now);
+        const dmg = wasFrozen ? pr.damage * (def.brittleMul ?? 2) : pr.damage;
+        if (wasFrozen) this.iceShatterFx(hit.x, hit.y);
+        this.damageZombie(hit, dmg, null, live, now);
+        if (!hit.dead && !hit.dying) {
+          hit.addFreezeStack(def.freezeStacksToFreeze ?? 3, def.freezeDuration ?? 1.8, now);
         }
         break;
       }
@@ -1130,6 +1162,49 @@ export class GameScene extends Phaser.Scene {
   private healFx(x: number, y: number): void {
     const p = this.add.image(x, y, TextureKeys.Spark).setDepth(13).setTint(0xa7f070);
     this.tweens.add({ targets: p, y: y - 18, alpha: 0, duration: 500, onComplete: () => p.destroy() });
+  }
+
+  // Hudong's GOLDIFY: a gold flash + a fountain of coin-sparks and a "$" pop.
+  private goldifyFx(x: number, y: number): void {
+    const flash = this.add.circle(x, y, 10, 0xffd23f, 0.9).setDepth(14);
+    this.tweens.add({ targets: flash, radius: 30, alpha: 0, duration: 300, ease: 'Quad.easeOut', onComplete: () => flash.destroy() });
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8 + Phaser.Math.FloatBetween(-0.3, 0.3);
+      const coin = this.add.circle(x, y, 3, 0xffe066, 1).setStrokeStyle(1, 0x7a5a00).setDepth(15);
+      const sp = Phaser.Math.FloatBetween(40, 80);
+      this.tweens.add({
+        targets: coin, x: x + Math.cos(ang) * sp, y: y + Math.sin(ang) * sp - 30, alpha: 0,
+        duration: Phaser.Math.Between(360, 540), ease: 'Quad.easeIn', onComplete: () => coin.destroy(),
+      });
+    }
+    const t = this.add.text(x, y - 12, '$$$', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f', stroke: '#7a5a00', strokeThickness: 4 }).setOrigin(0.5).setDepth(20);
+    this.tweens.add({ targets: t, y: y - 34, alpha: 0, duration: 600, ease: 'Quad.out', onComplete: () => t.destroy() });
+  }
+
+  // Morgan's ICE SHATTER: jagged cyan shards burst out when a frozen zombie is hit.
+  private iceShatterFx(x: number, y: number): void {
+    const ring = this.add.circle(x, y, 6, 0x9bd6ff, 0.5).setDepth(13);
+    this.tweens.add({ targets: ring, radius: 22, alpha: 0, duration: 220, onComplete: () => ring.destroy() });
+    for (let i = 0; i < 7; i++) {
+      const ang = (Math.PI * 2 * i) / 7 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const sp = Phaser.Math.FloatBetween(45, 90);
+      const shard = this.add.triangle(x, y, 0, 0, 4, 10, -4, 10, 0xd6f1ff, 0.95)
+        .setStrokeStyle(1, 0x4aa6e6).setDepth(15).setAngle(Phaser.Math.Between(0, 360));
+      this.tweens.add({
+        targets: shard, x: x + Math.cos(ang) * sp, y: y + Math.sin(ang) * sp, alpha: 0,
+        angle: shard.angle + Phaser.Math.Between(-180, 180), duration: Phaser.Math.Between(300, 460),
+        ease: 'Quad.easeIn', onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  // xxKingxx's COMBO: a slash plus a rising combo counter once the chain is going.
+  private comboFx(x: number, y: number, hex: string, count: number): void {
+    this.slashFx(x, y, hex);
+    if (count >= 1) {
+      const t = this.add.text(x, y - 16, `x${count + 1}`, { fontFamily: 'monospace', fontSize: `${10 + Math.min(count, 5)}px`, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 3 }).setOrigin(0.5).setDepth(20);
+      this.tweens.add({ targets: t, y: y - 30, alpha: 0, scale: 1.3, duration: 420, ease: 'Quad.out', onComplete: () => t.destroy() });
+    }
   }
 
   // Death "shatter": a burst of little chunks that fly out radially, spin, fall

@@ -60,8 +60,12 @@ export const TextureKeys = {
   // image 4
   HeroChuotChu: 'hero-chuotchu', // mouse in orange shirt — multishot
   HeroMeoMeo: 'hero-meomeo',     // long-fur tabby cat — frost slow
-  HeroDoraemon: 'hero-doraemon', // robot cat — chain gadget
   HeroShiba: 'hero-shiba',       // shiba dog — splash + spreading damage
+  // new heroes
+  HeroHudong: 'hero-hudong',     // bearded man w/ golden urn — Midas (goldify instakill)
+  HeroMorgan: 'hero-morgan',     // girl w/ ice penguin — Deep Freeze (hard-freeze + shatter)
+  HeroYugitoh: 'hero-yugitoh',   // green cat sage w/ staff — Spirit Orbs (orbiting guardians)
+  HeroXxking: 'hero-xxking',     // girl in black — Combo Strikes (stacking melee)
 
   // Zombies (walker grid kept only for the HUD lives icon)
   ZombieWalker: 'zombie-walker', // grid, used for the HUD lives icon

@@ -12,10 +12,12 @@ export type HeroId =
   | 'kenken' | 'oldbear' | 'bluefoo' | 'nixxx' | 'gauchi' | 'gei'
   // image 3 (6)
   | 'yunseo' | 'dongdong' | 'midori' | 'anzu' | 'nini' | 'hakj'
-  // image 4 (4)
-  | 'chuotchu' | 'meomeo' | 'doraemon' | 'shiba';
+  // image 4 (3 — Mr.Hoang/doraemon removed)
+  | 'chuotchu' | 'meomeo' | 'shiba'
+  // new heroes (4)
+  | 'hudong' | 'morgan' | 'yugitoh' | 'xxking';
 
-export type AttackKind = 'projectile' | 'melee' | 'aura' | 'nova';
+export type AttackKind = 'projectile' | 'melee' | 'aura' | 'nova' | 'orbit';
 
 export type SkillKind =
   | 'pierce' | 'cleave' | 'multishot' | 'poison' | 'heal' | 'crit' | 'slow'
@@ -32,11 +34,16 @@ export type SkillKind =
   | 'bounceball' // a ball that bounces between adjacent zombies (Shiba); bounces grow per tier
   | 'gnaw'       // each hit stacks vulnerability — the same zombie takes more each bite (Jibgor)
   | 'roar'       // shot lands + a fear-roar: AoE damage + brief stun (Lionyori)
-  | 'aircannon'; // Doraemon's Air Cannon: a piercing air-blast that knocks a line back (Mr.Hoang)
+  // new-hero skills:
+  | 'midas'      // Hudong: % chance to GOLDIFY — instakill a wounded zombie for huge bonus gold
+  | 'freeze'     // Morgan Le Fay: stacks frost; enough stacks HARD-FREEZE (full stop) + brittle shatter
+  | 'spirit'     // Yugitoh: orbiting spirit orbs that auto-damage zombies near the hero (no aiming)
+  | 'combo';     // xxKingxx: consecutive hits on the SAME target stack rising bonus damage
 
 export interface HeroTier {
   range: number; fireInterval: number; damage: number; cost: number;
   bounces?: number; // bounceball (Shiba): extra zombies the ball hops to — scales per tier
+  orbs?: number;    // spirit (Yugitoh): number of orbiting orbs — scales per tier
 }
 
 export interface HeroDef {
@@ -65,6 +72,17 @@ export interface HeroDef {
   buffMul?: number;       // buffaura: damage multiplier for nearby heroes
   executeThreshold?: number; // execute: hp fraction below which bonus applies
   executeMul?: number;
+  // ── new-hero skill params ──
+  goldifyChance?: number;    // midas: chance per hit to attempt a goldify
+  goldifyThreshold?: number; // midas: hp fraction at/below which goldify instakills
+  goldDrop?: number;         // midas: bonus gold on a successful goldify
+  freezeStacksToFreeze?: number; // freeze: stacks needed to hard-freeze a zombie
+  freezeDuration?: number;       // freeze: hard-freeze duration (s)
+  brittleMul?: number;           // freeze: bonus damage multiplier vs a frozen zombie
+  orbRadius?: number;            // spirit: orbit radius the orbs sweep
+  orbDamage?: number;            // spirit: damage per orb tick
+  comboStep?: number;            // combo: +damage fraction added per consecutive same-target hit
+  comboMax?: number;             // combo: max stacked combo hits
   tint: string;
   blurb: string;
   lore: string; // short flavour bio shown in the hero-detail panel
@@ -279,13 +297,6 @@ export const HEROES: Record<HeroId, Full> = {
     lore: 'A long-haired tabby with a mane like a lion and a meow that became a roar somewhere along the way. The undead remember they are prey the instant they hear it.',
     tiers: tiers({ range: 130, fireInterval: 1150, damage: 18, cost: 125 }, { damage: 29, cost: 165, stunDuration: 1.0 } as Partial<HeroTier>, { damage: 46, cost: 265, splashRadius: 66, stunDuration: 1.3 } as Partial<HeroTier>),
   },
-  doraemon: {
-    id: 'doraemon', name: 'Mr.Hoang', tex: TextureKeys.HeroDoraemon, proj: TextureKeys.ProjBullet, projSpeed: 620,
-    attack: 'projectile', skill: 'aircannon', pierce: 3, knockback: 30, tint: '#41a6f6',
-    blurb: 'Air Cannon: a compressed-air blast that pierces a line and knocks them all back.',
-    lore: 'A robotic cat from the 22nd century with a four-dimensional pocket full of impossible gadgets. His favourite against a horde? The Air Cannon. "Bang!" — and the whole row goes flying.',
-    tiers: tiers({ range: 145, fireInterval: 900, damage: 20, cost: 120 }, { damage: 32, cost: 160, knockback: 38 } as Partial<HeroTier>, { damage: 52, cost: 260, pierce: 5, knockback: 48 } as Partial<HeroTier>),
-  },
   shiba: {
     id: 'shiba', name: 'Shiba', tex: TextureKeys.HeroShiba, proj: TextureKeys.ProjSpit, projSpeed: 360,
     attack: 'projectile', skill: 'bounceball', chainRange: 92, tint: '#e8932e',
@@ -293,13 +304,59 @@ export const HEROES: Record<HeroId, Full> = {
     lore: 'A very good boy with a very loud bork and an even better fetch. He hurls his favourite ball into the horde and it just... keeps bouncing. Such physics. Much doom.',
     tiers: tiers({ range: 130, fireInterval: 820, damage: 22, cost: 120, bounces: 2 }, { damage: 35, cost: 160, bounces: 3 }, { damage: 56, cost: 255, bounces: 4 }),
   },
+  // ── new heroes ──
+  hudong: {
+    id: 'hudong', name: 'Hudong', tex: TextureKeys.HeroHudong, proj: TextureKeys.ProjBullet, projSpeed: 520,
+    attack: 'projectile', skill: 'midas', goldifyChance: 0.18, goldifyThreshold: 0.5, goldDrop: 14, tint: '#ffc83d',
+    blurb: 'Golden Touch: a chance to turn a wounded zombie to GOLD — instant kill + a pile of bonus gold.',
+    lore: 'A wandering treasure-hunter whose lucky urn was blessed (or cursed) by a desert djinn. Everything he touches has a habit of turning to gold — zombies very much included.',
+    tiers: tiers(
+      { range: 140, fireInterval: 780, damage: 18, cost: 130 },
+      { damage: 28, cost: 170, goldifyChance: 0.24, goldDrop: 22 } as Partial<HeroTier>,
+      { damage: 46, cost: 280, goldifyChance: 0.32, goldifyThreshold: 0.6, goldDrop: 36 } as Partial<HeroTier>,
+    ),
+  },
+  morgan: {
+    id: 'morgan', name: 'Morgan Le Fay', tex: TextureKeys.HeroMorgan, proj: TextureKeys.ProjFrost, projSpeed: 360,
+    attack: 'projectile', skill: 'freeze', freezeStacksToFreeze: 3, freezeDuration: 1.8, brittleMul: 2, tint: '#9bd6ff',
+    blurb: 'Deep Freeze: frost stacks build up, then HARD-FREEZE the zombie solid — frozen foes shatter for double.',
+    lore: 'A frost-sorceress who lost everything to the cold and learned to love it instead. Her companion penguin breathes a chill that locks the undead in place — perfect, fragile ice.',
+    tiers: tiers(
+      { range: 130, fireInterval: 760, damage: 12, cost: 120 },
+      { damage: 19, cost: 160, freezeDuration: 2.2 } as Partial<HeroTier>,
+      { damage: 30, cost: 270, freezeStacksToFreeze: 2, freezeDuration: 2.6, brittleMul: 2.4 } as Partial<HeroTier>,
+    ),
+  },
+  yugitoh: {
+    id: 'yugitoh', name: 'Yugitoh', tex: TextureKeys.HeroYugitoh, proj: null, projSpeed: 0,
+    attack: 'orbit', skill: 'spirit', orbRadius: 52, tint: '#7ed957',
+    blurb: 'Spirit Orbs: glowing guardians orbit the sage, auto-shredding any zombie that strays too close.',
+    lore: 'An ancient little cat-sage who speaks in riddles and naps on his staff. The spirits of the forest circle him out of respect — and tear apart anything foolish enough to approach.',
+    tiers: tiers(
+      { range: 70, fireInterval: 360, damage: 8, cost: 140, orbs: 2 },
+      { damage: 13, cost: 180, orbs: 3, orbRadius: 58, fireInterval: 320 } as Partial<HeroTier>,
+      { damage: 21, cost: 290, orbs: 4, orbRadius: 66, fireInterval: 280 } as Partial<HeroTier>,
+    ),
+  },
+  xxking: {
+    id: 'xxking', name: 'xxKingxx', tex: TextureKeys.HeroXxking, proj: null, projSpeed: 0,
+    attack: 'melee', skill: 'combo', comboStep: 0.25, comboMax: 5, tint: '#e6e6e6',
+    blurb: 'Combo Strikes: every hit on the SAME target hits harder — keep the chain alive for a brutal finisher.',
+    lore: 'A street-fighting champion who never lost a match — the apocalypse just gave her an unlimited supply of opponents. The longer she stays on one, the harder she hits.',
+    tiers: tiers(
+      { range: 66, fireInterval: 300, damage: 12, cost: 125 },
+      { damage: 19, cost: 165, fireInterval: 270 } as Partial<HeroTier>,
+      { damage: 30, cost: 275, fireInterval: 240, comboStep: 0.32 } as Partial<HeroTier>,
+    ),
+  },
 };
 
 export const HERO_IDS: HeroId[] = [
   'evilcat', 'mymy', 'oreo', 'rwah', 'emso', 'mimi', 'chippy', 'gauem', 'normal',
   'kenken', 'oldbear', 'bluefoo', 'nixxx', 'gauchi', 'gei',
   'yunseo', 'dongdong', 'midori', 'anzu', 'nini', 'hakj',
-  'chuotchu', 'meomeo', 'doraemon', 'shiba',
+  'chuotchu', 'meomeo', 'shiba',
+  'hudong', 'morgan', 'yugitoh', 'xxking',
 ];
 
 // ── Derived rating (for the hero-detail panel) ───────────────────────────────

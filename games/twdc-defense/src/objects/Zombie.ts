@@ -26,6 +26,8 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private slowFactor = 1; // 1 = normal; <1 = slowed
   private slowUntil = 0;
   private stunUntil = 0;
+  private freezeStacks = 0; // Morgan: frost stacks build toward a hard-freeze
+  private frozenUntil = 0;  // while > now the zombie is locked solid (can't move)
   private poisonDps = 0;
   private poisonUntil = 0;
   private vulnStacks = 0; // gnaw (Jibgor): each bite raises damage taken; +8% per stack, capped
@@ -82,6 +84,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.nextHeroKillAt = 0;
     this.isElite = false;
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0;
+    this.freezeStacks = 0; this.frozenUntil = 0;
     this.poisonDps = 0; this.poisonUntil = 0; this.vulnStacks = 0;
     // precompute segment lengths for distance-based ordering
     this.segLen = [];
@@ -123,8 +126,8 @@ export class Zombie extends Phaser.GameObjects.Sprite {
       if (this.applyDamage(this.poisonDps * dt)) return null; // killed → caller reads dead via list filter
     }
 
-    // stunned → no movement (but still flashes)
-    if (this.stunUntil > now) { this.updateBars(); return null; }
+    // stunned OR hard-frozen → no movement (but still flashes / takes DoT)
+    if (this.stunUntil > now || this.frozenUntil > now) { this.updateBars(); return null; }
 
     const speed = this.baseSpeed * (this.slowUntil > now ? this.slowFactor : 1);
     let move = speed * dt;
@@ -315,6 +318,32 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.vulnStacks++;
   }
 
+  /** True while the zombie is locked in a hard-freeze (brittle, can't move). */
+  isFrozen(now: number): boolean {
+    return this.frozenUntil > now;
+  }
+
+  /** Morgan (Deep Freeze): add a frost stack. While building up it slows; once it
+   *  reaches `stacksToFreeze` it HARD-FREEZES (full stop) for `durationS` and the
+   *  stack counter resets so it can be re-frozen later. */
+  addFreezeStack(stacksToFreeze: number, durationS: number, now: number): void {
+    if (this.dead || this.dying) return;
+    // already frozen → just refresh the lock, don't re-count
+    if (this.frozenUntil > now) { this.frozenUntil = Math.max(this.frozenUntil, now + durationS * 1000); return; }
+    this.freezeStacks++;
+    if (this.freezeStacks >= stacksToFreeze) {
+      this.freezeStacks = 0;
+      this.frozenUntil = now + durationS * 1000;
+      this.setTint(0x6cc6ff); // solid ice
+      this.scene.time.delayedCall(durationS * 1000, () => {
+        if (!this.dead && this.frozenUntil <= this.scene.time.now) this.clearTint();
+      });
+    } else {
+      // building up: a light chill slow + frosty tint
+      this.applySlow(0.7, 1.2, now);
+    }
+  }
+
   /** Push the zombie back along the path (rewind waypoints by `px`). */
   knockBack(px: number): void {
     if (this.dead) return;
@@ -343,7 +372,8 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.scene.time.delayedCall(45, () => {
       if (this.dead) return;
       // restore a status tint if one is active, else clear
-      if (this.stunUntil > this.scene.time.now) this.setTint(0xffe066);
+      if (this.frozenUntil > this.scene.time.now) this.setTint(0x6cc6ff);
+      else if (this.stunUntil > this.scene.time.now) this.setTint(0xffe066);
       else if (this.slowUntil > this.scene.time.now) this.setTint(0x9be0ff);
       else this.clearTint();
     });

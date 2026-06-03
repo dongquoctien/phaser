@@ -37,6 +37,13 @@ export class Hero extends Phaser.GameObjects.Image {
   private mergeGlow?: Phaser.GameObjects.Arc;      // pulsing glow disc at the feet
   private mergePct?: Phaser.GameObjects.Text;     // "+x%" label below the hero
   private shieldPips: Phaser.GameObjects.Arc[] = []; // gold shield dots above the hero
+  // combo (xxKingxx): rising bonus damage while striking the SAME target
+  private comboTarget: Zombie | null = null;
+  comboCount = 0;
+  // spirit orbs (Yugitoh): visual guardians that circle the hero
+  private orbs: Phaser.GameObjects.Arc[] = [];
+  private orbRing?: Phaser.GameObjects.Arc; // faint orbit-path ring under the orbs
+  private orbTween?: Phaser.Tweens.Tween;   // shared rotation driver for the orbs
 
   constructor(scene: Phaser.Scene, id: HeroId, col: number, row: number, x: number, y: number) {
     const def = HEROES[id];
@@ -58,6 +65,7 @@ export class Hero extends Phaser.GameObjects.Image {
     this.setOrigin(0.5, 0.62); // feet sit a touch below centre on the pad
     scene.add.existing(this);
     this.startIdle();
+    if (def.skill === 'spirit') this.spawnOrbs(); // Yugitoh's orbiting guardians
     this.chatter('place'); // greet on placement
     // selection ring (hidden until selected)
     this.ring = scene.add.circle(x, y, def.tiers[0].range, Phaser.Display.Color.HexStringToColor(def.tint).color, 0.1)
@@ -80,15 +88,16 @@ export class Hero extends Phaser.GameObjects.Image {
     if (time < this.nextFireAt) return null;
     const s = this.stats;
 
-    if (this.def.attack === 'aura' || this.def.attack === 'nova') {
+    if (this.def.attack === 'aura' || this.def.attack === 'nova' || this.def.attack === 'orbit') {
       // radius effects fire on cooldown regardless of a specific target, but
-      // nova should only bother if something is in range.
-      if (this.def.attack === 'nova') {
-        const any = zombies.some((z) => !z.dead && !z.dying && Phaser.Math.Distance.Between(z.x, z.y, this.x, this.y) <= s.range);
+      // nova/orbit should only bother if something is in range of the effect.
+      if (this.def.attack === 'nova' || this.def.attack === 'orbit') {
+        const reach = this.def.attack === 'orbit' ? (this.def.orbRadius ?? s.range) : s.range;
+        const any = zombies.some((z) => !z.dead && !z.dying && Phaser.Math.Distance.Between(z.x, z.y, this.x, this.y) <= reach);
         if (!any) return null;
       }
       this.nextFireAt = time + s.fireInterval;
-      this.playAttack(0); // aura/nova: small forward pulse, no specific direction
+      if (this.def.attack !== 'orbit') this.playAttack(0); // orbit doesn't lunge — orbs do the work
       return { target: null, angle: 0 };
     }
 
@@ -216,6 +225,7 @@ export class Hero extends Phaser.GameObjects.Image {
     if (!this.canUpgrade) return;
     this.tier += 1;
     this.ring.setRadius(this.stats.range);
+    if (this.def.skill === 'spirit') this.spawnOrbs(); // more/wider orbs per tier
     this.chatter('upgrade');
     // celebratory pop relative to the resting scale (not a hard 1.18 that would
     // shrink a >1x hero), then settle back to baseScale.
@@ -323,6 +333,52 @@ export class Hero extends Phaser.GameObjects.Image {
     }
   }
 
+  // ── combo (xxKingxx) ──────────────────────────────────────────────────────────
+  /** Register a hit on `target`; returns the damage multiplier for this strike.
+   *  Consecutive hits on the same target ramp the multiplier; switching resets. */
+  comboHit(target: Zombie, step: number, max: number): number {
+    if (this.comboTarget === target && !target.dead) {
+      this.comboCount = Math.min(this.comboCount + 1, max);
+    } else {
+      this.comboTarget = target;
+      this.comboCount = 0;
+    }
+    return 1 + this.comboCount * step;
+  }
+
+  // ── spirit orbs (Yugitoh) ──────────────────────────────────────────────────────
+  /** (Re)build the orbiting orbs to match the current tier's orb count + radius,
+   *  then start them circling. Called on placement and after every upgrade. */
+  private spawnOrbs(): void {
+    for (const o of this.orbs) this.scene.tweens.killTweensOf(o), o.destroy();
+    this.orbs = [];
+    const n = this.stats.orbs ?? 2;
+    const radius = this.def.orbRadius ?? 52;
+    const col = Phaser.Display.Color.HexStringToColor(this.def.tint).color;
+    if (!this.orbRing) {
+      this.orbRing = this.scene.add.circle(this.x, this.y, radius, col, 0.06)
+        .setStrokeStyle(1, col, 0.25).setDepth(8);
+    }
+    this.orbRing.setRadius(radius);
+    for (let i = 0; i < n; i++) {
+      const orb = this.scene.add.circle(this.x, this.y, 5, col, 0.95)
+        .setStrokeStyle(1.5, 0xffffff, 0.7).setDepth(12);
+      this.orbs.push(orb);
+    }
+    // a shared rotation driver: one tween advances `phase`, orbs read it each frame
+    this.orbTween?.stop();
+    const state = { phase: 0 };
+    this.orbTween = this.scene.tweens.add({
+      targets: state, phase: Math.PI * 2, duration: 1400, repeat: -1, ease: 'Linear',
+      onUpdate: () => {
+        for (let i = 0; i < this.orbs.length; i++) {
+          const a = state.phase + (i / this.orbs.length) * Math.PI * 2;
+          this.orbs[i].setPosition(this.x + Math.cos(a) * radius, this.y + Math.sin(a) * radius);
+        }
+      },
+    });
+  }
+
   /** A floating "+x%" that rises and fades (juice on each merge / shield change). */
   private floatPct(): void {
     const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 5}%`, {
@@ -341,6 +397,9 @@ export class Hero extends Phaser.GameObjects.Image {
     this.mergeGlow?.destroy();
     this.mergePct?.destroy();
     for (const p of this.shieldPips) p.destroy();
+    this.orbTween?.stop();
+    for (const o of this.orbs) o.destroy();
+    this.orbRing?.destroy();
     this.destroy();
   }
 }
