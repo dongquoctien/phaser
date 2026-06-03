@@ -1444,9 +1444,9 @@ export class GameScene extends Phaser.Scene {
     const root = this.add.container(0, 0).setDepth(98);
     const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.82).setOrigin(0).setInteractive();
     const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT * 0.42;
-    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 360, 0x1c1730, 0.98).setStrokeStyle(3, 0xa7f070);
+    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 360, 0x1c1730, 0.98).setStrokeStyle(3, 0xff3b30);
     const title = this.add.text(cx, cy - 150, 'HOW TO PLAY', {
-      fontFamily: Fonts.Display, fontSize: '34px', color: '#a7f070', stroke: '#1a1c2c', strokeThickness: 6,
+      fontFamily: Fonts.Display, fontSize: '34px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 6,
     }).setOrigin(0.5);
     const tips = [
       '🟦  Tap a blue PAD to pick & place a hero',
@@ -1463,7 +1463,7 @@ export class GameScene extends Phaser.Scene {
     }).setOrigin(0.5);
     const go = this.add.text(cx, cy + 150, 'TAP TO START', {
       fontFamily: Fonts.Display, fontSize: '24px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 5,
-      backgroundColor: '#2a7a3a', padding: { x: 18, y: 6 },
+      backgroundColor: '#c0241a', padding: { x: 18, y: 6 },
     }).setOrigin(0.5);
     this.tweens.add({ targets: go, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
     root.add([dim, card, title, body, go]);
