@@ -46,6 +46,10 @@ export class GameScene extends Phaser.Scene {
   private pickerOpenedBy = -1; // pointer id of the tap that opened the picker (-1 = none)
   private detailBox!: Phaser.GameObjects.Container; // hero-detail pane inside the picker
   private listHighlights = new Map<HeroId, Phaser.GameObjects.Rectangle>();
+  private listPane!: Phaser.GameObjects.Container; // scrollable hero-list column
+  private listScrollMin = 0; // most-negative listPane.y (scrolled to bottom); 0 = top
+  private listScrollTop = 0;  // listPane.y at the top of the list (resting position)
+  private listDragged = false; // true if the last pointer interaction was a scroll-drag (suppresses the tap-select)
 
   constructor() {
     super(SceneKeys.Game);
@@ -1282,9 +1286,16 @@ export class GameScene extends Phaser.Scene {
     const header = this.add.text(12, 16, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
     this.heroPicker.add([dim, header]);
 
-    // ── LEFT: hero list (2 columns of avatar tiles) ──
-    // 25 heroes → 13 rows; tileH sized so the last row still fits in GAME_HEIGHT (800).
+    // ── LEFT: hero list (2 columns of avatar tiles) — SCROLLABLE ──
+    // The roster keeps growing (28 heroes → 14 rows), which overflows the 800px
+    // screen. So the tiles live in a `listPane` container we scroll vertically
+    // (drag or wheel); the header / detail / close are added AFTER it so they draw
+    // on top and hide any tiles that scroll past the top edge (Phaser 4 WebGL has
+    // no geometry masks — draw-order is the clip).
     const listX = 10, listY = 38, tileW = 74, tileH = 56, cols = 2;
+    this.listScrollTop = 0;
+    this.listPane = this.add.container(0, this.listScrollTop);
+    this.heroPicker.add(this.listPane);
     this.listHighlights.clear();
     HERO_IDS.forEach((id, i) => {
       const def = HEROES[id];
@@ -1296,10 +1307,16 @@ export class GameScene extends Phaser.Scene {
       const name = this.add.text(tx, ty + 18, def.name, { fontFamily: 'monospace', fontSize: '8px', color: '#cdd6e6' }).setOrigin(0.5);
       const hit = this.add.zone(tx, ty, tileW - 6, tileH - 6).setInteractive({ useHandCursor: true });
       hit.name = `pick:${id}`;
-      hit.on('pointerup', (p: Phaser.Input.Pointer) => this.previewHero(id, p));
+      hit.on('pointerup', (p: Phaser.Input.Pointer) => { if (!this.listDragged) this.previewHero(id, p); });
       this.listHighlights.set(id, hl);
-      this.heroPicker.add([cell, hl, icon, name, hit]);
+      this.listPane.add([cell, hl, icon, name, hit]);
     });
+    // scroll bounds: how far up the pane can slide so the last row sits on-screen.
+    const rows = Math.ceil(HERO_IDS.length / cols);
+    const listBottom = listY + rows * tileH;        // content height (px)
+    const visibleBottom = GAME_HEIGHT - 8;          // keep an 8px breathing gap
+    this.listScrollMin = Math.min(0, visibleBottom - listBottom);
+    this.installListScroll(listX, tileW * cols);
 
     // ── RIGHT: detail pane (rebuilt per selection in renderDetail) ──
     const detailX = listX + cols * tileW + 12;
@@ -1317,11 +1334,42 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker.add([closeBtn, closeX]);
   }
 
+  /** Make the hero LIST column scroll vertically (drag or mouse-wheel). Only acts
+   *  while the picker is open and the pointer is over the list column, so it never
+   *  fights with the detail pane / field input. `colX`/`colW` bound the hit area. */
+  private installListScroll(colX: number, colW: number): void {
+    const clamp = (y: number) => Phaser.Math.Clamp(y, this.listScrollMin, this.listScrollTop);
+    const overList = (p: Phaser.Input.Pointer) =>
+      this.heroPicker.visible && p.x >= colX - 4 && p.x <= colX + colW + 4;
+
+    // drag-to-scroll
+    let dragging = false, lastY = 0, downY = 0;
+    this.input.on(Phaser.Input.Events.POINTER_DOWN, (p: Phaser.Input.Pointer) => {
+      if (!overList(p)) return;
+      dragging = true; lastY = p.y; downY = p.y; this.listDragged = false;
+    });
+    this.input.on(Phaser.Input.Events.POINTER_MOVE, (p: Phaser.Input.Pointer) => {
+      if (!dragging || !p.isDown) return;
+      this.listPane.y = clamp(this.listPane.y + (p.y - lastY));
+      lastY = p.y;
+      if (Math.abs(p.y - downY) > 6) this.listDragged = true; // a real drag → suppress the tap-select
+    });
+    this.input.on(Phaser.Input.Events.POINTER_UP, () => { dragging = false; });
+
+    // mouse-wheel scroll
+    this.input.on(Phaser.Input.Events.POINTER_WHEEL, (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
+      if (!overList(p)) return;
+      this.listPane.y = clamp(this.listPane.y - dy * 0.5);
+    });
+  }
+
   private openHeroPicker(padKey: string, pointerId = -1): void {
     this.clearSelection();
     this.selectedPadKey = padKey;
     this.pickerOpenedBy = pointerId; // swallow this tap's pointerup (see isOpeningTap)
     this.showStartBtn(false);
+    this.listPane.y = this.listScrollTop; // always open scrolled to the top
+    this.listDragged = false;
     this.heroPicker.setVisible(true);
     // pre-select a random hero so the detail pane isn't empty on open
     const randomId = Phaser.Utils.Array.GetRandom(HERO_IDS as HeroId[]);
