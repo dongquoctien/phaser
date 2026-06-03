@@ -34,6 +34,7 @@ export class Hero extends Phaser.GameObjects.Image {
   private nextChatterAt = 0; // rate-limit attack chatter so it doesn't spam
   // merge visuals
   private mergeAura?: Phaser.GameObjects.Particles.ParticleEmitter; // fiery power-up aura
+  private mergeGlow?: Phaser.GameObjects.Arc;      // pulsing glow disc at the feet
   private mergePct?: Phaser.GameObjects.Text;     // "+x%" label below the hero
   private shieldPips: Phaser.GameObjects.Arc[] = []; // gold shield dots above the hero
 
@@ -265,23 +266,40 @@ export class Hero extends Phaser.GameObjects.Image {
     this.mergeTiers -= 1;
     this.refreshMergeVisuals();
     this.floatPct();
-    // shield-break flash
-    this.setTint(0xffe066);
-    this.scene.time.delayedCall(140, () => { if (this.active) this.clearTint(); });
+    // shield-break flash, then restore the merge warm-tint (or none if last tier)
+    this.setTint(0xffffff);
+    this.scene.time.delayedCall(140, () => {
+      if (!this.active) return;
+      if (this.mergeTiers > 0) this.setTint(0xfff0c0); else this.clearTint();
+    });
     return true;
   }
 
   /** Rebuild the fiery aura + shield pips + "+x%" label for the current tier count. */
   private refreshMergeVisuals(): void {
-    // fiery aura: on while merged
-    if (this.mergeTiers > 0 && !this.mergeAura) {
-      this.mergeAura = this.scene.add.particles(this.x, this.y - 6, 'spark', {
-        speed: { min: 8, max: 26 }, angle: { min: 250, max: 290 }, lifespan: 520,
-        scale: { start: 0.9, end: 0 }, alpha: { start: 0.8, end: 0 }, frequency: 90,
-        tint: [0xffd23f, 0xff8c3b, 0xff5b3b],
-      }).setDepth(10);
-    } else if (this.mergeTiers === 0 && this.mergeAura) {
-      this.mergeAura.destroy(); this.mergeAura = undefined;
+    // fiery "fused" aura: a pulsing glow ring under the hero + rising flame sparks.
+    // Colour/intensity ramps with merge tiers so a 3-stack reads as much hotter.
+    if (this.mergeTiers > 0) {
+      const ringCol = [0xffd23f, 0xff8c3b, 0xff5b3b][Math.min(this.mergeTiers - 1, 2)];
+      if (!this.mergeGlow) {
+        // glow disc at the feet — always-visible "power-up" base
+        this.mergeGlow = this.scene.add.circle(this.x, this.y + 8, 20, ringCol, 0.35).setDepth(8);
+        this.scene.tweens.add({ targets: this.mergeGlow, scale: 1.25, alpha: 0.55, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      }
+      this.mergeGlow.setFillStyle(ringCol, 0.4).setRadius(18 + this.mergeTiers * 4);
+      if (!this.mergeAura) {
+        this.mergeAura = this.scene.add.particles(this.x, this.y + 6, 'spark', {
+          speed: { min: 14, max: 40 }, angle: { min: 245, max: 295 }, lifespan: 620,
+          scale: { start: 1.3, end: 0 }, alpha: { start: 0.95, end: 0 }, frequency: 45,
+          tint: [0xffe066, 0xffd23f, 0xff8c3b, 0xff5b3b], blendMode: 'ADD',
+        }).setDepth(10);
+      }
+      this.mergeAura.frequency = Math.max(20, 60 - this.mergeTiers * 13); // denser per tier
+      this.setTint(0xfff0c0); // warm glow on the hero sprite itself
+    } else {
+      this.mergeAura?.destroy(); this.mergeAura = undefined;
+      this.mergeGlow?.destroy(); this.mergeGlow = undefined;
+      this.clearTint();
     }
     // shield pips (gold dots) above the head — one per tier
     for (const p of this.shieldPips) p.destroy();
@@ -320,6 +338,7 @@ export class Hero extends Phaser.GameObjects.Image {
     this.ring.destroy();
     this.turret?.destroy();
     this.mergeAura?.destroy();
+    this.mergeGlow?.destroy();
     this.mergePct?.destroy();
     for (const p of this.shieldPips) p.destroy();
     this.destroy();
