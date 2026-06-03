@@ -252,11 +252,13 @@ export class Hero extends Phaser.GameObjects.Image {
     });
   }
 
-  /** Apply one merge: +1 tier (so +5% more damage), refresh visuals, pop FX.
-   *  No-op past 3 tiers. Returns true if it actually merged. */
-  mergeOnce(): boolean {
+  /** Apply a merge worth `add` tiers (so +5% damage + 1 gold shield each), refresh
+   *  visuals, pop FX. The source contributes its own base tier PLUS any tiers it had
+   *  already merged, so stacking two merged heroes carries their bonuses over instead
+   *  of throwing them away. Caps at 3 tiers. Returns true if anything was gained. */
+  mergeOnce(add = 1): boolean {
     if (this.mergeTiers >= 3) return false;
-    this.mergeTiers += 1;
+    this.mergeTiers = Math.min(3, this.mergeTiers + Math.max(1, add));
     this.refreshMergeVisuals();
     this.floatPct();
     // a punchy power-up pop + brief flame burst
