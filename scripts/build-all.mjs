@@ -97,14 +97,32 @@ function artOf(game, thumb) {
   return null; // renderCard falls back to the cabinet glyph
 }
 
+// Per-game leaderboard API URL for CI builds. Each game has its OWN Cloudflare
+// Worker, so VITE_API_URL can't be one shared value — we map game → CI env var
+// (set as GitHub Actions repository *variables*; the URLs are public, not secrets).
+// Locally these are unset and each game's own .env supplies VITE_API_URL instead.
+// Empty/missing ⇒ that game builds offline (localStorage only) — no error.
+const API_URL_ENV = {
+  'twdc-defense': 'VITE_API_URL_TWDC',
+  'whack-a-mole': 'VITE_API_URL_WAM',
+};
+
 // ── 1. Build each game ─────────────────────────────────────────────────────────
 for (const game of games) {
   const base = `${BASE}${game}/`;
   console.log(`\n▶ Building ${game}  (base ${base}) ...`);
+  // If CI provides this game's API URL, inject it as VITE_API_URL for THIS build
+  // only (so games don't cross-wire). A game's local .env still wins when present.
+  const gameEnv = { ...process.env, GAME_BASE: base };
+  const apiVar = API_URL_ENV[game];
+  if (apiVar && process.env[apiVar]) {
+    gameEnv.VITE_API_URL = process.env[apiVar];
+    console.log(`  · leaderboard API: ${process.env[apiVar]}`);
+  }
   // Base via env (GAME_BASE), NOT a CLI flag (Git Bash mangles a leading "/").
   execSync(`npx vite build --config games/${game}/vite.config.mjs games/${game}`, {
     stdio: 'inherit',
-    env: { ...process.env, GAME_BASE: base },
+    env: gameEnv,
   });
 }
 
