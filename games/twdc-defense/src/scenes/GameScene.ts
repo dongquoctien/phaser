@@ -5,6 +5,7 @@ import { Zombie } from '../objects/Zombie';
 import { Projectile } from '../objects/Projectile';
 import { Hero } from '../objects/Hero';
 import { Audio } from '../systems/Audio';
+import { Storage } from '../systems/Storage';
 import { HEROES, HERO_IDS, ZOMBIES, MAP_BOSS, MAP_MINIONS, MAX_LEVEL, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
 import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, padCenter, isInsideGrid, type MapDef } from '../types/map';
 
@@ -1858,8 +1859,9 @@ export class GameScene extends Phaser.Scene {
     if (this.over) return;
     this.over = true;
     this.saveBest();
-    // mark this map cleared → unlocks the next one in MapSelect
+    // mark this map cleared → unlocks the next one in MapSelect (registry + localStorage)
     this.registry.set(mapClearedKey(this.map.id), true);
+    Storage.setCleared(this.map.id);
     const last = this.map.id >= MAP_COUNT - 1;
     const msg = last
       ? 'ALL MAPS CLEARED!\nYou are the champion\nTAP TO CONTINUE'
@@ -1870,6 +1872,7 @@ export class GameScene extends Phaser.Scene {
     const key = mapBestKey(this.map.id);
     const best = (this.registry.get(key) as number) ?? 0;
     if (this.wave > best) this.registry.set(key, this.wave);
+    Storage.setBest(this.map.id, this.wave); // mirror to localStorage (survives reload)
   }
   // ── tutorial / tips ────────────────────────────────────────────────────────────
   /** Paged "How to Play" carousel: one mechanic per page with an icon + short text,
