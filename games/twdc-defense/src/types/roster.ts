@@ -440,7 +440,7 @@ export function heroStars(def: HeroDef & { tiers: HeroTier[] }): number {
 
 // ── Zombies ──────────────────────────────────────────────────────────────────
 // 3 minion types + 3 per-map bosses (queen=Easy, khoai=Normal, hakj=Hard).
-export type ZombieId = 'walker' | 'slow' | 'brute' | 'boss' | 'khoai' | 'hakj';
+export type ZombieId = 'walker' | 'slow' | 'brute' | 'chainsaw' | 'boss' | 'khoai' | 'hakj';
 
 export interface ZombieDef {
   id: ZombieId; tex: TextureKey; hp: number; speedMul: number; bounty: number; scale: number;
@@ -458,6 +458,8 @@ export const ZOMBIES: Record<ZombieId, ZombieDef> = {
   walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 57, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
   slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 169, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
   brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 195, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
+  // chainsaw critter — a fast, mid-hp aggressor (4th basic minion type).
+  chainsaw: { id: 'chainsaw', tex: TextureKeys.ZombieChainsawStand, hp: 110, speedMul: 1.25, bounty: 1.6, scale: 0.42, sheet: 'chainsaw' },
   // ── bosses (one per map). skillCdMs = how often it destroys a hero (Easy slow → Hard fast).
   //    Title colours are themed per boss (toxic-green queen / blood-red king / drowned-cyan).
   // HP from this PR (boss +20%); cooldown from main (PR #21 -5s).
@@ -475,7 +477,7 @@ export const MAP_BOSS: Record<number, ZombieId> = { 0: 'boss', 1: 'khoai', 2: 'h
 /** Which minion types each map's regular waves can roll (used for cross-difficulty
  *  mixing: Normal can sprinkle Easy-map bosses-as-minions, Hard can sprinkle both). */
 export const MAP_MINIONS: Record<number, ZombieId[]> = {
-  0: ['walker', 'slow', 'brute'],
-  1: ['walker', 'slow', 'brute', 'boss'],          // Normal: Easy boss may appear as a minion
-  2: ['walker', 'slow', 'brute', 'boss', 'khoai'], // Hard: Easy + Normal bosses as minions
+  0: ['walker', 'slow', 'brute', 'chainsaw'],
+  1: ['walker', 'slow', 'brute', 'chainsaw', 'boss'],          // Normal: Easy boss may appear as a minion
+  2: ['walker', 'slow', 'brute', 'chainsaw', 'boss', 'khoai'], // Hard: Easy + Normal bosses as minions
 };

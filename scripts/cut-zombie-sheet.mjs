@@ -103,6 +103,25 @@ const SHEETS = {
       rise: [[157,729,369,947],[461,781,714,947],[751,826,980,947]],
     },
   },
+  // zombie-normal.png — orange chainsaw critter minion. Bright-green sheet, rows:
+  // idle(4) / shuffle-walk(6) / attack(5) / take-damage(3) / death(4). No attackB/
+  // victory/rise in the source → alias them (B→A, victory→idle, rise→death).
+  chainsaw: {
+    src: 'assets-src/twdc-defense/zombie-normal.png',
+    bg: (r, g, b, a) => a < 40 || (g > 105 && g - r > 22 && g - b > 22),
+    stand: {
+      idle: [[25,55,174,193],[205,55,361,193],[384,55,533,193],[560,55,706,193]],
+      walk: [[6,232,203,394],[204,232,369,394],[370,236,533,394],[545,236,706,394],[716,236,876,394],[883,236,1041,394]],
+      attackA: [[24,458,216,596],[226,458,427,596],[437,458,632,596],[637,458,833,596],[838,458,1038,596]],
+      attackB: [[24,458,216,596],[226,458,427,596],[437,458,632,596],[637,458,833,596],[838,458,1038,596]],
+      takeDamage: [[33,658,220,795],[231,658,433,795],[444,658,634,795]],
+      victory: [[25,55,174,193],[205,55,361,193],[384,55,533,193],[560,55,706,193]],
+    },
+    lie: {
+      death: [[31,860,242,999],[281,860,500,999],[544,880,768,999],[811,882,1037,999]],
+      rise: [[31,860,242,999],[281,860,500,999],[544,880,768,999],[811,882,1037,999]],
+    },
+  },
   // speed.png (bucket-head). Darker green bg; different layout (no attackA/B/rise).
   speed: {
     src: 'assets-src/twdc-defense/speed.png',

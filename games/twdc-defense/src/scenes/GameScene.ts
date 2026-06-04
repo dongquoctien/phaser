@@ -506,11 +506,12 @@ export class GameScene extends Phaser.Scene {
       // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
       // (Elite minions do NOT attack heroes — they're just tougher walkers.)
       if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
-        // The boss ALWAYS gets its kill. But the slow-mo cinematic zooms the main
-        // camera (which the UI rides on), so if a menu is open we'd warp/shut it
-        // mid-interaction. In that case do a QUICK, no-cinematic kill instead — the
-        // hero still dies, the menu stays put.
-        if (this.heroPicker.visible || this.upgradePanel.visible) {
+        // khoai/hakj hurl a projectile at a hero (ranged execute — no camera zoom,
+        // works fine with a menu open). The Easy boss uses the slow-mo cinematic,
+        // falling back to a quick no-cinematic kill if a menu is open.
+        if (z.bossInfo.throwTex) {
+          this.bossThrowHero(z, z.bossInfo.throwTex);
+        } else if (this.heroPicker.visible || this.upgradePanel.visible) {
           this.bossKillHeroQuick(z);
         } else {
           this.bossKillHero(z);
@@ -930,8 +931,8 @@ export class GameScene extends Phaser.Scene {
 
   /** Pick the boss's victim: FOCUS merged heroes first (gold shields to break),
    *  else the nearest ordinary hero within reach. Null if nothing is close enough. */
-  private pickBossVictim(boss: Zombie): Hero | null {
-    const REACH = 150;
+  private pickBossVictim(boss: Zombie, reach = 150): Hero | null {
+    const REACH = reach;
     const pick = (onlyMerged: boolean): Hero | null => {
       let t: Hero | null = null, best = REACH;
       for (const h of this.heroes) {
@@ -965,6 +966,32 @@ export class GameScene extends Phaser.Scene {
     if (!victim) return;
     boss.playBossAttack();
     this.bossKillBlow(boss, victim);
+  }
+
+  /** Ranged boss execute: King Khoai hurls a potato, Hakj a fish-bone spear at a
+   *  hero from across the field. The projectile spins/flies to the target and
+   *  delivers the kill blow on arrival (a gold shield still absorbs it). No camera
+   *  zoom, so it's safe with a menu open. */
+  private bossThrowHero(boss: Zombie, tex: string): void {
+    const victim = this.pickBossVictim(boss, 9999); // ranged — reach the whole field
+    if (!victim) return;
+    boss.playBossAttack();
+    const tx = victim.x, ty = victim.y; // capture target pos at throw time
+    const angle = Math.atan2(ty - boss.y, tx - boss.x);
+    const proj = this.add.image(boss.x, boss.y - 10, tex).setDepth(21).setRotation(angle);
+    // scale potato/spear to a sensible size (potato small, spear longer)
+    const targetH = tex === TextureKeys.FxPotato ? 16 : 18;
+    proj.setScale(targetH / (proj.height || targetH));
+    const dist = Math.hypot(tx - boss.x, ty - (boss.y - 10));
+    this.tweens.add({
+      targets: proj, x: tx, y: ty, rotation: angle + (tex === TextureKeys.FxPotato ? Math.PI * 4 : 0),
+      duration: Phaser.Math.Clamp(dist * 1.4, 260, 700), ease: 'Quad.easeIn',
+      onComplete: () => {
+        proj.destroy();
+        if (!victim.active) return; // hero already gone
+        this.bossKillBlow(boss, victim);
+      },
+    });
   }
 
   /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
@@ -1090,8 +1117,9 @@ export class GameScene extends Phaser.Scene {
       const r = Math.random();
       // elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
       if (elite.length && this.wave >= 7 && r < 0.15) q.push(Phaser.Utils.Array.GetRandom(elite));
-      else if (this.wave >= 6 && pool.includes('brute') && r < 0.28) q.push('brute');
-      else if (this.wave >= 3 && pool.includes('slow') && r < 0.5) q.push('slow');
+      else if (this.wave >= 4 && pool.includes('chainsaw') && r < 0.32) q.push('chainsaw'); // fast aggressor
+      else if (this.wave >= 6 && pool.includes('brute') && r < 0.5) q.push('brute');
+      else if (this.wave >= 3 && pool.includes('slow') && r < 0.68) q.push('slow');
       else q.push('walker');
     }
     if (isBossWave) {
@@ -1211,7 +1239,10 @@ export class GameScene extends Phaser.Scene {
     // mark the wave's headline boss so it gets the hero-kill skill (elite minions
     // of a boss type stay ordinary — no skill, no popup).
     if (asBoss && def.boss) {
-      z.bossInfo = def.boss;
+      // khoai/hakj execute heroes by THROWING a projectile (ranged); the Easy boss
+      // keeps the slow-mo melee cinematic. (Copy so we never mutate the shared def.)
+      const throwTex = id === 'khoai' ? TextureKeys.FxPotato : id === 'hakj' ? TextureKeys.FxBoneSpear : undefined;
+      z.bossInfo = { ...def.boss, throwTex };
       z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
     } else if (def.boss) {
       z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate (no hero-kill)

@@ -18,7 +18,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   reachedEnd = false;
   /** boss-only metadata (name + hero-kill cooldown); undefined for minions, even
    *  when a boss type walks in as an elite minion (set only on real boss waves). */
-  bossInfo?: { name: string; skillCdMs: number };
+  bossInfo?: { name: string; skillCdMs: number; throwTex?: string };
   nextHeroKillAt = 0; // next time this boss may destroy a hero (scene clock ms)
   isElite = false; // a boss-type walking in as a tougher minion (no skill/popup); costs 3 lives at the gate
 

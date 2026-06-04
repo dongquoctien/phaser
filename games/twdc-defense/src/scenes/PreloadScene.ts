@@ -53,6 +53,8 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet(SS.ZombieSpeedLie, 'enemies/zombie-speed-lie.png', { frameWidth: 179, frameHeight: 98 });
     this.load.spritesheet(SS.ZombieBruteStand, 'enemies/zombie-brute-stand.png', { frameWidth: 118, frameHeight: 141 });
     this.load.spritesheet(SS.ZombieBruteLie, 'enemies/zombie-brute-lie.png', { frameWidth: 158, frameHeight: 142 });
+    this.load.spritesheet(SS.ZombieChainsawStand, 'enemies/zombie-chainsaw-stand.png', { frameWidth: 207, frameHeight: 166 });
+    this.load.spritesheet(SS.ZombieChainsawLie, 'enemies/zombie-chainsaw-lie.png', { frameWidth: 231, frameHeight: 144 });
     // per-map bosses (cut by cut-zombie-sheet.mjs khoai|hakj)
     this.load.spritesheet(SS.ZombieKhoaiStand, 'enemies/zombie-khoai-stand.png', { frameWidth: 242, frameHeight: 193 });
     this.load.spritesheet(SS.ZombieKhoaiLie, 'enemies/zombie-khoai-lie.png', { frameWidth: 242, frameHeight: 228 });
@@ -63,6 +65,8 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet(SS.FxFireball, 'effects/fireball.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet(SS.FxSlash, 'effects/slash.png', { frameWidth: 80, frameHeight: 80 });
     this.load.spritesheet(SS.FxIce, 'effects/ice.png', { frameWidth: 72, frameHeight: 72 });
+    this.load.image(SS.FxPotato, 'effects/potato.png');
+    this.load.image(SS.FxBoneSpear, 'effects/bonespear.png');
   }
 
   create(): void {
@@ -116,6 +120,18 @@ export class PreloadScene extends Phaser.Scene {
       mk(`${pfx}-death`, lie, 0, 5, 3, 8, 0);
       mk(`${pfx}-rise`, lie, 1, 5, 5, 9, 0);
     }
+
+    // chainsaw critter: stand 6 cols (idle4/walk6/attackA5/attackB5/takeDamage3/
+    // victory4); lie 4 cols (death4/rise4).
+    const cs = TextureKeys.ZombieChainsawStand, csL = TextureKeys.ZombieChainsawLie;
+    mk('chainsaw-idle', cs, 0, 6, 4, 5, -1, true);
+    mk('chainsaw-walk', cs, 1, 6, 6, 11, -1);
+    mk('chainsaw-attackA', cs, 2, 6, 5, 13, 0);
+    mk('chainsaw-attackB', cs, 3, 6, 5, 13, 0);
+    mk('chainsaw-takeDamage', cs, 4, 6, 3, 14, 0);
+    mk('chainsaw-victory', cs, 5, 6, 4, 6, -1);
+    mk('chainsaw-death', csL, 0, 4, 4, 9, 0);
+    mk('chainsaw-rise', csL, 1, 4, 4, 9, 0);
 
     // speed (bucket-head): stand 6 cols, rows idle/walk/attack/takeDamage/victory;
     // lie sheet has a single death row (4 cols). No attackB/rise — alias to attack.

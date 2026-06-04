@@ -80,6 +80,8 @@ export const TextureKeys = {
   ZombieSpeedLie: 'zombie-speed-lie',     // slow — death
   ZombieBruteStand: 'zombie-brute-stand', // brute (satchel girl) — same anim set as girl
   ZombieBruteLie: 'zombie-brute-lie',     // brute — death/rise
+  ZombieChainsawStand: 'zombie-chainsaw-stand', // chainsaw critter minion
+  ZombieChainsawLie: 'zombie-chainsaw-lie',     // chainsaw — death/rise
   // per-map bosses: khoai (Normal map king), hakj (Hard map fish king)
   ZombieKhoaiStand: 'zombie-khoai-stand', ZombieKhoaiLie: 'zombie-khoai-lie',
   ZombieHakjStand: 'zombie-hakj-stand', ZombieHakjLie: 'zombie-hakj-lie',
@@ -99,6 +101,8 @@ export const TextureKeys = {
   FxFireball: 'fx-fireball', // 64×64 ×7 — growing flame comet (xxKongxx burn impact)
   FxSlash: 'fx-slash',       // 80×80 ×6 — blue/orange sword-slash arc (xxKongxx hit, Oreo)
   FxIce: 'fx-ice',           // 72×72 ×5 — cyan ice-crystal burst (HAKJ splash)
+  FxPotato: 'fx-potato',     // King Khoai's thrown potato projectile
+  FxBoneSpear: 'fx-bonespear', // Hakj's thrown fish-bone spear projectile
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 
