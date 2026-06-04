@@ -773,9 +773,13 @@ export class GameScene extends Phaser.Scene {
         const stacks = pr.tier.burnStacksToIncinerate ?? def.burnStacksToIncinerate ?? 5;
         const incin = pr.tier.incinPctPerTick ?? def.incinPctPerTick ?? 0.04;
         const dur = def.burnDuration ?? 3;
+        // a flaming sword-slash arc on the strike (random tilt so swings vary)
+        this.playFxAnim('fx-slash', hit.x, hit.y, 0.7, Phaser.Math.Between(-35, 35), 0xff8a3a);
         if (!hit.dead && !hit.dying) {
           const ignited = hit.applyBurn(dps, dur, stacks, incin, now);
           this.flameFx(hit.x, hit.y, ignited);
+          // a bigger fireball burst at the moment of ignition
+          if (ignited) this.playFxAnim('fx-fireball', hit.x, hit.y, 1.1);
         }
         // spread a single burn stack to neighbours within the spread radius
         const sr = def.burnSpreadRadius ?? 40;
@@ -853,6 +857,12 @@ export class GameScene extends Phaser.Scene {
         const dmg = frac <= (def.executeThreshold ?? 0.3) ? pr.damage * (def.executeMul ?? 2.5) : pr.damage;
         if (dmg > pr.damage) this.boom(pr.x, pr.y, 0.5);
         this.damageZombie(hit, dmg, null, live, now);
+        break;
+      }
+      case 'multishot': {
+        // Oreo: shuriken strike — a quick white slash spark per hit (long range now).
+        this.damageZombie(hit, pr.damage, null, live, now);
+        this.playFxAnim('fx-slash', hit.x, hit.y, 0.5, Phaser.Math.Between(0, 359), 0xffffff);
         break;
       }
       case 'rapidfire':
@@ -1279,6 +1289,16 @@ export class GameScene extends Phaser.Scene {
       const t = this.add.text(x, y - 16, `x${count + 1}`, { fontFamily: 'monospace', fontSize: `${10 + Math.min(count, 5)}px`, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 3 }).setOrigin(0.5).setDepth(20);
       this.tweens.add({ targets: t, y: y - 30, alpha: 0, scale: 1.3, duration: 420, ease: 'Quad.out', onComplete: () => t.destroy() });
     }
+  }
+
+  /** Play a one-shot FX spritesheet animation at (x,y), then destroy it. `scale`
+   *  sizes it; `angle` rotates (slash arcs); `tint` optional recolour. */
+  private playFxAnim(key: string, x: number, y: number, scale = 1, angle = 0, tint?: number): void {
+    const spr = this.add.sprite(x, y, key === 'fx-slash' ? TextureKeys.FxSlash : TextureKeys.FxFireball)
+      .setDepth(16).setScale(scale).setAngle(angle).setBlendMode(Phaser.BlendModes.ADD);
+    if (tint !== undefined) spr.setTint(tint);
+    spr.play(key);
+    spr.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => spr.destroy());
   }
 
   // xxKongxx's FLAME: little fire tongues rising off a burning zombie. `ignite`

@@ -58,11 +58,16 @@ export class PreloadScene extends Phaser.Scene {
     this.load.spritesheet(SS.ZombieKhoaiLie, 'enemies/zombie-khoai-lie.png', { frameWidth: 242, frameHeight: 228 });
     this.load.spritesheet(SS.ZombieHakjStand, 'enemies/zombie-hakj-stand.png', { frameWidth: 258, frameHeight: 232 });
     this.load.spritesheet(SS.ZombieHakjLie, 'enemies/zombie-hakj-lie.png', { frameWidth: 258, frameHeight: 223 });
+
+    // animated FX (cut from the user's effect sheets by scripts/cut-effect-sheet.mjs)
+    this.load.spritesheet(SS.FxFireball, 'effects/fireball.png', { frameWidth: 64, frameHeight: 64 });
+    this.load.spritesheet(SS.FxSlash, 'effects/slash.png', { frameWidth: 80, frameHeight: 80 });
   }
 
   create(): void {
     bakeArt(this);
     this.createZombieAnims();
+    this.createFxAnims();
     // Wait for the Bangers display font (titles + banners) so the first text that
     // renders already uses it instead of flashing the monospace fallback.
     const go = () => this.scene.start(SceneKeys.Menu);
@@ -144,6 +149,24 @@ export class PreloadScene extends Phaser.Scene {
     mk('hakj-victory', hj, 5, 3, 3, 6, -1);
     mk('hakj-death', hjL, 0, 3, 3, 8, 0);
     mk('hakj-rise', hjL, 1, 3, 3, 9, 0);
+  }
+
+  // One-shot FX animations (play once, then the sprite is destroyed by the scene).
+  private createFxAnims(): void {
+    if (!this.anims.exists('fx-fireball')) {
+      this.anims.create({
+        key: 'fx-fireball',
+        frames: this.anims.generateFrameNumbers(TextureKeys.FxFireball, { start: 0, end: 6 }),
+        frameRate: 22, repeat: 0,
+      });
+    }
+    if (!this.anims.exists('fx-slash')) {
+      this.anims.create({
+        key: 'fx-slash',
+        frames: this.anims.generateFrameNumbers(TextureKeys.FxSlash, { start: 0, end: 5 }),
+        frameRate: 30, repeat: 0,
+      });
+    }
   }
 
   private drawProgressBar(): void {

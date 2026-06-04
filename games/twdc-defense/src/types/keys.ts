@@ -95,6 +95,9 @@ export const TextureKeys = {
   Slash: 'slash',
   Explosion: 'explosion',
   Spark: 'spark',
+  // animated FX spritesheets (cut from 0assets/effect by scripts/cut-effect-sheet.mjs)
+  FxFireball: 'fx-fireball', // 64×64 ×7 — growing flame comet (xxKongxx burn impact)
+  FxSlash: 'fx-slash',       // 80×80 ×6 — blue/orange sword-slash arc (xxKongxx hit, Oreo)
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 

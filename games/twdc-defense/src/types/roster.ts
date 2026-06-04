@@ -166,9 +166,9 @@ export const HEROES: Record<HeroId, Full> = {
   oreo: {
     id: 'oreo', name: 'Oreo', tex: TextureKeys.HeroOreo, proj: TextureKeys.ProjArrow, projSpeed: 420,
     attack: 'projectile', skill: 'multishot', shots: 3, tint: '#ff7da8',
-    blurb: 'Throws shuriken at the 3 nearest zombies each volley.',
+    blurb: 'Long-range shuriken volley — strikes the 3 nearest zombies across the field.',
     lore: 'Top of her class in the ninja club — right before class got cancelled forever. Now her homework is survival, and she always hits the deadline.',
-    tiers: tiers({ range: 135, fireInterval: 620, damage: 9, cost: 100 }, { damage: 14, cost: 130 }, { damage: 22, cost: 200, shots: 4 } as Partial<HeroTier>),
+    tiers: tiers({ range: 230, fireInterval: 620, damage: 9, cost: 100 }, { damage: 14, cost: 130, range: 245 } as Partial<HeroTier>, { damage: 22, cost: 200, shots: 4, range: 255 } as Partial<HeroTier>),
   },
   rwah: {
     id: 'rwah', name: 'Rwah', tex: TextureKeys.HeroRwah, proj: TextureKeys.ProjPoison, projSpeed: 320,
