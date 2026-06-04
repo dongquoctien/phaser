@@ -140,7 +140,9 @@ export const Fonts = {
 export const RegistryKeys = {
   BestWave: 'bestWave',
   Muted: 'muted',
-  TipsSeen: 'twdc.tipsSeen', // once the first-time tutorial has been dismissed
+  TipsSeen: 'twdc.tipsSeen',     // once the first-time tutorial has been dismissed
+  HintPadSeen: 'twdc.hintPad',   // one-time "tap a pad" contextual hint shown
+  HintMergeSeen: 'twdc.hintMerge', // one-time "drag to merge" contextual hint shown
 } as const;
 
 // Per-map progress keys (persisted in the Phaser registry).

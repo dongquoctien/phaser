@@ -109,8 +109,10 @@ export class GameScene extends Phaser.Scene {
     this.showStartBtn(true);
     this.refreshCountdown(); // shows the START label (no timer)
 
-    // first-time tutorial overlay (once per player, persisted in the registry)
+    // first-time tutorial overlay (once per player, persisted in the registry).
+    // If they've already seen it, nudge them with the "tap a pad" toast instead.
     if (!this.registry.get(RegistryKeys.TipsSeen)) this.showTutorial();
+    else this.time.delayedCall(600, () => { if (this.heroes.length === 0) this.markTip('pad'); });
 
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       (this as unknown as Record<string, unknown>).__dev = {
@@ -337,6 +339,7 @@ export class GameScene extends Phaser.Scene {
     // the card's pointerup and eat the pick.
     if (this.heroPicker.visible) return;
     if (p.y >= HUD_TOP) return; // HUD handles its own buttons (incl. picker/panel)
+    if (p.x >= GAME_WIDTH - 40 && p.y <= 40) return; // top-right "?" help button zone
     const col = Math.floor(p.x / CELL);
     const row = Math.floor(p.y / CELL);
     const key = `${col},${row}`;
@@ -1488,6 +1491,15 @@ export class GameScene extends Phaser.Scene {
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 12, 'Tap a pad → pick a hero · tap a hero to upgrade', {
       fontFamily: 'monospace', fontSize: '9px', color: '#8a7aa6', align: 'center', wordWrap: { width: GAME_WIDTH - 16 },
     }).setOrigin(0.5).setDepth(40);
+
+    // "?" help button — top-right of the play field; reopens How to Play any time.
+    const hb = this.add.circle(GAME_WIDTH - 20, 20, 14, 0x1c1730, 0.9).setStrokeStyle(2, 0xffd23f).setDepth(50).setInteractive({ useHandCursor: true });
+    this.add.text(GAME_WIDTH - 20, 20, '?', { fontFamily: Fonts.Display, fontSize: '20px', color: '#ffd23f' }).setOrigin(0.5).setDepth(51);
+    hb.on('pointerup', () => {
+      if (this.heroPicker.visible || this.upgradePanel.visible || this.cinematicActive) return;
+      this.audio.play(AudioKeys.Click);
+      this.showTutorial();
+    });
   }
 
   // Scrollable-ish hero picker: a grid of all 15 hero icons in the HUD band.
@@ -1736,6 +1748,7 @@ export class GameScene extends Phaser.Scene {
           this.audio.play(AudioKeys.Place);
           h.setSelected(true);
           this.showUpgradePanel(h);
+          this.maybeHintMerge(); // just hit max? two max same-type → suggest merging
         } else {
           this.audio.play(AudioKeys.Lose);
         }
@@ -1793,44 +1806,123 @@ export class GameScene extends Phaser.Scene {
     if (this.wave > best) this.registry.set(key, this.wave);
   }
   // ── tutorial / tips ────────────────────────────────────────────────────────────
-  /** First-time tutorial: a dismissible card listing the core actions. Shown once
-   *  (persisted via RegistryKeys.TipsSeen), tap anywhere to begin. */
+  /** Paged "How to Play" carousel: one mechanic per page with an icon + short text,
+   *  dot indicators, and Prev/Next/Skip. Shown once on first run (persisted via
+   *  TipsSeen) and re-openable any time via the HUD "?" button. */
   private showTutorial(): void {
+    const T = TextureKeys;
+    // each page: an emoji-ish icon source (a texture key, or null = draw a glyph),
+    // a fallback glyph, a colour, a title and 1–2 short lines.
+    const pages: Array<{ tex: string | null; glyph: string; col: string; title: string; lines: string[] }> = [
+      { tex: T.Pad, glyph: '🟦', col: '#5ad1ff', title: 'PLACE HEROES',
+        lines: ['Tap a glowing PAD to open the', 'hero list, then PLACE a hero on it.'] },
+      { tex: null, glyph: '▶', col: '#a7f070', title: 'START THE WAVE',
+        lines: ['Press START WAVE to send the', 'zombies in. Survive every wave!'] },
+      { tex: T.HeroMymy, glyph: '⬆', col: '#ffe066', title: 'UPGRADE & SELL',
+        lines: ['Tap a hero to UPGRADE it (max Lv10),', 'or SELL it to refund 60% of its cost.'] },
+      { tex: T.HeroHakj, glyph: '✨', col: '#ffd23f', title: 'MERGE FOR POWER',
+        lines: ['Drag a MAX-LEVEL hero onto another of', 'the SAME type: +5% damage + a gold', 'shield that blocks one boss hit (max 3).'] },
+      { tex: T.ZombieBossStand, glyph: '👑', col: '#ff5d5d', title: 'BEWARE THE BOSS',
+        lines: ['Bosses can execute your heroes — and', 'one reaching the gate costs 10 lives!'] },
+    ];
+
     const root = this.add.container(0, 0).setDepth(98);
-    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.82).setOrigin(0).setInteractive();
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.84).setOrigin(0).setInteractive();
     const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT * 0.42;
-    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 360, 0x1c1730, 0.98).setStrokeStyle(3, 0xff3b30);
-    const title = this.add.text(cx, cy - 150, 'HOW TO PLAY', {
-      fontFamily: Fonts.Display, fontSize: '34px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 6,
+    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 320, 0x1c1730, 0.98).setStrokeStyle(3, 0xff3b30);
+    const header = this.add.text(cx, cy - 132, 'HOW TO PLAY', {
+      fontFamily: Fonts.Display, fontSize: '26px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 5,
     }).setOrigin(0.5);
-    const tips = [
-      '🟦  Tap a blue PAD to pick & place a hero',
-      '▶  Press START to begin wave 1',
-      '⬆  Tap a hero → UP to upgrade (max Lv10)',
-      '💰  SELL a hero to refund 60% of its cost',
-      '✨  Drag a MAX-LEVEL hero onto another of the',
-      '      SAME type to MERGE: +5% power + a gold',
-      '      shield (max 3) that blocks a boss hit',
-      '👑  A boss reaching the gate costs 10 lives!',
-    ].join('\n');
-    const body = this.add.text(cx, cy - 18, tips, {
-      fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'left', lineSpacing: 7,
-    }).setOrigin(0.5);
-    const go = this.add.text(cx, cy + 150, 'TAP TO START', {
-      fontFamily: Fonts.Display, fontSize: '24px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 5,
-      backgroundColor: '#c0241a', padding: { x: 18, y: 6 },
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: go, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
-    root.add([dim, card, title, body, go]);
-    dim.once('pointerup', () => {
-      this.registry.set(RegistryKeys.TipsSeen, true);
-      root.destroy();
-    });
+    root.add([dim, card, header]);
+
+    // page content holders (rebuilt each page)
+    const iconImg = this.add.image(cx, cy - 56, T.Pad).setDepth(99);
+    const iconGlyph = this.add.text(cx, cy - 56, '', { fontFamily: Fonts.Display, fontSize: '46px', color: '#fff' }).setOrigin(0.5);
+    const pTitle = this.add.text(cx, cy - 8, '', { fontFamily: Fonts.Display, fontSize: '22px', color: '#fff', stroke: '#1a1c2c', strokeThickness: 4 }).setOrigin(0.5);
+    const pBody = this.add.text(cx, cy + 46, '', { fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'center', lineSpacing: 6 }).setOrigin(0.5);
+    root.add([iconImg, iconGlyph, pTitle, pBody]);
+
+    // dot indicators
+    const dots: Phaser.GameObjects.Arc[] = [];
+    const dotY = cy + 104, dotGap = 16, dotX0 = cx - ((pages.length - 1) * dotGap) / 2;
+    for (let i = 0; i < pages.length; i++) {
+      const d = this.add.circle(dotX0 + i * dotGap, dotY, 4, 0x6a5a8a).setDepth(99);
+      dots.push(d); root.add(d);
+    }
+
+    // nav buttons
+    const mkBtn = (x: number, label: string, bg: string, fg: string) =>
+      this.add.text(x, cy + 138, label, {
+        fontFamily: Fonts.Display, fontSize: '18px', color: fg, stroke: '#1a1c2c', strokeThickness: 4,
+        backgroundColor: bg, padding: { x: 14, y: 5 },
+      }).setOrigin(0.5).setDepth(99).setInteractive({ useHandCursor: true });
+    const prevBtn = mkBtn(cx - 92, 'BACK', '#2a2038', '#cdd6e6');
+    const nextBtn = mkBtn(cx + 78, 'NEXT', '#c0241a', '#ffffff');
+    const skip = this.add.text(GAME_WIDTH - 16, cy - 142, 'SKIP ✕', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#8a7aa6',
+    }).setOrigin(1, 0.5).setDepth(99).setInteractive({ useHandCursor: true });
+    root.add([prevBtn, nextBtn, skip]);
+    this.tweens.add({ targets: nextBtn, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
+
+    let page = 0;
+    const render = () => {
+      const p = pages[page];
+      if (p.tex && this.textures.exists(p.tex)) {
+        iconImg.setVisible(true).setTexture(p.tex);
+        const src = iconImg.height || 48; iconImg.setScale(52 / src);
+        iconGlyph.setVisible(false);
+      } else {
+        iconImg.setVisible(false);
+        iconGlyph.setVisible(true).setText(p.glyph).setColor(p.col);
+      }
+      pTitle.setText(p.title).setColor(p.col);
+      pBody.setText(p.lines.join('\n'));
+      for (let i = 0; i < dots.length; i++) dots[i].setFillStyle(i === page ? 0xffd23f : 0x6a5a8a).setScale(i === page ? 1.3 : 1);
+      prevBtn.setVisible(page > 0);
+      (nextBtn as Phaser.GameObjects.Text).setText(page === pages.length - 1 ? 'PLAY ▶' : 'NEXT');
+    };
+    const finish = () => { this.registry.set(RegistryKeys.TipsSeen, true); root.destroy(); };
+    nextBtn.on('pointerup', () => { if (page < pages.length - 1) { page++; render(); } else finish(); });
+    prevBtn.on('pointerup', () => { if (page > 0) { page--; render(); } });
+    skip.on('pointerup', finish);
+    render();
   }
 
-  /** Hook for per-action discovery hints (currently a no-op placeholder beyond the
-   *  one-time tutorial; kept so feature code can flag a discovered mechanic). */
-  private markTip(_key: string): void { /* reserved for future contextual hints */ }
+  /** Contextual one-time hints: a small toast that teaches a mechanic the moment it
+   *  becomes relevant. `key` is the RegistryKey persisting "already shown". */
+  private markTip(key: string): void {
+    let regKey: string | null = null, msg = '';
+    if (key === 'pad') { regKey = RegistryKeys.HintPadSeen; msg = '👆 Tap a glowing PAD to place a hero'; }
+    else if (key === 'merge') { regKey = RegistryKeys.HintMergeSeen; msg = '✨ Drag a max-level hero onto a same-type one to MERGE'; }
+    if (!regKey || this.registry.get(regKey)) return; // unknown or already shown
+    this.registry.set(regKey, true);
+    this.showToast(msg);
+  }
+
+  /** If there are ≥2 max-level heroes of the SAME type (a valid merge pair), show
+   *  the one-time merge hint. Called after an upgrade so it fires the moment merging
+   *  first becomes possible. */
+  private maybeHintMerge(): void {
+    if (this.registry.get(RegistryKeys.HintMergeSeen)) return;
+    const maxByType = new Map<string, number>();
+    for (const h of this.heroes) {
+      if (!h.isMaxLevel) continue;
+      const n = (maxByType.get(h.heroId) ?? 0) + 1;
+      maxByType.set(h.heroId, n);
+      if (n >= 2) { this.markTip('merge'); return; }
+    }
+  }
+
+  /** A small auto-dismissing hint banner near the bottom of the field. */
+  private showToast(msg: string): void {
+    const y = FIELD_H - 40;
+    const t = this.add.text(GAME_WIDTH / 2, y, msg, {
+      fontFamily: 'monospace', fontSize: '12px', color: '#1a1c2c', align: 'center',
+      backgroundColor: '#ffe066', padding: { x: 12, y: 7 }, wordWrap: { width: GAME_WIDTH - 60 },
+    }).setOrigin(0.5).setDepth(80).setAlpha(0);
+    this.tweens.add({ targets: t, alpha: 1, y: y - 8, duration: 240, ease: 'Back.out' });
+    this.tweens.add({ targets: t, alpha: 0, y: y - 20, delay: 3200, duration: 400, onComplete: () => t.destroy() });
+  }
 
   private endOverlay(msg: string, color: string): void {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.72).setOrigin(0).setDepth(90);
