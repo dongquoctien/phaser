@@ -15,3 +15,6 @@ hub-*.png
 
 # game env files (VITE_API_URL etc.) — committed as .env.example only
 games/*/.env
+
+# wrangler local state/cache for the leaderboard Workers
+games/*/server/.wrangler/

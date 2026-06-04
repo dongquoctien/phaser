@@ -4,12 +4,11 @@ name = "wam-leaderboard"
 main = "worker.js"
 compatibility_date = "2024-09-01"
 
-# KV namespace for sessions + scores.
-# Create one first:  npx wrangler kv namespace create LB
-# then paste the returned id below.
+# KV namespace for sessions + scores. Bound as `LB` in worker.js; the underlying
+# namespace is titled "WAM_LB" so it never mixes with twdc-defense's "LB" store.
 [[kv_namespaces]]
 binding = "LB"
-id = "PASTE_YOUR_KV_NAMESPACE_ID_HERE"
+id = "81d3b5a5f2734138b87a47984485a04e"
 
 [vars]
 # Lock this down to the game's static origin in production (not "*").
