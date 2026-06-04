@@ -66,6 +66,7 @@ export class GameScene extends Phaser.Scene {
     this.waypoints = pathWaypoints(this.map);
     this.gold = this.map.startGold;
     this.lives = Tuning.startLives;
+    this.lastPickedHero = 'oreo'; // each new game starts the picker on Oreo
     this.wave = 0;
     this.waveActive = false;
     this.spawnQueue = [];
