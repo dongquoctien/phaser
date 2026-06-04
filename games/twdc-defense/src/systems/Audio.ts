@@ -45,14 +45,23 @@ export class Audio {
     this.scene = scene;
     const muted = (scene.registry.get(RegistryKeys.Muted) as boolean) ?? false;
     scene.sound.setMute(muted);
-    this.installIosUnlock();
+    // Disable Phaser's own blur-pause/focus-resume — it pauses every sound on blur
+    // then resumes them on focus, which fights our handler and lets paused SFX
+    // resume + STACK on return. We do tab handling ourselves (suspend + drop).
+    scene.sound.pauseOnBlur = false;
+    this.installVisibilityHandling();
     // stop music when the scene shuts down so it doesn't leak across restarts
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMusic());
   }
 
+  /** True while the tab/window is backgrounded — callers can use this to skip
+   *  sound-producing work in the game loop entirely (defense in depth). */
+  get suspended(): boolean { return this.pageHidden; }
+
   // ── music (looping track; only one plays at a time) ──────────────────────────
   /** Start (or switch to) a looping music track. No-op if it's already playing. */
   playMusic(key: MusicKey): void {
+    if (this.pageHidden) return; // don't start a track while backgrounded
     if (this.musicKey === key && this.music?.isPlaying) return;
     if (!this.scene.cache.audio.exists(key)) return;
     this.stopMusic();
@@ -80,34 +89,56 @@ export class Audio {
   // context the browser is suspending, then ALL fire together (rapid + very loud)
   // the instant you return. So we hard-mute + suspend the context on hide, and
   // only unmute/resume on return — nothing gets queued while hidden.
-  private installIosUnlock(): void {
+  private installVisibilityHandling(): void {
     const sm = this.scene.sound as Phaser.Sound.WebAudioSoundManager;
     const ctx = sm.context as AudioContext | undefined;
     if (!ctx) return; // HTML5 Audio fallback — nothing to resume
-    const resume = () => {
+
+    // On hide/blur: set the flag FIRST (so any in-flight game-loop frame is already
+    // gagged), stop everything that's playing, then suspend the context so no
+    // queued buffer can sound. iOS also re-suspends on its own here.
+    const onHide = () => {
+      if (this.pageHidden) return;
+      this.pageHidden = true;
+      this.scene.sound.stopAll();
+      if (ctx.state === 'running') void ctx.suspend();
+    };
+
+    // On show/focus: resume the context, clear stale throttle stamps, and restart
+    // the looping music — but only AFTER a short tick, and only if we're still
+    // visible, so a quick away-and-back doesn't double-trigger or race the resume.
+    let showTimer: ReturnType<typeof setTimeout> | undefined;
+    const onShow = () => {
+      if (!this.pageHidden) return;
+      this.pageHidden = false;
       if (ctx.state === 'suspended') void ctx.resume();
-    };
-    this.scene.input.on(Phaser.Input.Events.POINTER_DOWN, resume);
-    const onVis = () => {
-      if (document.hidden) {
-        // Backgrounded: stop EVERYTHING and suspend the context. The pageHidden
-        // flag also makes playInternal/playMusic no-op so the game loop can't
-        // enqueue any sound while hidden (the queued buffers were what fired all
-        // at once — loud — on return).
-        this.pageHidden = true;
-        this.scene.sound.stopAll();
-        if (ctx.state === 'running') void ctx.suspend();
-      } else {
-        this.pageHidden = false;
-        if (ctx.state === 'suspended') void ctx.resume();
-        this.lastPlayed = {}; // clear stale throttle timestamps
-        // restart the looping music that stopAll() killed
+      this.lastPlayed = {}; // clear stale throttle timestamps (time jumped while hidden)
+      if (showTimer) clearTimeout(showTimer);
+      showTimer = setTimeout(() => {
+        if (this.pageHidden || document.hidden) return; // hid again before the tick
+        this.scene.sound.stopAll(); // belt-and-braces: kill anything that slipped through
         if (this.musicKey) { const k = this.musicKey; this.musicKey = undefined; this.playMusic(k); }
-      }
+      }, 120);
     };
+
+    // Resume the WebAudio context on the first user gesture (autoplay unlock).
+    this.scene.input.on(Phaser.Input.Events.POINTER_DOWN, () => {
+      if (!this.pageHidden && ctx.state === 'suspended') void ctx.resume();
+    });
+
+    // Listen to the full set of background signals — visibilitychange covers tab
+    // switches; blur/pagehide catch window/app switches that don't flip visibility.
+    const onVis = () => (document.hidden ? onHide() : onShow());
     document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('blur', onHide);
+    window.addEventListener('focus', onShow);
+    window.addEventListener('pagehide', onHide);
     this.scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      if (showTimer) clearTimeout(showTimer);
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('blur', onHide);
+      window.removeEventListener('focus', onShow);
+      window.removeEventListener('pagehide', onHide);
     });
   }
 

@@ -92,6 +92,9 @@ export class Hero extends Phaser.GameObjects.Image {
   /** Damage multiplier from merges: +5% per merge tier (max 3 → +15%). */
   get mergeMult(): number { return 1 + 0.05 * this.mergeTiers; }
   get hasShield(): boolean { return this.mergeTiers > 0; }
+  /** True once the hero has merged the maximum 3 tiers — it can't merge further,
+   *  so it shouldn't be drag-pickable anymore. */
+  get isMaxMerged(): boolean { return this.mergeTiers >= 3; }
 
   /** Returns a FireIntent when ready to act this frame, else null. */
   update(time: number, zombies: Zombie[]): FireIntent | null {

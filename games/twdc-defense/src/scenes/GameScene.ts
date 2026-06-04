@@ -50,6 +50,8 @@ export class GameScene extends Phaser.Scene {
   private listScrollMin = 0; // most-negative listPane.y (scrolled to bottom); 0 = top
   private listScrollTop = 0;  // listPane.y at the top of the list (resting position)
   private listDragged = false; // true if the last pointer interaction was a scroll-drag (suppresses the tap-select)
+  private listArrowUp!: Phaser.GameObjects.Text;   // "more above" hint
+  private listArrowDown!: Phaser.GameObjects.Text; // "more below" hint
 
   constructor() {
     super(SceneKeys.Game);
@@ -374,8 +376,9 @@ export class GameScene extends Phaser.Scene {
     if (!(h instanceof Hero) || this.over || this.cinematicActive) return;
     // Only a MAX-LEVEL hero can be merge-dragged. A lower-level hero shouldn't be
     // draggable at all — leave it on its pad so the tap opens its upgrade panel
-    // instead of yanking it around to no effect.
-    if (!h.isMaxLevel) return;
+    // instead of yanking it around to no effect. A hero already at max merge (3
+    // tiers) is "done" — block its drag too so it stays put.
+    if (!h.isMaxLevel || h.isMaxMerged) return;
     h.setDepth(30); // float above others while dragging
     h.dragging = true;
     this.clearSelection();
@@ -1516,8 +1519,7 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker = this.add.container(0, 0).setDepth(70).setVisible(false);
     const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.96).setOrigin(0);
     dim.name = 'picker-dim';
-    const header = this.add.text(12, 16, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
-    this.heroPicker.add([dim, header]);
+    this.heroPicker.add(dim);
 
     // ── LEFT: hero list (2 columns of avatar tiles) — SCROLLABLE ──
     // The roster keeps growing (28 heroes → 14 rows), which overflows the 800px
@@ -1525,7 +1527,7 @@ export class GameScene extends Phaser.Scene {
     // (drag or wheel); the header / detail / close are added AFTER it so they draw
     // on top and hide any tiles that scroll past the top edge (Phaser 4 WebGL has
     // no geometry masks — draw-order is the clip).
-    const listX = 10, listY = 38, tileW = 74, tileH = 56, cols = 2;
+    const listX = 10, listY = 44, tileW = 74, tileH = 56, cols = 2;
     this.listScrollTop = 0;
     this.listPane = this.add.container(0, this.listScrollTop);
     this.heroPicker.add(this.listPane);
@@ -1550,6 +1552,23 @@ export class GameScene extends Phaser.Scene {
     const visibleBottom = GAME_HEIGHT - 8;          // keep an 8px breathing gap
     this.listScrollMin = Math.min(0, visibleBottom - listBottom);
     this.installListScroll(listX, tileW * cols);
+
+    // ── header strip + scroll hints (drawn AFTER the list so they sit on top and
+    //    mask tiles scrolling under them) ──
+    const listColW = tileW * cols;
+    // opaque strip behind the title so tiles scrolling up vanish under it
+    this.heroPicker.add(this.add.rectangle(listX - 4, 0, listColW + 8, 38, 0x0a0a14, 1).setOrigin(0, 0));
+    this.heroPicker.add(this.add.text(listX + listColW / 2, 18, 'CHOOSE A HERO', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#a7f070',
+    }).setOrigin(0.5));
+    // up / down chevrons — shown only when there's more list off-screen that way
+    const arrowX = listX + listColW / 2;
+    this.listArrowUp = this.add.text(arrowX, 40, '▲', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f' }).setOrigin(0.5).setVisible(false);
+    this.listArrowDown = this.add.text(arrowX, GAME_HEIGHT - 12, '▼ more', { fontFamily: 'monospace', fontSize: '12px', color: '#ffd23f' }).setOrigin(0.5).setVisible(false);
+    this.heroPicker.add([this.listArrowUp, this.listArrowDown]);
+    this.tweens.add({ targets: this.listArrowDown, y: GAME_HEIGHT - 8, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.tweens.add({ targets: this.listArrowUp, y: 44, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.updateListArrows();
 
     // ── RIGHT: detail pane (rebuilt per selection in renderDetail) ──
     const detailX = listX + cols * tileW + 12;
@@ -1586,6 +1605,7 @@ export class GameScene extends Phaser.Scene {
       this.listPane.y = clamp(this.listPane.y + (p.y - lastY));
       lastY = p.y;
       if (Math.abs(p.y - downY) > 6) this.listDragged = true; // a real drag → suppress the tap-select
+      this.updateListArrows();
     });
     this.input.on(Phaser.Input.Events.POINTER_UP, () => { dragging = false; });
 
@@ -1593,7 +1613,16 @@ export class GameScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_WHEEL, (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (!overList(p)) return;
       this.listPane.y = clamp(this.listPane.y - dy * 0.5);
+      this.updateListArrows();
     });
+  }
+
+  /** Show the up/down "more heroes" chevrons only when the list can scroll that way. */
+  private updateListArrows(): void {
+    if (!this.listArrowUp || !this.listArrowDown) return;
+    const y = this.listPane.y;
+    this.listArrowUp.setVisible(y < this.listScrollTop - 1);   // scrolled down → more above
+    this.listArrowDown.setVisible(y > this.listScrollMin + 1); // room to scroll → more below
   }
 
   private openHeroPicker(padKey: string, pointerId = -1): void {
@@ -1604,6 +1633,7 @@ export class GameScene extends Phaser.Scene {
     this.listPane.y = this.listScrollTop; // always open scrolled to the top
     this.listDragged = false;
     this.heroPicker.setVisible(true);
+    this.updateListArrows(); // refresh the scroll-hint chevrons
     // pre-select a random hero so the detail pane isn't empty on open
     const randomId = Phaser.Utils.Array.GetRandom(HERO_IDS as HeroId[]);
     this.selectHeroInPicker(randomId);
@@ -1818,7 +1848,7 @@ export class GameScene extends Phaser.Scene {
         lines: ['Tap a glowing PAD to open the', 'hero list, then PLACE a hero on it.'] },
       { tex: null, glyph: '▶', col: '#a7f070', title: 'START THE WAVE',
         lines: ['Press START WAVE to send the', 'zombies in. Survive every wave!'] },
-      { tex: T.HeroMymy, glyph: '⬆', col: '#ffe066', title: 'UPGRADE & SELL',
+      { tex: T.HeroOreo, glyph: '⬆', col: '#ffe066', title: 'UPGRADE & SELL',
         lines: ['Tap a hero to UPGRADE it (max Lv10),', 'or SELL it to refund 60% of its cost.'] },
       { tex: T.HeroHakj, glyph: '✨', col: '#ffd23f', title: 'MERGE FOR POWER',
         lines: ['Drag a MAX-LEVEL hero onto another of', 'the SAME type: +5% damage + a gold', 'shield that blocks one boss hit (max 3).'] },
@@ -1858,8 +1888,10 @@ export class GameScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(99).setInteractive({ useHandCursor: true });
     const prevBtn = mkBtn(cx - 92, 'BACK', '#2a2038', '#cdd6e6');
     const nextBtn = mkBtn(cx + 78, 'NEXT', '#c0241a', '#ffffff');
-    const skip = this.add.text(GAME_WIDTH - 16, cy - 142, 'SKIP ✕', {
-      fontFamily: 'monospace', fontSize: '12px', color: '#8a7aa6',
+    // SKIP sits INSIDE the card's top-right corner (card right edge = cx + (W-56)/2).
+    const cardRight = cx + (GAME_WIDTH - 56) / 2;
+    const skip = this.add.text(cardRight - 12, cy - 145, 'SKIP ✕', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#8a7aa6',
     }).setOrigin(1, 0.5).setDepth(99).setInteractive({ useHandCursor: true });
     root.add([prevBtn, nextBtn, skip]);
     this.tweens.add({ targets: nextBtn, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
