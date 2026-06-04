@@ -94,15 +94,31 @@ spinning within. (Same logic for any "decal on the floor" that animates.)
 
 ---
 
-## 5. Text entry — there is no Phaser text field
+## 5. Text entry — there is no Phaser text field (and the mobile-keyboard trap)
 
-For a name/nickname prompt, drive entry off **both** the keyboard (desktop) **and a hidden
-HTML `<input>`** over the canvas (mobile — focusing it raises the soft keyboard; read its
-`value` back on `input`). Validate length, disable the confirm button until valid, and on a
-**forced** first-run prompt give a "RANDOM/skip" that assigns a default so nobody is left
-nameless. Remove the DOM input + keyboard listener on close (leak-free). **Guard the scene's
-"any key starts the game" handler** with the modal flag (rule #1) so typing doesn't launch
-the game.
+For a name/nickname prompt, overlay a **real HTML `<input>`** on top of the canvas. The
+naive "hidden 1px input + `focus()` on open" approach **WORKS ON DESKTOP BUT IS BROKEN ON
+MOBILE** — the soft keyboard never appears. Three independent reasons, all must be fixed:
+
+1. **`pointer-events:none` blocks the keyboard.** A non-touchable input won't raise the OS
+   keyboard. Remove it — the input must be tappable.
+2. **`opacity:0` / `width:1px;height:1px` is refused.** Mobile browsers won't open the
+   keyboard for a fully-hidden / zero-size input. Give it a **real size** (cover the on-screen
+   box) and `opacity:0.01` — present but see-through, with `color/background/caret-color:
+   transparent` so the native value doesn't double over your Phaser text.
+3. **iOS only focuses inside a SYNCHRONOUS user gesture.** `setTimeout(()=>input.focus())`,
+   a promise, or rAF before `focus()` is silently ignored on iOS Safari — the keyboard won't
+   open. Call `input.focus()` **directly in the pointer/touch handler** (e.g. tapping the
+   box). An initial focus on open is fine for desktop/Android but won't raise iOS's keyboard.
+
+So: position a real `<input>` over the box (map game→CSS px through `canvas.getBoundingClientRect()`,
+re-run on resize/scroll), `font-size:16px` to stop iOS zoom-on-focus, read its `value` on the
+`input` event, and draw the themed text + caret in Phaser on top. **Don't double-count
+keystrokes:** if you ALSO keep a desktop `keydown` fallback, early-return it when
+`document.activeElement === theInput` (else the input's `input` event *and* the keydown both
+append → "MMoobbiillee"). Validate length, disable confirm until valid, give a "RANDOM/skip"
+on a forced first-run prompt, and remove the input + all listeners (resize/scroll/keydown) on
+close. **Guard the scene's "any key starts the game" handler** with the modal flag (rule #1).
 
 ---
 
@@ -137,7 +153,10 @@ testable and leak-free.
 - Adding a header/close-button BEFORE the scrolling content (it gets covered) — add it after.
 - Pre-selecting a **random** item; forgetting to reset per-run state in `create()`.
 - Flatten-then-rotate for a ground decal (tilts) — rotate inside a scaleY container.
-- Expecting a native text field; leaking the hidden DOM input / keyboard listener.
+- Expecting a native text field; leaking the DOM input / keyboard listener on close.
+- A `pointer-events:none` / `opacity:0` / 1px input, or an async/`setTimeout` `focus()` — the
+  mobile soft keyboard won't open (iOS needs a real, visible input focused *synchronously in a
+  tap*). Double-counting keystrokes from input-event + keydown both firing.
 - Hard-coding a list's row count into its scroll bounds (breaks when the list grows).
 
 See also: **game-design** (how UI should *feel* — juice, readability), **phaser-review**
