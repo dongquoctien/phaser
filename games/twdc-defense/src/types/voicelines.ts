@@ -124,6 +124,16 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
     attack: ['Combo!', 'Again! Again!', 'Stay on target!', 'Finish him!'],
     upgrade: ['Faster fists!', 'Bigger combos!'],
   },
+  xxkong: {
+    place: ['Set your heart ablaze!', 'The flame never dies.', 'Stand and fight!'],
+    attack: ['Burn!', 'Flame Breathing!', 'Turn to ash!', 'Feel the fire!'],
+    upgrade: ['Hotter flames!', 'My fire grows!'],
+  },
+  joicy: {
+    place: ['*horns gleam*', 'An oni joins the fray.', 'Brace yourselves.'],
+    attack: ['THUNDER SLAM!', 'Crash!', 'Back, all of you!', 'Feel the quake!'],
+    upgrade: ['The earth obeys!', 'Mightier blows!'],
+  },
 };
 
 /** Pick a random voice line for a hero+event, or null if none defined. */

@@ -66,6 +66,8 @@ export const TextureKeys = {
   HeroMorgan: 'hero-morgan',     // girl w/ ice penguin — Deep Freeze (hard-freeze + shatter)
   HeroYugitoh: 'hero-yugitoh',   // green cat sage w/ staff — Spirit Orbs (orbiting guardians)
   HeroXxking: 'hero-xxking',     // girl in black — Combo Strikes (stacking melee)
+  HeroJoicy: 'hero-joicy',       // oni girl w/ iron club — Thunder Slam (expanding quake)
+  HeroXxkong: 'hero-xxkong',     // flame samurai w/ katana — Flame Breathing (stacking burn)
 
   // Zombies (walker grid kept only for the HUD lives icon)
   ZombieWalker: 'zombie-walker', // grid, used for the HUD lives icon

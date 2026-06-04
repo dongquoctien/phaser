@@ -630,6 +630,21 @@ export class GameScene extends Phaser.Scene {
       }
       case 'nova': {
         const ndmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
+        if (def.skill === 'quake') {
+          // Joicy (Thunder Slam): a club smash sends an EXPANDING shockwave out to
+          // quakeRadius — every zombie it sweeps is damaged, knocked back, and
+          // briefly stunned. Bigger reach + heavier feedback than a plain nova.
+          const qr = s.quakeRadius ?? def.quakeRadius ?? 120;
+          this.quakeFx(h.x, h.y, qr, def.tint);
+          this.audio.play(AudioKeys.Explode);
+          this.cameras.main.shake(140, 0.008);
+          for (const z of h.inRange(live, qr)) {
+            this.damageZombie(z, ndmg, h, live, now);
+            z.knockBack(def.knockback ?? 30);
+            z.applyStun(def.stunDuration ?? 0.8, now);
+          }
+          break;
+        }
         const hits = h.inRange(live, s.range);
         this.novaFx(h.x, h.y, s.range, def.tint);
         this.audio.play(AudioKeys.Explode);
@@ -746,6 +761,30 @@ export class GameScene extends Phaser.Scene {
         this.damageZombie(hit, dmg, null, live, now);
         if (!hit.dead && !hit.dying) {
           hit.addFreezeStack(def.freezeStacksToFreeze ?? 3, def.freezeDuration ?? 1.8, now);
+        }
+        break;
+      }
+      case 'burn': {
+        // xxKongxx (Flame Breathing): hit damage + a BURN stack. At the stack
+        // threshold the zombie incinerates (%-HP/tick). The flame also SPREADS a
+        // weaker burn to nearby zombies so a packed lane all catches fire.
+        this.damageZombie(hit, pr.damage, null, live, now);
+        const dps = pr.tier.burnDps ?? def.burnDps ?? 8;
+        const stacks = pr.tier.burnStacksToIncinerate ?? def.burnStacksToIncinerate ?? 5;
+        const incin = pr.tier.incinPctPerTick ?? def.incinPctPerTick ?? 0.04;
+        const dur = def.burnDuration ?? 3;
+        if (!hit.dead && !hit.dying) {
+          const ignited = hit.applyBurn(dps, dur, stacks, incin, now);
+          this.flameFx(hit.x, hit.y, ignited);
+        }
+        // spread a single burn stack to neighbours within the spread radius
+        const sr = def.burnSpreadRadius ?? 40;
+        for (const z of live) {
+          if (z === hit || z.dead || z.dying) continue;
+          if (Math.hypot(z.x - hit.x, z.y - hit.y) <= sr) {
+            z.applyBurn(dps, dur, stacks, incin, now);
+            this.flameFx(z.x, z.y, false);
+          }
         }
         break;
       }
@@ -1240,6 +1279,36 @@ export class GameScene extends Phaser.Scene {
       const t = this.add.text(x, y - 16, `x${count + 1}`, { fontFamily: 'monospace', fontSize: `${10 + Math.min(count, 5)}px`, color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 3 }).setOrigin(0.5).setDepth(20);
       this.tweens.add({ targets: t, y: y - 30, alpha: 0, scale: 1.3, duration: 420, ease: 'Quad.out', onComplete: () => t.destroy() });
     }
+  }
+
+  // xxKongxx's FLAME: little fire tongues rising off a burning zombie. `ignite`
+  // marks the moment it incinerates — a bigger orange flare + brief upscale.
+  private flameFx(x: number, y: number, ignite: boolean): void {
+    const n = ignite ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      const fx = x + Phaser.Math.Between(-6, 6);
+      const tongue = this.add.circle(fx, y, ignite ? 4 : 3, i % 2 ? 0xffd23f : 0xff6b1a, 0.95).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: tongue, y: y - Phaser.Math.Between(16, 30), alpha: 0, scale: 0.2,
+        duration: Phaser.Math.Between(300, 520), ease: 'Quad.easeOut', onComplete: () => tongue.destroy(),
+      });
+    }
+    if (ignite) {
+      const flare = this.add.circle(x, y, 12, 0xff8c1a, 0.6).setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: flare, radius: 30, alpha: 0, duration: 360, ease: 'Quad.easeOut', onComplete: () => flare.destroy() });
+    }
+  }
+
+  // Joicy's THUNDER SLAM: a thick ring that expands outward to the full quake
+  // radius, plus a quick ground crack flash — reads as a shockwave, not a puff.
+  private quakeFx(x: number, y: number, r: number, hex: string): void {
+    const col = Phaser.Display.Color.HexStringToColor(hex).color;
+    const ring = this.add.circle(x, y, 10, 0x000000, 0).setStrokeStyle(6, col, 0.9).setDepth(13);
+    this.tweens.add({ targets: ring, radius: r, alpha: 0, duration: 360, ease: 'Quad.easeOut', onComplete: () => ring.destroy() });
+    const inner = this.add.circle(x, y, 8, col, 0.5).setDepth(13);
+    this.tweens.add({ targets: inner, radius: r * 0.5, alpha: 0, duration: 260, ease: 'Quad.easeOut', onComplete: () => inner.destroy() });
+    const flash = this.add.circle(x, y, 16, 0xffffff, 0.8).setDepth(14);
+    this.tweens.add({ targets: flash, alpha: 0, scale: 1.6, duration: 140, onComplete: () => flash.destroy() });
   }
 
   // Death "shatter": a burst of little chunks that fly out radially, spin, fall

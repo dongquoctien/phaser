@@ -15,7 +15,9 @@ export type HeroId =
   // image 4 (3 — Mr.Hoang/doraemon removed)
   | 'chuotchu' | 'meomeo' | 'shiba'
   // new heroes (4)
-  | 'hudong' | 'morgan' | 'yugitoh' | 'xxking';
+  | 'hudong' | 'morgan' | 'yugitoh' | 'xxking'
+  // newest heroes (2)
+  | 'joicy' | 'xxkong';
 
 export type AttackKind = 'projectile' | 'melee' | 'aura' | 'nova' | 'orbit';
 
@@ -38,12 +40,19 @@ export type SkillKind =
   | 'midas'      // Hudong: % chance to GOLDIFY — instakill a wounded zombie for huge bonus gold
   | 'freeze'     // Morgan Le Fay: stacks frost; enough stacks HARD-FREEZE (full stop) + brittle shatter
   | 'spirit'     // Yugitoh: orbiting spirit orbs that auto-damage zombies near the hero (no aiming)
-  | 'combo';     // xxKingxx: consecutive hits on the SAME target stack rising bonus damage
+  | 'combo'      // xxKingxx: consecutive hits on the SAME target stack rising bonus damage
+  // newest-hero skills:
+  | 'burn'       // xxKongxx: hits stack BURN; enough stacks INCINERATE (%-HP/tick) + spreads to neighbours
+  | 'quake';     // Joicy: a ground slam sends an EXPANDING shockwave — damage + knockback + stun outward
 
 export interface HeroTier {
   range: number; fireInterval: number; damage: number; cost: number;
   bounces?: number; // bounceball (Shiba): extra zombies the ball hops to — scales per tier
   orbs?: number;    // spirit (Yugitoh): number of orbiting orbs — scales per tier
+  quakeRadius?: number;            // quake (Joicy): shockwave radius — scales per tier
+  burnDps?: number;                // burn (xxKongxx): DoT per burn stack — scales per tier
+  burnStacksToIncinerate?: number; // burn: stacks to ignite — scales per tier
+  incinPctPerTick?: number;        // burn: %-HP per incinerate tick — scales per tier
 }
 
 export interface HeroDef {
@@ -83,6 +92,13 @@ export interface HeroDef {
   orbDamage?: number;            // spirit: damage per orb tick
   comboStep?: number;            // combo: +damage fraction added per consecutive same-target hit
   comboMax?: number;             // combo: max stacked combo hits
+  // ── newest-hero skill params ──
+  burnDps?: number;              // burn: damage-per-second per burn stack
+  burnDuration?: number;         // burn: how long each application lasts (s)
+  burnStacksToIncinerate?: number; // burn: stacks at which the zombie ignites (%-HP/tick)
+  incinPctPerTick?: number;      // burn: fraction of CURRENT hp burned per tick once incinerated
+  burnSpreadRadius?: number;     // burn: radius the flame jumps to neighbouring zombies
+  quakeRadius?: number;          // quake: final radius the shockwave expands to
   tint: string;
   blurb: string;
   lore: string; // short flavour bio shown in the hero-detail panel
@@ -349,6 +365,30 @@ export const HEROES: Record<HeroId, Full> = {
       { damage: 30, cost: 275, fireInterval: 240, comboStep: 0.32 } as Partial<HeroTier>,
     ),
   },
+  // ── newest heroes ──
+  xxkong: {
+    id: 'xxkong', name: 'xxKongxx', tex: TextureKeys.HeroXxkong, proj: TextureKeys.ProjBullet, projSpeed: 560,
+    attack: 'projectile', skill: 'burn',
+    burnDps: 8, burnDuration: 3, burnStacksToIncinerate: 5, incinPctPerTick: 0.04, burnSpreadRadius: 40, tint: '#ff7a1a',
+    blurb: 'Flame Breathing: hits stack BURN; at full stacks the zombie INCINERATES (%-HP/tick) and the fire spreads.',
+    lore: 'A blazing-hearted swordsman whose flame never dies, no matter how bleak the night. Each strike sets the undead alight — and fire, once lit, loves to spread. "Set your heart ablaze!"',
+    tiers: tiers(
+      { range: 140, fireInterval: 560, damage: 14, cost: 135 },
+      { damage: 22, cost: 175, burnDps: 12 } as Partial<HeroTier>,
+      { damage: 36, cost: 285, burnDps: 18, incinPctPerTick: 0.06, burnStacksToIncinerate: 4 } as Partial<HeroTier>,
+    ),
+  },
+  joicy: {
+    id: 'joicy', name: 'Joicy', tex: TextureKeys.HeroJoicy, proj: null, projSpeed: 0,
+    attack: 'nova', skill: 'quake', quakeRadius: 120, knockback: 30, stunDuration: 0.8, tint: '#c45ce0',
+    blurb: 'Thunder Slam: a club smash sends an EXPANDING shockwave — damage + knockback + stun rippling outward.',
+    lore: 'A horned oni princess who fights like a storm given form. One swing of her thunderous club and the ground itself revolts, hurling the horde back and rattling their bones to dust.',
+    tiers: tiers(
+      { range: 96, fireInterval: 1700, damage: 26, cost: 150 },
+      { damage: 42, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
+      { damage: 68, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
+    ),
+  },
 };
 
 export const HERO_IDS: HeroId[] = [
@@ -357,6 +397,7 @@ export const HERO_IDS: HeroId[] = [
   'yunseo', 'dongdong', 'midori', 'anzu', 'nini', 'hakj',
   'chuotchu', 'meomeo', 'shiba',
   'hudong', 'morgan', 'yugitoh', 'xxking',
+  'joicy', 'xxkong',
 ];
 
 // ── Derived rating (for the hero-detail panel) ───────────────────────────────
