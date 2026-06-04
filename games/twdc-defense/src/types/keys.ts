@@ -66,6 +66,8 @@ export const TextureKeys = {
   HeroMorgan: 'hero-morgan',     // girl w/ ice penguin — Deep Freeze (hard-freeze + shatter)
   HeroYugitoh: 'hero-yugitoh',   // green cat sage w/ staff — Spirit Orbs (orbiting guardians)
   HeroXxking: 'hero-xxking',     // girl in black — Combo Strikes (stacking melee)
+  HeroJoicy: 'hero-joicy',       // oni girl w/ iron club — Thunder Slam (expanding quake)
+  HeroXxkong: 'hero-xxkong',     // flame samurai w/ katana — Flame Breathing (stacking burn)
 
   // Zombies (walker grid kept only for the HUD lives icon)
   ZombieWalker: 'zombie-walker', // grid, used for the HUD lives icon
@@ -78,6 +80,8 @@ export const TextureKeys = {
   ZombieSpeedLie: 'zombie-speed-lie',     // slow — death
   ZombieBruteStand: 'zombie-brute-stand', // brute (satchel girl) — same anim set as girl
   ZombieBruteLie: 'zombie-brute-lie',     // brute — death/rise
+  ZombieChainsawStand: 'zombie-chainsaw-stand', // chainsaw critter minion
+  ZombieChainsawLie: 'zombie-chainsaw-lie',     // chainsaw — death/rise
   // per-map bosses: khoai (Normal map king), hakj (Hard map fish king)
   ZombieKhoaiStand: 'zombie-khoai-stand', ZombieKhoaiLie: 'zombie-khoai-lie',
   ZombieHakjStand: 'zombie-hakj-stand', ZombieHakjLie: 'zombie-hakj-lie',
@@ -93,6 +97,12 @@ export const TextureKeys = {
   Slash: 'slash',
   Explosion: 'explosion',
   Spark: 'spark',
+  // animated FX spritesheets (cut from 0assets/effect by scripts/cut-effect-sheet.mjs)
+  FxFireball: 'fx-fireball', // 64×64 ×7 — growing flame comet (xxKongxx burn impact)
+  FxSlash: 'fx-slash',       // 80×80 ×6 — blue/orange sword-slash arc (xxKongxx hit, Oreo)
+  FxIce: 'fx-ice',           // 72×72 ×5 — cyan ice-crystal burst (HAKJ splash)
+  FxPotato: 'fx-potato',     // King Khoai's thrown potato projectile
+  FxBoneSpear: 'fx-bonespear', // Hakj's thrown fish-bone spear projectile
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 
@@ -112,6 +122,7 @@ export const AudioKeys = {
   BossKillSlow: 'boss-kill-slow', // tense sting during the slow-mo hero-execution
   Push: 'push',                   // the actual hero-kill blow
   GameOver: 'game-over',          // played once on defeat (full volume)
+  Merge: 'merge',                 // fusion "ping" when two heroes merge
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 
@@ -133,7 +144,9 @@ export const Fonts = {
 export const RegistryKeys = {
   BestWave: 'bestWave',
   Muted: 'muted',
-  TipsSeen: 'twdc.tipsSeen', // once the first-time tutorial has been dismissed
+  TipsSeen: 'twdc.tipsSeen',     // once the first-time tutorial has been dismissed
+  HintPadSeen: 'twdc.hintPad',   // one-time "tap a pad" contextual hint shown
+  HintMergeSeen: 'twdc.hintMerge', // one-time "drag to merge" contextual hint shown
 } as const;
 
 // Per-map progress keys (persisted in the Phaser registry).

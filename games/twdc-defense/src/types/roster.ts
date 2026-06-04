@@ -15,7 +15,9 @@ export type HeroId =
   // image 4 (3 — Mr.Hoang/doraemon removed)
   | 'chuotchu' | 'meomeo' | 'shiba'
   // new heroes (4)
-  | 'hudong' | 'morgan' | 'yugitoh' | 'xxking';
+  | 'hudong' | 'morgan' | 'yugitoh' | 'xxking'
+  // newest heroes (2)
+  | 'joicy' | 'xxkong';
 
 export type AttackKind = 'projectile' | 'melee' | 'aura' | 'nova' | 'orbit';
 
@@ -38,12 +40,20 @@ export type SkillKind =
   | 'midas'      // Hudong: % chance to GOLDIFY — instakill a wounded zombie for huge bonus gold
   | 'freeze'     // Morgan Le Fay: stacks frost; enough stacks HARD-FREEZE (full stop) + brittle shatter
   | 'spirit'     // Yugitoh: orbiting spirit orbs that auto-damage zombies near the hero (no aiming)
-  | 'combo';     // xxKingxx: consecutive hits on the SAME target stack rising bonus damage
+  | 'combo'      // xxKingxx: consecutive hits on the SAME target stack rising bonus damage
+  // newest-hero skills:
+  | 'burn'       // xxKongxx: hits stack BURN; enough stacks INCINERATE (%-HP/tick) + spreads to neighbours
+  | 'quake';     // Joicy: a ground slam sends an EXPANDING shockwave — damage + knockback + stun outward
 
 export interface HeroTier {
   range: number; fireInterval: number; damage: number; cost: number;
   bounces?: number; // bounceball (Shiba): extra zombies the ball hops to — scales per tier
   orbs?: number;    // spirit (Yugitoh): number of orbiting orbs — scales per tier
+  quakeRadius?: number;            // quake (Joicy): shockwave radius — scales per tier
+  burnDps?: number;                // burn (xxKongxx): DoT per burn stack — scales per tier
+  burnStacksToIncinerate?: number; // burn: stacks to ignite — scales per tier
+  incinPctPerTick?: number;        // burn: %-HP per incinerate tick — scales per tier
+  buffMul?: number;                // buffaura: damage multiplier for nearby heroes — scales per tier
 }
 
 export interface HeroDef {
@@ -70,6 +80,10 @@ export interface HeroDef {
   stunDuration?: number;
   healPerTick?: number;
   buffMul?: number;       // buffaura: damage multiplier for nearby heroes
+  /** buffaura: +fraction of damage per LEVEL (e.g. 0.005 = +0.5%/lvl). When set the
+   *  buff is computed as 1 + buffPerLevel*(tier+1) — exact, not tier-interpolated
+   *  (tiers() rounds to 2dp which would mangle a 0.5% step). */
+  buffPerLevel?: number;
   executeThreshold?: number; // execute: hp fraction below which bonus applies
   executeMul?: number;
   // ── new-hero skill params ──
@@ -83,6 +97,13 @@ export interface HeroDef {
   orbDamage?: number;            // spirit: damage per orb tick
   comboStep?: number;            // combo: +damage fraction added per consecutive same-target hit
   comboMax?: number;             // combo: max stacked combo hits
+  // ── newest-hero skill params ──
+  burnDps?: number;              // burn: damage-per-second per burn stack
+  burnDuration?: number;         // burn: how long each application lasts (s)
+  burnStacksToIncinerate?: number; // burn: stacks at which the zombie ignites (%-HP/tick)
+  incinPctPerTick?: number;      // burn: fraction of CURRENT hp burned per tick once incinerated
+  burnSpreadRadius?: number;     // burn: radius the flame jumps to neighbouring zombies
+  quakeRadius?: number;          // quake: final radius the shockwave expands to
   tint: string;
   blurb: string;
   lore: string; // short flavour bio shown in the hero-detail panel
@@ -150,9 +171,9 @@ export const HEROES: Record<HeroId, Full> = {
   oreo: {
     id: 'oreo', name: 'Oreo', tex: TextureKeys.HeroOreo, proj: TextureKeys.ProjArrow, projSpeed: 420,
     attack: 'projectile', skill: 'multishot', shots: 3, tint: '#ff7da8',
-    blurb: 'Throws shuriken at the 3 nearest zombies each volley.',
+    blurb: 'Long-range shuriken volley — strikes the 3 nearest zombies across the field.',
     lore: 'Top of her class in the ninja club — right before class got cancelled forever. Now her homework is survival, and she always hits the deadline.',
-    tiers: tiers({ range: 135, fireInterval: 620, damage: 9, cost: 100 }, { damage: 14, cost: 130 }, { damage: 22, cost: 200, shots: 4 } as Partial<HeroTier>),
+    tiers: tiers({ range: 230, fireInterval: 620, damage: 9, cost: 100 }, { damage: 14, cost: 130, range: 245 } as Partial<HeroTier>, { damage: 22, cost: 200, shots: 4, range: 255 } as Partial<HeroTier>),
   },
   rwah: {
     id: 'rwah', name: 'Rwah', tex: TextureKeys.HeroRwah, proj: TextureKeys.ProjPoison, projSpeed: 320,
@@ -266,7 +287,7 @@ export const HEROES: Record<HeroId, Full> = {
     attack: 'aura', skill: 'buffaura', buffMul: 1.25, tint: '#5b8cff',
     blurb: 'Rally aura: boosts the damage of nearby heroes.',
     lore: 'The team cheerleader who refuses to let anyone give up. One wink from Anzu and the whole squad fights twice as hard. Morale is a weapon.',
-    tiers: tiers({ range: 120, fireInterval: 1000, damage: 0, cost: 150 }, { cost: 180, buffMul: 1.4, range: 140 } as Partial<HeroTier>, { cost: 280, buffMul: 1.6, range: 160 } as Partial<HeroTier>),
+    tiers: tiers({ range: 120, fireInterval: 1000, damage: 0, cost: 150, buffMul: 1.25 }, { cost: 180, buffMul: 1.4, range: 140 } as Partial<HeroTier>, { cost: 280, buffMul: 1.6, range: 160 } as Partial<HeroTier>),
   },
   nini: {
     id: 'nini', name: 'Nini', tex: TextureKeys.HeroNini, proj: TextureKeys.ProjBullet, projSpeed: 600,
@@ -306,14 +327,15 @@ export const HEROES: Record<HeroId, Full> = {
   },
   // ── new heroes ──
   hudong: {
-    id: 'hudong', name: 'Hudong', tex: TextureKeys.HeroHudong, proj: TextureKeys.ProjBullet, projSpeed: 520,
-    attack: 'projectile', skill: 'midas', goldifyChance: 0.18, goldifyThreshold: 0.5, goldDrop: 14, tint: '#ffc83d',
-    blurb: 'Golden Touch: a chance to turn a wounded zombie to GOLD — instant kill + a pile of bonus gold.',
-    lore: 'A wandering treasure-hunter whose lucky urn was blessed (or cursed) by a desert djinn. Everything he touches has a habit of turning to gold — zombies very much included.',
+    id: 'hudong', name: 'Hudong', tex: TextureKeys.HeroHudong, proj: null, projSpeed: 0,
+    attack: 'aura', skill: 'buffaura', buffPerLevel: 0.005, tint: '#ffc83d',
+    blurb: 'Fortune Aura: empowers nearby heroes — +0.5% damage, and +0.5% more each upgrade.',
+    lore: 'A wandering treasure-hunter whose lucky urn radiates good fortune. Stand in his golden glow and every blow strikes a little truer — and the more he hones it, the luckier you get.',
     tiers: tiers(
-      { range: 140, fireInterval: 780, damage: 18, cost: 130 },
-      { damage: 28, cost: 170, goldifyChance: 0.24, goldDrop: 22 } as Partial<HeroTier>,
-      { damage: 46, cost: 280, goldifyChance: 0.32, goldifyThreshold: 0.6, goldDrop: 36 } as Partial<HeroTier>,
+      // buff is +0.5%/level via buffPerLevel (exact); tiers only scale range/cost here
+      { range: 130, fireInterval: 1000, damage: 0, cost: 130 },
+      { cost: 165, range: 145 } as Partial<HeroTier>,
+      { cost: 270, range: 160 } as Partial<HeroTier>,
     ),
   },
   morgan: {
@@ -349,6 +371,34 @@ export const HEROES: Record<HeroId, Full> = {
       { damage: 30, cost: 275, fireInterval: 240, comboStep: 0.32 } as Partial<HeroTier>,
     ),
   },
+  // ── newest heroes ──
+  xxkong: {
+    id: 'xxkong', name: 'xxKongxx', tex: TextureKeys.HeroXxkong, proj: TextureKeys.ProjBullet, projSpeed: 560,
+    attack: 'projectile', skill: 'burn',
+    burnDps: 8, burnDuration: 3, burnStacksToIncinerate: 5, incinPctPerTick: 0.04, burnSpreadRadius: 40, tint: '#ff7a1a',
+    blurb: 'Flame Breathing: hits stack BURN; at full stacks the zombie INCINERATES (%-HP/tick) and the fire spreads.',
+    lore: 'A blazing-hearted swordsman whose flame never dies, no matter how bleak the night. Each strike sets the undead alight — and fire, once lit, loves to spread. "Set your heart ablaze!"',
+    tiers: tiers(
+      // base MUST carry the tier-scaled skill params, else tiers() interpolates them
+      // up from 0 (a level-1 hero would have burnDps 0 → no burn).
+      { range: 140, fireInterval: 560, damage: 14, cost: 135, burnDps: 8, burnStacksToIncinerate: 5, incinPctPerTick: 0.04 },
+      { damage: 22, cost: 175, burnDps: 12 } as Partial<HeroTier>,
+      { damage: 36, cost: 285, burnDps: 18, incinPctPerTick: 0.06, burnStacksToIncinerate: 4 } as Partial<HeroTier>,
+    ),
+  },
+  joicy: {
+    id: 'joicy', name: 'Joicy', tex: TextureKeys.HeroJoicy, proj: null, projSpeed: 0,
+    attack: 'nova', skill: 'quake', quakeRadius: 120, knockback: 30, stunDuration: 0.8, tint: '#c45ce0',
+    blurb: 'Thunder Slam: a club smash sends an EXPANDING shockwave — damage + knockback + stun rippling outward.',
+    lore: 'A horned oni princess who fights like a storm given form. One swing of her thunderous club and the ground itself revolts, hurling the horde back and rattling their bones to dust.',
+    tiers: tiers(
+      // base carries quakeRadius so a level-1 Joicy already has a real shockwave
+      // (otherwise it interpolates up from 0 → invisible + hits nothing at level 1).
+      { range: 96, fireInterval: 1700, damage: 26, cost: 150, quakeRadius: 120 },
+      { damage: 42, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
+      { damage: 68, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
+    ),
+  },
 };
 
 export const HERO_IDS: HeroId[] = [
@@ -357,6 +407,7 @@ export const HERO_IDS: HeroId[] = [
   'yunseo', 'dongdong', 'midori', 'anzu', 'nini', 'hakj',
   'chuotchu', 'meomeo', 'shiba',
   'hudong', 'morgan', 'yugitoh', 'xxking',
+  'joicy', 'xxkong',
 ];
 
 // ── Derived rating (for the hero-detail panel) ───────────────────────────────
@@ -389,7 +440,7 @@ export function heroStars(def: HeroDef & { tiers: HeroTier[] }): number {
 
 // ── Zombies ──────────────────────────────────────────────────────────────────
 // 3 minion types + 3 per-map bosses (queen=Easy, khoai=Normal, hakj=Hard).
-export type ZombieId = 'walker' | 'slow' | 'brute' | 'boss' | 'khoai' | 'hakj';
+export type ZombieId = 'walker' | 'slow' | 'brute' | 'chainsaw' | 'boss' | 'khoai' | 'hakj';
 
 export interface ZombieDef {
   id: ZombieId; tex: TextureKey; hp: number; speedMul: number; bounty: number; scale: number;
@@ -407,6 +458,8 @@ export const ZOMBIES: Record<ZombieId, ZombieDef> = {
   walker: { id: 'walker', tex: TextureKeys.ZombieGirlStand, hp: 57, speedMul: 1.0, bounty: 1, scale: 0.4, sheet: 'girl' },
   slow: { id: 'slow', tex: TextureKeys.ZombieSpeedStand, hp: 169, speedMul: 0.55, bounty: 1.8, scale: 0.34, sheet: 'speed' },
   brute: { id: 'brute', tex: TextureKeys.ZombieBruteStand, hp: 195, speedMul: 0.7, bounty: 2.2, scale: 0.46, sheet: 'brute' },
+  // chainsaw critter — a fast, mid-hp aggressor (4th basic minion type).
+  chainsaw: { id: 'chainsaw', tex: TextureKeys.ZombieChainsawStand, hp: 110, speedMul: 1.25, bounty: 1.6, scale: 0.42, sheet: 'chainsaw' },
   // ── bosses (one per map). skillCdMs = how often it destroys a hero (Easy slow → Hard fast).
   //    Title colours are themed per boss (toxic-green queen / blood-red king / drowned-cyan).
   // HP from this PR (boss +20%); cooldown from main (PR #21 -5s).
@@ -424,7 +477,7 @@ export const MAP_BOSS: Record<number, ZombieId> = { 0: 'boss', 1: 'khoai', 2: 'h
 /** Which minion types each map's regular waves can roll (used for cross-difficulty
  *  mixing: Normal can sprinkle Easy-map bosses-as-minions, Hard can sprinkle both). */
 export const MAP_MINIONS: Record<number, ZombieId[]> = {
-  0: ['walker', 'slow', 'brute'],
-  1: ['walker', 'slow', 'brute', 'boss'],          // Normal: Easy boss may appear as a minion
-  2: ['walker', 'slow', 'brute', 'boss', 'khoai'], // Hard: Easy + Normal bosses as minions
+  0: ['walker', 'slow', 'brute', 'chainsaw'],
+  1: ['walker', 'slow', 'brute', 'chainsaw', 'boss'],          // Normal: Easy boss may appear as a minion
+  2: ['walker', 'slow', 'brute', 'chainsaw', 'boss', 'khoai'], // Hard: Easy + Normal bosses as minions
 };

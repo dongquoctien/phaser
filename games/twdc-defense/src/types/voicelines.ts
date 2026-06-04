@@ -37,7 +37,11 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
     place: ['Try my brew.', 'Heh heh...'],
     attack: ['Poison!', 'Melt away!', '90% toxic sludge!'],
   },
-  emso: { place: ["I'm ready!"], attack: ['Go go!', 'Hehe!'] },
+  emso: {
+    place: ['Rest easy~', "I'll keep you safe.", 'Breathe...'],
+    attack: ['Be well~', 'Mending you.', 'Stay strong.', 'Soothe...'],
+    upgrade: ['Warmer care!', 'Stronger healing!'],
+  },
   mimi: {
     place: ['Locked and loaded.', 'Target locked.'],
     attack: ['Bang!', 'Dead on!', 'Quick as lightning!'],
@@ -52,7 +56,8 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
     attack: ['Zap zap!', 'Shocking!', 'Chain it!'],
   },
   kenken: {
-    place: ['A liquidation event.', 'Economics 101.'],
+    place: ['A liquidation event.', 'Economics 101.', 'Invest in victory.'],
+    attack: ['Dividends!', 'Profit margin!', 'Returns incoming!'],
     upgrade: ['Compound interest!', 'Gold incoming!'],
   },
   oldbear: {
@@ -81,7 +86,11 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
     place: ['Bow drawn.'],
     attack: ['Twin arrows!', 'Two shots!', 'Pinned!'],
   },
-  anzu: { place: ['Anzu here!'], attack: ['Hyah!', 'Charge!'] },
+  anzu: {
+    place: ['Anzu here!', "Let's rally!", "I've got your back!"],
+    attack: ['You can do it!', 'Fight on!', "Don't give up!", 'Push harder!'],
+    upgrade: ['Spirits high!', 'Morale boosted!'],
+  },
   nini: {
     place: ['Aim for the weak.'],
     attack: ['Finish it!', 'Weak ones fall!', 'Execute!'],
@@ -105,9 +114,9 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
   },
   // ── new heroes ──
   hudong: {
-    place: ['Gold awaits.', 'Everything I touch...', 'Treasure time!'],
-    attack: ['Turn to gold!', 'Cha-ching!', 'Golden touch!', 'Pure profit!'],
-    upgrade: ['Richer and richer!', 'More gold!'],
+    place: ['Fortune favors us!', 'Feel the lucky glow.', 'Stand close, friends.'],
+    attack: ['Strike true!', 'My fortune is yours!', 'Hit harder!', 'Blessed aim!'],
+    upgrade: ['Luckier still!', 'Greater fortune!'],
   },
   morgan: {
     place: ['Feel the chill.', 'Winter has come.', 'My penguin is ready.'],
@@ -123,6 +132,16 @@ export const VOICE: Partial<Record<HeroId, LinePool>> = {
     place: ['Never lost a match.', 'Step up then.', 'Who is next?'],
     attack: ['Combo!', 'Again! Again!', 'Stay on target!', 'Finish him!'],
     upgrade: ['Faster fists!', 'Bigger combos!'],
+  },
+  xxkong: {
+    place: ['Set your heart ablaze!', 'The flame never dies.', 'Stand and fight!'],
+    attack: ['Burn!', 'Flame Breathing!', 'Turn to ash!', 'Feel the fire!'],
+    upgrade: ['Hotter flames!', 'My fire grows!'],
+  },
+  joicy: {
+    place: ['*horns gleam*', 'An oni joins the fray.', 'Brace yourselves.'],
+    attack: ['THUNDER SLAM!', 'Crash!', 'Back, all of you!', 'Feel the quake!'],
+    upgrade: ['The earth obeys!', 'Mightier blows!'],
   },
 };
 

@@ -43,6 +43,7 @@ export class GameScene extends Phaser.Scene {
   private upgradePanel!: Phaser.GameObjects.Container;
   private selectedPadKey: string | null = null;
   private selectedHero: Hero | null = null;
+  private lastPickedHero: HeroId = 'oreo'; // picker pre-selects this; defaults to Oreo, then remembers the player's last pick
   private pickerOpenedBy = -1; // pointer id of the tap that opened the picker (-1 = none)
   private detailBox!: Phaser.GameObjects.Container; // hero-detail pane inside the picker
   private listHighlights = new Map<HeroId, Phaser.GameObjects.Rectangle>();
@@ -50,6 +51,8 @@ export class GameScene extends Phaser.Scene {
   private listScrollMin = 0; // most-negative listPane.y (scrolled to bottom); 0 = top
   private listScrollTop = 0;  // listPane.y at the top of the list (resting position)
   private listDragged = false; // true if the last pointer interaction was a scroll-drag (suppresses the tap-select)
+  private listArrowUp!: Phaser.GameObjects.Text;   // "more above" hint
+  private listArrowDown!: Phaser.GameObjects.Text; // "more below" hint
 
   constructor() {
     super(SceneKeys.Game);
@@ -63,6 +66,7 @@ export class GameScene extends Phaser.Scene {
     this.waypoints = pathWaypoints(this.map);
     this.gold = this.map.startGold;
     this.lives = Tuning.startLives;
+    this.lastPickedHero = 'oreo'; // each new game starts the picker on Oreo
     this.wave = 0;
     this.waveActive = false;
     this.spawnQueue = [];
@@ -109,8 +113,10 @@ export class GameScene extends Phaser.Scene {
     this.showStartBtn(true);
     this.refreshCountdown(); // shows the START label (no timer)
 
-    // first-time tutorial overlay (once per player, persisted in the registry)
+    // first-time tutorial overlay (once per player, persisted in the registry).
+    // If they've already seen it, nudge them with the "tap a pad" toast instead.
     if (!this.registry.get(RegistryKeys.TipsSeen)) this.showTutorial();
+    else this.time.delayedCall(600, () => { if (this.heroes.length === 0) this.markTip('pad'); });
 
     if (typeof __DEV__ !== 'undefined' && __DEV__) {
       (this as unknown as Record<string, unknown>).__dev = {
@@ -337,6 +343,7 @@ export class GameScene extends Phaser.Scene {
     // the card's pointerup and eat the pick.
     if (this.heroPicker.visible) return;
     if (p.y >= HUD_TOP) return; // HUD handles its own buttons (incl. picker/panel)
+    if (p.x >= GAME_WIDTH - 40 && p.y <= 40) return; // top-right "?" help button zone
     const col = Math.floor(p.x / CELL);
     const row = Math.floor(p.y / CELL);
     const key = `${col},${row}`;
@@ -371,8 +378,9 @@ export class GameScene extends Phaser.Scene {
     if (!(h instanceof Hero) || this.over || this.cinematicActive) return;
     // Only a MAX-LEVEL hero can be merge-dragged. A lower-level hero shouldn't be
     // draggable at all — leave it on its pad so the tap opens its upgrade panel
-    // instead of yanking it around to no effect.
-    if (!h.isMaxLevel) return;
+    // instead of yanking it around to no effect. A hero already at max merge (3
+    // tiers) is "done" — block its drag too so it stays put.
+    if (!h.isMaxLevel || h.isMaxMerged) return;
     h.setDepth(30); // float above others while dragging
     h.dragging = true;
     this.clearSelection();
@@ -425,8 +433,8 @@ export class GameScene extends Phaser.Scene {
       if (pad) { src.x = pad.x; src.y = pad.y; src.snapHome(); }
       return;
     }
-    this.audio.play(AudioKeys.Place);
-    this.boom(tgt.x, tgt.y, 0.5);
+    this.audio.play(AudioKeys.Merge); // fusion "ping"
+    this.mergeFx(tgt.x, tgt.y); // hand-drawn magic conjure (crisp at any scale)
     this.cameras.main.shake(80, 0.004);
     this.removeHero(src); // source consumed; its pad reverts to empty
     this.markTip('merge'); // player discovered merging
@@ -500,11 +508,12 @@ export class GameScene extends Phaser.Scene {
       // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
       // (Elite minions do NOT attack heroes — they're just tougher walkers.)
       if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
-        // The boss ALWAYS gets its kill. But the slow-mo cinematic zooms the main
-        // camera (which the UI rides on), so if a menu is open we'd warp/shut it
-        // mid-interaction. In that case do a QUICK, no-cinematic kill instead — the
-        // hero still dies, the menu stays put.
-        if (this.heroPicker.visible || this.upgradePanel.visible) {
+        // khoai/hakj hurl a projectile at a hero (ranged execute — no camera zoom,
+        // works fine with a menu open). The Easy boss uses the slow-mo cinematic,
+        // falling back to a quick no-cinematic kill if a menu is open.
+        if (z.bossInfo.throwTex) {
+          this.bossThrowHero(z, z.bossInfo.throwTex);
+        } else if (this.heroPicker.visible || this.upgradePanel.visible) {
           this.bossKillHeroQuick(z);
         } else {
           this.bossKillHero(z);
@@ -630,6 +639,21 @@ export class GameScene extends Phaser.Scene {
       }
       case 'nova': {
         const ndmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
+        if (def.skill === 'quake') {
+          // Joicy (Thunder Slam): a club smash sends an EXPANDING shockwave out to
+          // quakeRadius — every zombie it sweeps is damaged, knocked back, and
+          // briefly stunned. Bigger reach + heavier feedback than a plain nova.
+          const qr = s.quakeRadius ?? def.quakeRadius ?? 120;
+          this.quakeFx(h.x, h.y, qr, def.tint);
+          this.audio.play(AudioKeys.Explode);
+          this.cameras.main.shake(140, 0.008);
+          for (const z of h.inRange(live, qr)) {
+            this.damageZombie(z, ndmg, h, live, now);
+            z.knockBack(def.knockback ?? 30);
+            z.applyStun(def.stunDuration ?? 0.8, now);
+          }
+          break;
+        }
         const hits = h.inRange(live, s.range);
         this.novaFx(h.x, h.y, s.range, def.tint);
         this.audio.play(AudioKeys.Explode);
@@ -749,6 +773,34 @@ export class GameScene extends Phaser.Scene {
         }
         break;
       }
+      case 'burn': {
+        // xxKongxx (Flame Breathing): hit damage + a BURN stack. At the stack
+        // threshold the zombie incinerates (%-HP/tick). The flame also SPREADS a
+        // weaker burn to nearby zombies so a packed lane all catches fire.
+        this.damageZombie(hit, pr.damage, null, live, now);
+        const dps = pr.tier.burnDps ?? def.burnDps ?? 8;
+        const stacks = pr.tier.burnStacksToIncinerate ?? def.burnStacksToIncinerate ?? 5;
+        const incin = pr.tier.incinPctPerTick ?? def.incinPctPerTick ?? 0.04;
+        const dur = def.burnDuration ?? 3;
+        // a flaming sword-slash arc on the strike (random tilt so swings vary)
+        this.playFxAnim('fx-slash', hit.x, hit.y, 0.7, Phaser.Math.Between(-35, 35), 0xff8a3a);
+        if (!hit.dead && !hit.dying) {
+          const ignited = hit.applyBurn(dps, dur, stacks, incin, now);
+          this.flameFx(hit.x, hit.y, ignited);
+          // a bigger fireball burst at the moment of ignition
+          if (ignited) this.playFxAnim('fx-fireball', hit.x, hit.y, 1.1);
+        }
+        // spread a single burn stack to neighbours within the spread radius
+        const sr = def.burnSpreadRadius ?? 40;
+        for (const z of live) {
+          if (z === hit || z.dead || z.dying) continue;
+          if (Math.hypot(z.x - hit.x, z.y - hit.y) <= sr) {
+            z.applyBurn(dps, dur, stacks, incin, now);
+            this.flameFx(z.x, z.y, false);
+          }
+        }
+        break;
+      }
       case 'chain': {
         let current = hit;
         const hitSet = new Set<Zombie>([current]);
@@ -791,9 +843,10 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'bounce': {
-        // water splash: small AoE damage + a brief slow on the cluster
-        this.boom(pr.x, pr.y, 0.45);
+        // HAKJ: an ICE splash — small AoE damage + a brief slow on the cluster,
+        // with a cyan ice-crystal burst (scaled to the splash radius).
         const r = def.splashRadius ?? 40;
+        this.playFxAnim('fx-ice', pr.x, pr.y, (r * 2) / 72 * 1.1);
         for (const z of live) {
           if (z.dead) continue;
           if (Math.hypot(z.x - pr.x, z.y - pr.y) <= r) {
@@ -816,6 +869,12 @@ export class GameScene extends Phaser.Scene {
         this.damageZombie(hit, dmg, null, live, now);
         break;
       }
+      case 'multishot': {
+        // Oreo: shuriken strike — a quick white slash spark per hit (long range now).
+        this.damageZombie(hit, pr.damage, null, live, now);
+        this.playFxAnim('fx-slash', hit.x, hit.y, 0.5, Phaser.Math.Between(0, 359), 0xffffff);
+        break;
+      }
       case 'rapidfire':
       case 'crit':
       default: {
@@ -828,11 +887,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Combined damage multiplier from every buffaura hero whose range covers (x,y).
+  // Uses the hero's PER-TIER buffMul so the aura scales as the buffer is upgraded.
   private buffAt(x: number, y: number): number {
     let mul = 1;
     for (const h of this.heroes) {
       if (h.def.skill !== 'buffaura') continue;
-      if (Phaser.Math.Distance.Between(x, y, h.x, h.y) <= h.stats.range) mul *= (h.def.buffMul ?? 1.25);
+      if (Phaser.Math.Distance.Between(x, y, h.x, h.y) > h.stats.range) continue;
+      // buffPerLevel = exact +x%/level (1 + p*(tier+1)); else tier/def buffMul
+      const m = h.def.buffPerLevel != null
+        ? 1 + h.def.buffPerLevel * (h.tier + 1)
+        : (h.stats.buffMul ?? h.def.buffMul ?? 1.25);
+      mul *= m;
     }
     return mul;
   }
@@ -868,8 +933,8 @@ export class GameScene extends Phaser.Scene {
 
   /** Pick the boss's victim: FOCUS merged heroes first (gold shields to break),
    *  else the nearest ordinary hero within reach. Null if nothing is close enough. */
-  private pickBossVictim(boss: Zombie): Hero | null {
-    const REACH = 150;
+  private pickBossVictim(boss: Zombie, reach = 150): Hero | null {
+    const REACH = reach;
     const pick = (onlyMerged: boolean): Hero | null => {
       let t: Hero | null = null, best = REACH;
       for (const h of this.heroes) {
@@ -903,6 +968,32 @@ export class GameScene extends Phaser.Scene {
     if (!victim) return;
     boss.playBossAttack();
     this.bossKillBlow(boss, victim);
+  }
+
+  /** Ranged boss execute: King Khoai hurls a potato, Hakj a fish-bone spear at a
+   *  hero from across the field. The projectile spins/flies to the target and
+   *  delivers the kill blow on arrival (a gold shield still absorbs it). No camera
+   *  zoom, so it's safe with a menu open. */
+  private bossThrowHero(boss: Zombie, tex: string): void {
+    const victim = this.pickBossVictim(boss, 9999); // ranged — reach the whole field
+    if (!victim) return;
+    boss.playBossAttack();
+    const tx = victim.x, ty = victim.y; // capture target pos at throw time
+    const angle = Math.atan2(ty - boss.y, tx - boss.x);
+    const proj = this.add.image(boss.x, boss.y - 10, tex).setDepth(21).setRotation(angle);
+    // scale potato/spear to a sensible size (potato small, spear longer)
+    const targetH = tex === TextureKeys.FxPotato ? 16 : 18;
+    proj.setScale(targetH / (proj.height || targetH));
+    const dist = Math.hypot(tx - boss.x, ty - (boss.y - 10));
+    this.tweens.add({
+      targets: proj, x: tx, y: ty, rotation: angle + (tex === TextureKeys.FxPotato ? Math.PI * 4 : 0),
+      duration: Phaser.Math.Clamp(dist * 1.4, 260, 700), ease: 'Quad.easeIn',
+      onComplete: () => {
+        proj.destroy();
+        if (!victim.active) return; // hero already gone
+        this.bossKillBlow(boss, victim);
+      },
+    });
   }
 
   /** Boss special — a tense cinematic: pick the nearest hero, SLOW the whole scene
@@ -1028,8 +1119,9 @@ export class GameScene extends Phaser.Scene {
       const r = Math.random();
       // elite minion (a lower boss walking in the wave) on harder maps, mid/late waves
       if (elite.length && this.wave >= 7 && r < 0.15) q.push(Phaser.Utils.Array.GetRandom(elite));
-      else if (this.wave >= 6 && pool.includes('brute') && r < 0.28) q.push('brute');
-      else if (this.wave >= 3 && pool.includes('slow') && r < 0.5) q.push('slow');
+      else if (this.wave >= 4 && pool.includes('chainsaw') && r < 0.32) q.push('chainsaw'); // fast aggressor
+      else if (this.wave >= 6 && pool.includes('brute') && r < 0.5) q.push('brute');
+      else if (this.wave >= 3 && pool.includes('slow') && r < 0.68) q.push('slow');
       else q.push('walker');
     }
     if (isBossWave) {
@@ -1149,7 +1241,10 @@ export class GameScene extends Phaser.Scene {
     // mark the wave's headline boss so it gets the hero-kill skill (elite minions
     // of a boss type stay ordinary — no skill, no popup).
     if (asBoss && def.boss) {
-      z.bossInfo = def.boss;
+      // khoai/hakj execute heroes by THROWING a projectile (ranged); the Easy boss
+      // keeps the slow-mo melee cinematic. (Copy so we never mutate the shared def.)
+      const throwTex = id === 'khoai' ? TextureKeys.FxPotato : id === 'hakj' ? TextureKeys.FxBoneSpear : undefined;
+      z.bossInfo = { ...def.boss, throwTex };
       z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
     } else if (def.boss) {
       z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate (no hero-kill)
@@ -1242,6 +1337,140 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** Play a one-shot FX spritesheet animation at (x,y), then destroy it. `scale`
+   *  sizes it; `angle` rotates (slash arcs); `tint` optional recolour. */
+  private playFxAnim(key: string, x: number, y: number, scale = 1, angle = 0, tint?: number): void {
+    const tex: Record<string, string> = {
+      'fx-slash': TextureKeys.FxSlash, 'fx-fireball': TextureKeys.FxFireball,
+      'fx-ice': TextureKeys.FxIce,
+    };
+    const spr = this.add.sprite(x, y, tex[key] ?? TextureKeys.FxFireball)
+      .setDepth(16).setScale(scale).setAngle(angle).setBlendMode(Phaser.BlendModes.ADD);
+    if (tint !== undefined) spr.setTint(tint);
+    spr.play(key);
+    spr.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => spr.destroy());
+  }
+
+  // xxKongxx's FLAME: little fire tongues rising off a burning zombie. `ignite`
+  // marks the moment it incinerates — a bigger orange flare + brief upscale.
+  private flameFx(x: number, y: number, ignite: boolean): void {
+    const n = ignite ? 6 : 3;
+    for (let i = 0; i < n; i++) {
+      const fx = x + Phaser.Math.Between(-6, 6);
+      const tongue = this.add.circle(fx, y, ignite ? 4 : 3, i % 2 ? 0xffd23f : 0xff6b1a, 0.95).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: tongue, y: y - Phaser.Math.Between(16, 30), alpha: 0, scale: 0.2,
+        duration: Phaser.Math.Between(300, 520), ease: 'Quad.easeOut', onComplete: () => tongue.destroy(),
+      });
+    }
+    if (ignite) {
+      const flare = this.add.circle(x, y, 12, 0xff8c1a, 0.6).setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: flare, radius: 30, alpha: 0, duration: 360, ease: 'Quad.easeOut', onComplete: () => flare.destroy() });
+    }
+  }
+
+  // Joicy's THUNDER SLAM: a pretty purple shockwave. Several concentric rings ripple
+  // outward in a quick stagger, each growing from a tiny dot to the FULL quake radius
+  // `r` and thinning/fading as it goes, so it reads as a wave rolling out. A soft
+  // purple fill + a white core sell the impact. Rings are scaled (not radius-tweened)
+  // so the stroke stays crisp under Phaser 4 WebGL.
+  private quakeFx(x: number, y: number, r: number, hex: string): void {
+    const purple = Phaser.Display.Color.HexStringToColor(hex || '#c45ce0').color;
+    const light = 0xe0a8ff; // lighter violet for the leading ring
+    const BASE = 12; // dot radius the rings start from; we scale up to r/BASE
+
+    // soft purple shockfront fill that swells out and fades
+    const fill = this.add.circle(x, y, BASE, purple, 0.28).setDepth(12).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: fill, scale: r / BASE, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => fill.destroy() });
+
+    // 3 staggered ripple rings, each from a dot out to the full radius
+    const rings = [
+      { col: light, w: 4, delay: 0, dur: 460, a: 0.95 },
+      { col: purple, w: 6, delay: 70, dur: 520, a: 0.9 },
+      { col: purple, w: 3, delay: 150, dur: 560, a: 0.7 },
+    ];
+    for (const cfg of rings) {
+      const ring = this.add.circle(x, y, BASE, 0x000000, 0).setStrokeStyle(cfg.w, cfg.col, cfg.a).setDepth(13).setScale(0.15);
+      this.tweens.add({
+        targets: ring, scale: r / BASE, alpha: 0, delay: cfg.delay, duration: cfg.dur,
+        ease: 'Cubic.easeOut', onComplete: () => ring.destroy(),
+      });
+    }
+
+    // bright core pop at the slam point
+    const core = this.add.circle(x, y, 14, 0xffffff, 0.85).setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: core, scale: 2.2, alpha: 0, duration: 200, ease: 'Quad.easeOut', onComplete: () => core.destroy() });
+
+    // a few purple shards kicked up along the wavefront for extra "oomph"
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const shard = this.add.circle(x, y, 3, light, 0.9).setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: shard, x: x + Math.cos(ang) * r * 0.9, y: y + Math.sin(ang) * r * 0.9, alpha: 0, scale: 0.3,
+        duration: Phaser.Math.Between(380, 520), ease: 'Quad.easeOut', onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  /** Hand-drawn HERO-MERGE conjure FX (no spritesheet — vector graphics + tweens,
+   *  so it's always crisp and never warps). A gold magic rune-circle draws itself
+   *  at the hero's feet (two counter-rotating ringed rune wheels), gold sparks fly
+   *  INWARD to fuse, a white→gold core flashes, and a soft column of light rises. */
+  private mergeFx(x: number, y: number): void {
+    const GOLD = 0xffd23f, AMBER = 0xff9b2f, WHITE = 0xffffff;
+    const fy = y + 10; // the magic circle sits at the feet
+
+    // ── 1. ground rune-circle: a Graphics wheel (outer ring + inner ring + ticks +
+    //    rune triangles). Drawn flattened (scaleY 0.42) so it reads as on-ground.
+    const makeWheel = (radius: number, ticks: number, col: number, lw: number) => {
+      const g = this.add.graphics().setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+      g.lineStyle(lw, col, 0.95);
+      g.strokeCircle(0, 0, radius);
+      g.strokeCircle(0, 0, radius * 0.66);
+      for (let i = 0; i < ticks; i++) {
+        const a = (Math.PI * 2 * i) / ticks;
+        g.lineBetween(Math.cos(a) * radius * 0.66, Math.sin(a) * radius * 0.66, Math.cos(a) * radius, Math.sin(a) * radius);
+      }
+      g.setPosition(x, fy).setScale(0.2, 0.2 * 0.42).setAlpha(0);
+      return g;
+    };
+    const outer = makeWheel(40, 12, GOLD, 2.5);
+    const inner = makeWheel(26, 6, AMBER, 2);
+    // fade/scale in, hold spinning, then fade out — counter-rotating
+    this.tweens.add({ targets: outer, scaleX: 1, scaleY: 0.42, alpha: { from: 0, to: 1 }, duration: 220, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: outer, angle: 90, duration: 700, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: outer, alpha: 0, delay: 460, duration: 260, onComplete: () => outer.destroy() });
+    this.tweens.add({ targets: inner, scaleX: 1, scaleY: 0.42, alpha: { from: 0, to: 1 }, duration: 240, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: inner, angle: -120, duration: 700, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: inner, alpha: 0, delay: 460, duration: 260, onComplete: () => inner.destroy() });
+
+    // ── 2. convergence sparks: gold motes spiral INWARD to the hero (the "fuse").
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 * i) / 12;
+      const r0 = 46;
+      const sx = x + Math.cos(a) * r0, sy = fy + Math.sin(a) * r0 * 0.5;
+      const mote = this.add.circle(sx, sy, 3, i % 2 ? GOLD : WHITE, 1).setDepth(13).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: mote, x, y: y - 4, scale: 0.2, alpha: { from: 1, to: 0.4 },
+        delay: i * 12, duration: 300, ease: 'Quad.easeIn', onComplete: () => mote.destroy(),
+      });
+    }
+
+    // ── 3. core flash: white burst → gold, right after the sparks converge.
+    this.time.delayedCall(280, () => {
+      const core = this.add.circle(x, y - 2, 10, WHITE, 0.95).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: core, scale: 3, alpha: 0, duration: 260, ease: 'Quad.easeOut', onComplete: () => core.destroy() });
+      // a single clean ring pulse outward
+      const ring = this.add.circle(x, y - 2, 8, 0, 0).setStrokeStyle(3, GOLD, 0.9).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 320, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() });
+    });
+
+    // ── 4. rising light column: a tall thin glow that shoots up + fades (power-up).
+    const col = this.add.rectangle(x, y, 16, 54, GOLD, 0.5).setOrigin(0.5, 1).setDepth(12).setBlendMode(Phaser.BlendModes.ADD);
+    col.setScale(0.4, 0.2);
+    this.tweens.add({ targets: col, scaleX: 1, scaleY: 1.3, alpha: 0, y: y - 6, delay: 240, duration: 380, ease: 'Quad.easeOut', onComplete: () => col.destroy() });
+  }
+
   // Death "shatter": a burst of little chunks that fly out radially, spin, fall
   // under gravity, and fade — so a kill pops apart instead of a single static
   // flash. Chunk count is small (cheap on mass kills); colours are zombie-flesh.
@@ -1298,6 +1527,15 @@ export class GameScene extends Phaser.Scene {
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 12, 'Tap a pad → pick a hero · tap a hero to upgrade', {
       fontFamily: 'monospace', fontSize: '9px', color: '#8a7aa6', align: 'center', wordWrap: { width: GAME_WIDTH - 16 },
     }).setOrigin(0.5).setDepth(40);
+
+    // "?" help button — top-right of the play field; reopens How to Play any time.
+    const hb = this.add.circle(GAME_WIDTH - 20, 20, 14, 0x1c1730, 0.9).setStrokeStyle(2, 0xffd23f).setDepth(50).setInteractive({ useHandCursor: true });
+    this.add.text(GAME_WIDTH - 20, 20, '?', { fontFamily: Fonts.Display, fontSize: '20px', color: '#ffd23f' }).setOrigin(0.5).setDepth(51);
+    hb.on('pointerup', () => {
+      if (this.heroPicker.visible || this.upgradePanel.visible || this.cinematicActive) return;
+      this.audio.play(AudioKeys.Click);
+      this.showTutorial();
+    });
   }
 
   // Scrollable-ish hero picker: a grid of all 15 hero icons in the HUD band.
@@ -1314,8 +1552,7 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker = this.add.container(0, 0).setDepth(70).setVisible(false);
     const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.96).setOrigin(0);
     dim.name = 'picker-dim';
-    const header = this.add.text(12, 16, 'CHOOSE A HERO', { fontFamily: 'monospace', fontSize: '15px', color: '#a7f070' });
-    this.heroPicker.add([dim, header]);
+    this.heroPicker.add(dim);
 
     // ── LEFT: hero list (2 columns of avatar tiles) — SCROLLABLE ──
     // The roster keeps growing (28 heroes → 14 rows), which overflows the 800px
@@ -1323,7 +1560,7 @@ export class GameScene extends Phaser.Scene {
     // (drag or wheel); the header / detail / close are added AFTER it so they draw
     // on top and hide any tiles that scroll past the top edge (Phaser 4 WebGL has
     // no geometry masks — draw-order is the clip).
-    const listX = 10, listY = 38, tileW = 74, tileH = 56, cols = 2;
+    const listX = 10, listY = 44, tileW = 74, tileH = 56, cols = 2;
     this.listScrollTop = 0;
     this.listPane = this.add.container(0, this.listScrollTop);
     this.heroPicker.add(this.listPane);
@@ -1348,6 +1585,23 @@ export class GameScene extends Phaser.Scene {
     const visibleBottom = GAME_HEIGHT - 8;          // keep an 8px breathing gap
     this.listScrollMin = Math.min(0, visibleBottom - listBottom);
     this.installListScroll(listX, tileW * cols);
+
+    // ── header strip + scroll hints (drawn AFTER the list so they sit on top and
+    //    mask tiles scrolling under them) ──
+    const listColW = tileW * cols;
+    // opaque strip behind the title so tiles scrolling up vanish under it
+    this.heroPicker.add(this.add.rectangle(listX - 4, 0, listColW + 8, 38, 0x0a0a14, 1).setOrigin(0, 0));
+    this.heroPicker.add(this.add.text(listX + listColW / 2, 18, 'CHOOSE A HERO', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#a7f070',
+    }).setOrigin(0.5));
+    // up / down chevrons — shown only when there's more list off-screen that way
+    const arrowX = listX + listColW / 2;
+    this.listArrowUp = this.add.text(arrowX, 40, '▲', { fontFamily: 'monospace', fontSize: '14px', color: '#ffd23f' }).setOrigin(0.5).setVisible(false);
+    this.listArrowDown = this.add.text(arrowX, GAME_HEIGHT - 12, '▼ more', { fontFamily: 'monospace', fontSize: '12px', color: '#ffd23f' }).setOrigin(0.5).setVisible(false);
+    this.heroPicker.add([this.listArrowUp, this.listArrowDown]);
+    this.tweens.add({ targets: this.listArrowDown, y: GAME_HEIGHT - 8, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.tweens.add({ targets: this.listArrowUp, y: 44, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.updateListArrows();
 
     // ── RIGHT: detail pane (rebuilt per selection in renderDetail) ──
     const detailX = listX + cols * tileW + 12;
@@ -1384,6 +1638,7 @@ export class GameScene extends Phaser.Scene {
       this.listPane.y = clamp(this.listPane.y + (p.y - lastY));
       lastY = p.y;
       if (Math.abs(p.y - downY) > 6) this.listDragged = true; // a real drag → suppress the tap-select
+      this.updateListArrows();
     });
     this.input.on(Phaser.Input.Events.POINTER_UP, () => { dragging = false; });
 
@@ -1391,7 +1646,16 @@ export class GameScene extends Phaser.Scene {
     this.input.on(Phaser.Input.Events.POINTER_WHEEL, (p: Phaser.Input.Pointer, _o: unknown, _dx: number, dy: number) => {
       if (!overList(p)) return;
       this.listPane.y = clamp(this.listPane.y - dy * 0.5);
+      this.updateListArrows();
     });
+  }
+
+  /** Show the up/down "more heroes" chevrons only when the list can scroll that way. */
+  private updateListArrows(): void {
+    if (!this.listArrowUp || !this.listArrowDown) return;
+    const y = this.listPane.y;
+    this.listArrowUp.setVisible(y < this.listScrollTop - 1);   // scrolled down → more above
+    this.listArrowDown.setVisible(y > this.listScrollMin + 1); // room to scroll → more below
   }
 
   private openHeroPicker(padKey: string, pointerId = -1): void {
@@ -1402,9 +1666,10 @@ export class GameScene extends Phaser.Scene {
     this.listPane.y = this.listScrollTop; // always open scrolled to the top
     this.listDragged = false;
     this.heroPicker.setVisible(true);
-    // pre-select a random hero so the detail pane isn't empty on open
-    const randomId = Phaser.Utils.Array.GetRandom(HERO_IDS as HeroId[]);
-    this.selectHeroInPicker(randomId);
+    this.updateListArrows(); // refresh the scroll-hint chevrons
+    // pre-select the player's last-picked hero (defaults to Oreo on first open) so
+    // the detail pane isn't empty and the choice is predictable, not random.
+    this.selectHeroInPicker(this.lastPickedHero);
     // release the opening-tap lock on the next tick so it swallows ONLY the opening
     // pointerup — the X button then closes on the first real click (was needing 2).
     this.time.delayedCall(0, () => { this.pickerOpenedBy = -1; });
@@ -1429,6 +1694,7 @@ export class GameScene extends Phaser.Scene {
     // on the next tick in openHeroPicker, so taps here always register.
     this.pickerOpenedBy = -1;
     this.audio.play(AudioKeys.Click);
+    this.lastPickedHero = id; // remember so the next picker open pre-selects it
     this.selectHeroInPicker(id);
   }
 
@@ -1546,6 +1812,7 @@ export class GameScene extends Phaser.Scene {
           this.audio.play(AudioKeys.Place);
           h.setSelected(true);
           this.showUpgradePanel(h);
+          this.maybeHintMerge(); // just hit max? two max same-type → suggest merging
         } else {
           this.audio.play(AudioKeys.Lose);
         }
@@ -1603,44 +1870,125 @@ export class GameScene extends Phaser.Scene {
     if (this.wave > best) this.registry.set(key, this.wave);
   }
   // ── tutorial / tips ────────────────────────────────────────────────────────────
-  /** First-time tutorial: a dismissible card listing the core actions. Shown once
-   *  (persisted via RegistryKeys.TipsSeen), tap anywhere to begin. */
+  /** Paged "How to Play" carousel: one mechanic per page with an icon + short text,
+   *  dot indicators, and Prev/Next/Skip. Shown once on first run (persisted via
+   *  TipsSeen) and re-openable any time via the HUD "?" button. */
   private showTutorial(): void {
+    const T = TextureKeys;
+    // each page: an emoji-ish icon source (a texture key, or null = draw a glyph),
+    // a fallback glyph, a colour, a title and 1–2 short lines.
+    const pages: Array<{ tex: string | null; glyph: string; col: string; title: string; lines: string[] }> = [
+      { tex: T.Pad, glyph: '🟦', col: '#5ad1ff', title: 'PLACE HEROES',
+        lines: ['Tap a glowing PAD to open the', 'hero list, then PLACE a hero on it.'] },
+      { tex: null, glyph: '▶', col: '#a7f070', title: 'START THE WAVE',
+        lines: ['Press START WAVE to send the', 'zombies in. Survive every wave!'] },
+      { tex: T.HeroOreo, glyph: '⬆', col: '#ffe066', title: 'UPGRADE & SELL',
+        lines: ['Tap a hero to UPGRADE it (max Lv10),', 'or SELL it to refund 60% of its cost.'] },
+      { tex: T.HeroHakj, glyph: '✨', col: '#ffd23f', title: 'MERGE FOR POWER',
+        lines: ['Drag a MAX-LEVEL hero onto another of', 'the SAME type: +5% damage + a gold', 'shield that blocks one boss hit (max 3).'] },
+      { tex: T.ZombieBossStand, glyph: '👑', col: '#ff5d5d', title: 'BEWARE THE BOSS',
+        lines: ['Bosses can execute your heroes — and', 'one reaching the gate costs 10 lives!'] },
+    ];
+
     const root = this.add.container(0, 0).setDepth(98);
-    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.82).setOrigin(0).setInteractive();
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.84).setOrigin(0).setInteractive();
     const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT * 0.42;
-    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 360, 0x1c1730, 0.98).setStrokeStyle(3, 0xff3b30);
-    const title = this.add.text(cx, cy - 150, 'HOW TO PLAY', {
-      fontFamily: Fonts.Display, fontSize: '34px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 6,
+    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 56, 320, 0x1c1730, 0.98).setStrokeStyle(3, 0xff3b30);
+    const header = this.add.text(cx, cy - 132, 'HOW TO PLAY', {
+      fontFamily: Fonts.Display, fontSize: '26px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 5,
     }).setOrigin(0.5);
-    const tips = [
-      '🟦  Tap a blue PAD to pick & place a hero',
-      '▶  Press START to begin wave 1',
-      '⬆  Tap a hero → UP to upgrade (max Lv10)',
-      '💰  SELL a hero to refund 60% of its cost',
-      '✨  Drag a MAX-LEVEL hero onto another of the',
-      '      SAME type to MERGE: +5% power + a gold',
-      '      shield (max 3) that blocks a boss hit',
-      '👑  A boss reaching the gate costs 10 lives!',
-    ].join('\n');
-    const body = this.add.text(cx, cy - 18, tips, {
-      fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'left', lineSpacing: 7,
-    }).setOrigin(0.5);
-    const go = this.add.text(cx, cy + 150, 'TAP TO START', {
-      fontFamily: Fonts.Display, fontSize: '24px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 5,
-      backgroundColor: '#c0241a', padding: { x: 18, y: 6 },
-    }).setOrigin(0.5);
-    this.tweens.add({ targets: go, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
-    root.add([dim, card, title, body, go]);
-    dim.once('pointerup', () => {
-      this.registry.set(RegistryKeys.TipsSeen, true);
-      root.destroy();
-    });
+    root.add([dim, card, header]);
+
+    // page content holders (rebuilt each page)
+    const iconImg = this.add.image(cx, cy - 56, T.Pad).setDepth(99);
+    const iconGlyph = this.add.text(cx, cy - 56, '', { fontFamily: Fonts.Display, fontSize: '46px', color: '#fff' }).setOrigin(0.5);
+    const pTitle = this.add.text(cx, cy - 8, '', { fontFamily: Fonts.Display, fontSize: '22px', color: '#fff', stroke: '#1a1c2c', strokeThickness: 4 }).setOrigin(0.5);
+    const pBody = this.add.text(cx, cy + 46, '', { fontFamily: 'monospace', fontSize: '12px', color: '#e8dcff', align: 'center', lineSpacing: 6 }).setOrigin(0.5);
+    root.add([iconImg, iconGlyph, pTitle, pBody]);
+
+    // dot indicators
+    const dots: Phaser.GameObjects.Arc[] = [];
+    const dotY = cy + 104, dotGap = 16, dotX0 = cx - ((pages.length - 1) * dotGap) / 2;
+    for (let i = 0; i < pages.length; i++) {
+      const d = this.add.circle(dotX0 + i * dotGap, dotY, 4, 0x6a5a8a).setDepth(99);
+      dots.push(d); root.add(d);
+    }
+
+    // nav buttons
+    const mkBtn = (x: number, label: string, bg: string, fg: string) =>
+      this.add.text(x, cy + 138, label, {
+        fontFamily: Fonts.Display, fontSize: '18px', color: fg, stroke: '#1a1c2c', strokeThickness: 4,
+        backgroundColor: bg, padding: { x: 14, y: 5 },
+      }).setOrigin(0.5).setDepth(99).setInteractive({ useHandCursor: true });
+    const prevBtn = mkBtn(cx - 92, 'BACK', '#2a2038', '#cdd6e6');
+    const nextBtn = mkBtn(cx + 78, 'NEXT', '#c0241a', '#ffffff');
+    // SKIP sits INSIDE the card's top-right corner (card right edge = cx + (W-56)/2).
+    const cardRight = cx + (GAME_WIDTH - 56) / 2;
+    const skip = this.add.text(cardRight - 12, cy - 145, 'SKIP ✕', {
+      fontFamily: 'monospace', fontSize: '11px', color: '#8a7aa6',
+    }).setOrigin(1, 0.5).setDepth(99).setInteractive({ useHandCursor: true });
+    root.add([prevBtn, nextBtn, skip]);
+    this.tweens.add({ targets: nextBtn, scale: 1.06, duration: 600, yoyo: true, repeat: -1 });
+
+    let page = 0;
+    const render = () => {
+      const p = pages[page];
+      if (p.tex && this.textures.exists(p.tex)) {
+        iconImg.setVisible(true).setTexture(p.tex);
+        const src = iconImg.height || 48; iconImg.setScale(52 / src);
+        iconGlyph.setVisible(false);
+      } else {
+        iconImg.setVisible(false);
+        iconGlyph.setVisible(true).setText(p.glyph).setColor(p.col);
+      }
+      pTitle.setText(p.title).setColor(p.col);
+      pBody.setText(p.lines.join('\n'));
+      for (let i = 0; i < dots.length; i++) dots[i].setFillStyle(i === page ? 0xffd23f : 0x6a5a8a).setScale(i === page ? 1.3 : 1);
+      prevBtn.setVisible(page > 0);
+      (nextBtn as Phaser.GameObjects.Text).setText(page === pages.length - 1 ? 'PLAY ▶' : 'NEXT');
+    };
+    const finish = () => { this.registry.set(RegistryKeys.TipsSeen, true); root.destroy(); };
+    nextBtn.on('pointerup', () => { if (page < pages.length - 1) { page++; render(); } else finish(); });
+    prevBtn.on('pointerup', () => { if (page > 0) { page--; render(); } });
+    skip.on('pointerup', finish);
+    render();
   }
 
-  /** Hook for per-action discovery hints (currently a no-op placeholder beyond the
-   *  one-time tutorial; kept so feature code can flag a discovered mechanic). */
-  private markTip(_key: string): void { /* reserved for future contextual hints */ }
+  /** Contextual one-time hints: a small toast that teaches a mechanic the moment it
+   *  becomes relevant. `key` is the RegistryKey persisting "already shown". */
+  private markTip(key: string): void {
+    let regKey: string | null = null, msg = '';
+    if (key === 'pad') { regKey = RegistryKeys.HintPadSeen; msg = '👆 Tap a glowing PAD to place a hero'; }
+    else if (key === 'merge') { regKey = RegistryKeys.HintMergeSeen; msg = '✨ Drag a max-level hero onto a same-type one to MERGE'; }
+    if (!regKey || this.registry.get(regKey)) return; // unknown or already shown
+    this.registry.set(regKey, true);
+    this.showToast(msg);
+  }
+
+  /** If there are ≥2 max-level heroes of the SAME type (a valid merge pair), show
+   *  the one-time merge hint. Called after an upgrade so it fires the moment merging
+   *  first becomes possible. */
+  private maybeHintMerge(): void {
+    if (this.registry.get(RegistryKeys.HintMergeSeen)) return;
+    const maxByType = new Map<string, number>();
+    for (const h of this.heroes) {
+      if (!h.isMaxLevel) continue;
+      const n = (maxByType.get(h.heroId) ?? 0) + 1;
+      maxByType.set(h.heroId, n);
+      if (n >= 2) { this.markTip('merge'); return; }
+    }
+  }
+
+  /** A small auto-dismissing hint banner near the bottom of the field. */
+  private showToast(msg: string): void {
+    const y = FIELD_H - 40;
+    const t = this.add.text(GAME_WIDTH / 2, y, msg, {
+      fontFamily: 'monospace', fontSize: '12px', color: '#1a1c2c', align: 'center',
+      backgroundColor: '#ffe066', padding: { x: 12, y: 7 }, wordWrap: { width: GAME_WIDTH - 60 },
+    }).setOrigin(0.5).setDepth(80).setAlpha(0);
+    this.tweens.add({ targets: t, alpha: 1, y: y - 8, duration: 240, ease: 'Back.out' });
+    this.tweens.add({ targets: t, alpha: 0, y: y - 20, delay: 3200, duration: 400, onComplete: () => t.destroy() });
+  }
 
   private endOverlay(msg: string, color: string): void {
     this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.72).setOrigin(0).setDepth(90);

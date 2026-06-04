@@ -32,11 +32,18 @@ export class Hero extends Phaser.GameObjects.Image {
   private idleTween?: Phaser.Tweens.Tween;
   private bubble?: Phaser.GameObjects.Container; // active speech bubble (one at a time)
   private nextChatterAt = 0; // rate-limit attack chatter so it doesn't spam
-  // merge visuals
-  private mergeAura?: Phaser.GameObjects.Particles.ParticleEmitter; // fiery power-up aura
-  private mergeGlow?: Phaser.GameObjects.Arc;      // pulsing glow disc at the feet
+  // merge visuals — a rotating magic-circle at the feet (one ring per merge tier:
+  // gold → gold+black → gold+black+red) + small shield icons above the head.
+  // The rings live inside `mergeGround`, a container flattened on Y (scaleY≈0.42) to
+  // project the floor plane. The rune Graphics rotate INSIDE that container, so the
+  // spin happens in the ground plane THEN gets foreshortened — geometrically correct
+  // (rotating a pre-flattened sprite would tilt the whole ellipse, which looks wrong).
+  private mergeGround?: Phaser.GameObjects.Container; // foreshortened floor plane
+  private mergeRings: Phaser.GameObjects.Graphics[] = []; // concentric rune wheels (spin)
+  private mergeRingTween?: Phaser.Tweens.Tween;           // shared rotation driver
+  private mergeGlow?: Phaser.GameObjects.Arc;      // soft glow disc under the circle
   private mergePct?: Phaser.GameObjects.Text;     // "+x%" label below the hero
-  private shieldPips: Phaser.GameObjects.Arc[] = []; // gold shield dots above the hero
+  private shieldIcons: Phaser.GameObjects.Graphics[] = []; // shield badges above the head
   // combo (xxKingxx): rising bonus damage while striking the SAME target
   private comboTarget: Zombie | null = null;
   comboCount = 0;
@@ -44,6 +51,8 @@ export class Hero extends Phaser.GameObjects.Image {
   private orbs: Phaser.GameObjects.Arc[] = [];
   private orbRing?: Phaser.GameObjects.Arc; // faint orbit-path ring under the orbs
   private orbTween?: Phaser.Tweens.Tween;   // shared rotation driver for the orbs
+  // aura "heartbeat" pulse ring (buff/heal/gold supports): grows small→range, fades
+  private auraPulseTimer?: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene, id: HeroId, col: number, row: number, x: number, y: number) {
     const def = HEROES[id];
@@ -66,6 +75,7 @@ export class Hero extends Phaser.GameObjects.Image {
     scene.add.existing(this);
     this.startIdle();
     if (def.skill === 'spirit') this.spawnOrbs(); // Yugitoh's orbiting guardians
+    if (def.attack === 'aura') this.startAuraPulse(); // buff/heal/gold auras: heartbeat ring
     this.chatter('place'); // greet on placement
     // selection ring (hidden until selected)
     this.ring = scene.add.circle(x, y, def.tiers[0].range, Phaser.Display.Color.HexStringToColor(def.tint).color, 0.1)
@@ -82,6 +92,9 @@ export class Hero extends Phaser.GameObjects.Image {
   /** Damage multiplier from merges: +5% per merge tier (max 3 → +15%). */
   get mergeMult(): number { return 1 + 0.05 * this.mergeTiers; }
   get hasShield(): boolean { return this.mergeTiers > 0; }
+  /** True once the hero has merged the maximum 3 tiers — it can't merge further,
+   *  so it shouldn't be drag-pickable anymore. */
+  get isMaxMerged(): boolean { return this.mergeTiers >= 3; }
 
   /** Returns a FireIntent when ready to act this frame, else null. */
   update(time: number, zombies: Zombie[]): FireIntent | null {
@@ -288,49 +301,128 @@ export class Hero extends Phaser.GameObjects.Image {
     return true;
   }
 
-  /** Rebuild the fiery aura + shield pips + "+x%" label for the current tier count. */
-  private refreshMergeVisuals(): void {
-    // fiery "fused" aura: a pulsing glow ring under the hero + rising flame sparks.
-    // Colour/intensity ramps with merge tiers so a 3-stack reads as much hotter.
-    if (this.mergeTiers > 0) {
-      const ringCol = [0xffd23f, 0xff8c3b, 0xff5b3b][Math.min(this.mergeTiers - 1, 2)];
-      if (!this.mergeGlow) {
-        // glow disc at the feet — always-visible "power-up" base
-        this.mergeGlow = this.scene.add.circle(this.x, this.y + 8, 20, ringCol, 0.35).setDepth(8);
-        this.scene.tweens.add({ targets: this.mergeGlow, scale: 1.25, alpha: 0.55, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-      }
-      this.mergeGlow.setFillStyle(ringCol, 0.4).setRadius(18 + this.mergeTiers * 4);
-      if (!this.mergeAura) {
-        this.mergeAura = this.scene.add.particles(this.x, this.y + 6, 'spark', {
-          speed: { min: 14, max: 40 }, angle: { min: 245, max: 295 }, lifespan: 620,
-          scale: { start: 1.3, end: 0 }, alpha: { start: 0.95, end: 0 }, frequency: 45,
-          tint: [0xffe066, 0xffd23f, 0xff8c3b, 0xff5b3b], blendMode: 'ADD',
-        }).setDepth(10);
-      }
-      this.mergeAura.frequency = Math.max(20, 60 - this.mergeTiers * 13); // denser per tier
-      this.setTint(0xfff0c0); // warm glow on the hero sprite itself
-    } else {
-      this.mergeAura?.destroy(); this.mergeAura = undefined;
-      this.mergeGlow?.destroy(); this.mergeGlow = undefined;
-      this.clearTint();
+  // Draw one neon "rune wheel" (Genshin-style magic-circle ring) into `g`, centred
+  // at (0,0): a glowing ring, a ring of 4-point star runes around it, and 4 long
+  // spikes at the diagonals. `col` tints it; drawn with additive-ish bright strokes.
+  private drawRuneWheel(g: Phaser.GameObjects.Graphics, radius: number, col: number): void {
+    g.clear();
+    // main ring (double stroke = glow + core)
+    g.lineStyle(4, col, 0.28); g.strokeCircle(0, 0, radius);
+    g.lineStyle(1.6, col, 0.95); g.strokeCircle(0, 0, radius);
+    g.lineStyle(1, col, 0.7); g.strokeCircle(0, 0, radius * 0.82); // inner thin ring
+    // 12 four-point star runes spaced around the ring
+    const star = (cx: number, cy: number, s: number) => {
+      g.lineStyle(1.4, col, 0.95);
+      g.beginPath();
+      g.moveTo(cx, cy - s); g.lineTo(cx + s * 0.3, cy - s * 0.3); g.lineTo(cx + s, cy);
+      g.lineTo(cx + s * 0.3, cy + s * 0.3); g.lineTo(cx, cy + s);
+      g.lineTo(cx - s * 0.3, cy + s * 0.3); g.lineTo(cx - s, cy);
+      g.lineTo(cx - s * 0.3, cy - s * 0.3); g.closePath(); g.strokePath();
+    };
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 * i) / 12;
+      star(Math.cos(a) * radius, Math.sin(a) * radius, 4.5);
     }
-    // shield pips (gold dots) above the head — one per tier
-    for (const p of this.shieldPips) p.destroy();
-    this.shieldPips = [];
+    // 4 long diagonal spikes (the pointed "compass" arms from the reference)
+    g.lineStyle(1.6, col, 0.9);
+    for (const d of [Math.PI / 4, (3 * Math.PI) / 4, (5 * Math.PI) / 4, (7 * Math.PI) / 4]) {
+      const ix = Math.cos(d) * radius, iy = Math.sin(d) * radius;
+      const ox = Math.cos(d) * (radius * 1.32), oy = Math.sin(d) * (radius * 1.32);
+      g.beginPath(); g.moveTo(ix, iy); g.lineTo(ox, oy); g.strokePath();
+    }
+  }
+
+  // Draw a small shield badge into `g`, centred at (0,0), ~`s` px wide.
+  private drawShield(g: Phaser.GameObjects.Graphics, s: number): void {
+    g.clear();
+    const w = s, h = s * 1.25;
+    g.fillStyle(0xffd23f, 1); g.lineStyle(1.5, 0x7a5a00, 1);
+    g.beginPath();
+    g.moveTo(0, -h / 2);                 // top centre
+    g.lineTo(w / 2, -h / 2 + 2);         // top-right
+    g.lineTo(w / 2, h * 0.12);           // right side
+    g.lineTo(0, h / 2);                  // bottom point
+    g.lineTo(-w / 2, h * 0.12);          // left side
+    g.lineTo(-w / 2, -h / 2 + 2);        // top-left
+    g.closePath(); g.fillPath(); g.strokePath();
+    // a little cross/emblem
+    g.lineStyle(1.4, 0x7a5a00, 0.9);
+    g.beginPath(); g.moveTo(0, -h * 0.22); g.lineTo(0, h * 0.18); g.strokePath();
+    g.beginPath(); g.moveTo(-w * 0.26, -h * 0.04); g.lineTo(w * 0.26, -h * 0.04); g.strokePath();
+  }
+
+  /** Rebuild the rotating magic-circle + shield badges + "+x%" label for the
+   *  current tier count. Ring colours stack per tier: gold → +black → +red. */
+  private refreshMergeVisuals(): void {
+    // ── feet magic-circle: one rune wheel per merge tier, nested + colour-coded ──
+    // tier1 = gold; tier2 = gold(inner) + black(outer); tier3 = gold + black + red.
+    const TIER_COLORS = [0xffd23f, 0x161616, 0xff2e2e]; // gold, black, red (inner→outer)
+    // (re)build the rings whenever the tier count changes
+    const wantRings = this.mergeTiers;
+    if (this.mergeRings.length !== wantRings) {
+      for (const r of this.mergeRings) r.destroy();
+      this.mergeRings = [];
+      this.mergeRingTween?.stop(); this.mergeRingTween = undefined;
+      if (wantRings > 0) {
+        // the foreshortened floor plane: a container squashed on Y. Rune graphics
+        // rotate inside it (in the flat ground plane); the container then projects.
+        if (!this.mergeGround) {
+          this.mergeGround = this.scene.add.container(0, 0).setDepth(7).setScale(1, 0.42);
+        }
+        for (let i = 0; i < wantRings; i++) {
+          const g = this.scene.make.graphics({}, false);
+          this.drawRuneWheel(g, 30 + i * 13, TIER_COLORS[i]); // bigger + spaced so all 3 read clearly
+          this.mergeGround.add(g);
+          this.mergeRings.push(g);
+        }
+        // soft glow disc under the circle (sized to cover the outermost ring)
+        const glowR = 30 + (wantRings - 1) * 13 + 6;
+        if (!this.mergeGlow) {
+          this.mergeGlow = this.scene.add.circle(this.x, this.y + 12, glowR, 0xffd23f, 0.16).setDepth(6).setScale(1, 0.42);
+          this.scene.tweens.add({ targets: this.mergeGlow, alpha: 0.28, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+        } else {
+          this.mergeGlow.setRadius(glowR);
+        }
+        // counter-rotate alternating rings via a shared phase driver (rotation is in
+        // the GROUND plane — the container's scaleY foreshortens it afterwards)
+        const state = { p: 0 };
+        this.mergeRingTween = this.scene.tweens.add({
+          targets: state, p: Math.PI * 2, duration: 6000, repeat: -1, ease: 'Linear',
+          onUpdate: () => {
+            for (let i = 0; i < this.mergeRings.length; i++) {
+              this.mergeRings[i].rotation = (i % 2 ? -state.p : state.p) * (1 + i * 0.15);
+            }
+          },
+        });
+      } else {
+        this.mergeGround?.destroy(); this.mergeGround = undefined;
+        this.mergeGlow?.destroy(); this.mergeGlow = undefined;
+      }
+    }
+    // position the ground plane + glow at the feet (also used after a drag/snap)
+    this.mergeGround?.setPosition(this.x, this.y + 12);
+    this.mergeGlow?.setPosition(this.x, this.y + 12);
+    // hero keeps a subtle warm tint while fused
+    if (this.mergeTiers > 0) this.setTint(0xfff2d0); else this.clearTint();
+
+    // ── shield badges above the head — one per tier ──
+    for (const s of this.shieldIcons) s.destroy();
+    this.shieldIcons = [];
     for (let i = 0; i < this.mergeTiers; i++) {
-      const px = this.x - (this.mergeTiers - 1) * 5 + i * 10;
-      const pip = this.scene.add.circle(px, this.y - 30, 3.5, 0xffd23f).setStrokeStyle(1, 0x7a5a00).setDepth(12);
-      this.shieldPips.push(pip);
+      const px = this.x - (this.mergeTiers - 1) * 7 + i * 14;
+      const g = this.scene.add.graphics().setDepth(12).setPosition(px, this.y - 32);
+      this.drawShield(g, 8);
+      this.shieldIcons.push(g);
     }
     // persistent "+x%" label below the feet
     const pct = this.mergeTiers * 5;
     if (pct > 0) {
       if (!this.mergePct) {
-        this.mergePct = this.scene.add.text(this.x, this.y + 18, '', {
+        this.mergePct = this.scene.add.text(this.x, this.y + 20, '', {
           fontFamily: 'monospace', fontSize: '10px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 3,
         }).setOrigin(0.5).setDepth(12);
       }
-      this.mergePct.setText(`+${pct}%`);
+      this.mergePct.setPosition(this.x, this.y + 20).setText(`+${pct}%`);
     } else if (this.mergePct) {
       this.mergePct.destroy(); this.mergePct = undefined;
     }
@@ -382,6 +474,31 @@ export class Hero extends Phaser.GameObjects.Image {
     });
   }
 
+  // ── aura heartbeat pulse (buff / heal / gold supports) ──────────────────────────
+  /** Emit a soft glowing ring that grows from the hero out to its buff RANGE and
+   *  fades — repeated on a steady ~1.4s beat (a "heartbeat"). Colour follows the
+   *  hero's tint; the ring stops exactly at stats.range so it reads as the area of
+   *  effect. Set up once on placement; the range is read live so it tracks upgrades. */
+  private startAuraPulse(): void {
+    const col = Phaser.Display.Color.HexStringToColor(this.def.tint).color;
+    const emit = () => {
+      if (!this.active) return;
+      const r = this.stats.range; // current AoE radius (grows with upgrades)
+      // a SINGLE thin ring outline — grows to the buff range + fades. Drawn as a FULL
+      // circle (matching the hero's range ring), centred on the hero. We tween the
+      // RADIUS (not scale) so the 2px stroke stays 2px — scaling would blow the
+      // stroke up too and the ring would spill past the actual buff range.
+      const ring = this.scene.add.circle(this.x, this.y, 8, 0x000000, 0)
+        .setStrokeStyle(2.5, col, 0.55).setDepth(8);
+      this.scene.tweens.add({
+        targets: ring, radius: r, alpha: 0,
+        duration: 1100, ease: 'Cubic.easeOut', onComplete: () => ring.destroy(),
+      });
+    };
+    emit();
+    this.auraPulseTimer = this.scene.time.addEvent({ delay: 1400, loop: true, callback: emit });
+  }
+
   /** A floating "+x%" that rises and fades (juice on each merge / shield change). */
   private floatPct(): void {
     const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 5}%`, {
@@ -396,13 +513,15 @@ export class Hero extends Phaser.GameObjects.Image {
     this.bubble?.destroy();
     this.ring.destroy();
     this.turret?.destroy();
-    this.mergeAura?.destroy();
+    this.mergeRingTween?.stop();
+    this.mergeGround?.destroy(); // destroys its child ring graphics too
     this.mergeGlow?.destroy();
     this.mergePct?.destroy();
-    for (const p of this.shieldPips) p.destroy();
+    for (const s of this.shieldIcons) s.destroy();
     this.orbTween?.stop();
     for (const o of this.orbs) o.destroy();
     this.orbRing?.destroy();
+    this.auraPulseTimer?.remove();
     this.destroy();
   }
 }

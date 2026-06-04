@@ -18,7 +18,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   reachedEnd = false;
   /** boss-only metadata (name + hero-kill cooldown); undefined for minions, even
    *  when a boss type walks in as an elite minion (set only on real boss waves). */
-  bossInfo?: { name: string; skillCdMs: number };
+  bossInfo?: { name: string; skillCdMs: number; throwTex?: string };
   nextHeroKillAt = 0; // next time this boss may destroy a hero (scene clock ms)
   isElite = false; // a boss-type walking in as a tougher minion (no skill/popup); costs 3 lives at the gate
 
@@ -28,6 +28,13 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private stunUntil = 0;
   private freezeStacks = 0; // Morgan: frost stacks build toward a hard-freeze
   private frozenUntil = 0;  // while > now the zombie is locked solid (can't move)
+  // xxKongxx burn: each hit adds a stack; at the threshold the zombie INCINERATES,
+  // taking a % of its CURRENT hp per tick (shreds high-hp targets) until burn ends.
+  private burnStacks = 0;
+  private burnDps = 0;       // flat DoT per second from stacked burn (pre-incinerate)
+  private burnUntil = 0;
+  private incinPctPerTick = 0; // >0 once incinerated: fraction of current hp per tick
+  private lastBurnTick = 0;
   private poisonDps = 0;
   private poisonUntil = 0;
   private vulnStacks = 0; // gnaw (Jibgor): each bite raises damage taken; +8% per stack, capped
@@ -85,6 +92,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.isElite = false;
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0;
     this.freezeStacks = 0; this.frozenUntil = 0;
+    this.burnStacks = 0; this.burnDps = 0; this.burnUntil = 0; this.incinPctPerTick = 0; this.lastBurnTick = 0;
     this.poisonDps = 0; this.poisonUntil = 0; this.vulnStacks = 0;
     // precompute segment lengths for distance-based ordering
     this.segLen = [];
@@ -124,6 +132,19 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     // poison DoT
     if (this.poisonUntil > now && this.poisonDps > 0) {
       if (this.applyDamage(this.poisonDps * dt)) return null; // killed → caller reads dead via list filter
+    }
+
+    // burn DoT (xxKongxx): flat per-stack damage, OR — once incinerated — a % of
+    // CURRENT hp every ~250ms tick (so it chews through high-hp zombies fast).
+    if (this.burnUntil > now) {
+      if (this.burnDps > 0 && this.applyDamage(this.burnDps * dt)) return null;
+      if (this.incinPctPerTick > 0 && now - this.lastBurnTick >= 250) {
+        this.lastBurnTick = now;
+        if (this.applyDamage(this.hp * this.incinPctPerTick)) return null;
+      }
+    } else if (this.burnStacks > 0) {
+      // burn expired → reset the fire state
+      this.burnStacks = 0; this.burnDps = 0; this.incinPctPerTick = 0;
     }
 
     // stunned OR hard-frozen → no movement (but still flashes / takes DoT)
@@ -318,6 +339,32 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.vulnStacks++;
   }
 
+  /** True while the zombie is on fire. */
+  isBurning(now: number): boolean {
+    return this.burnUntil > now;
+  }
+
+  /** xxKongxx (Flame Breathing): add one burn stack. Each stack adds flat DoT and
+   *  refreshes the burn timer; once stacks reach `stacksToIncinerate` the zombie
+   *  IGNITES — taking `incinPct` of its CURRENT hp per tick. Returns true on the
+   *  tick it first incinerates (so the scene can play the ignite FX). */
+  applyBurn(dps: number, durationS: number, stacksToIncinerate: number, incinPct: number, now: number): boolean {
+    if (this.dead || this.dying) return false;
+    this.burnStacks++;
+    this.burnDps = dps * this.burnStacks;
+    this.burnUntil = now + durationS * 1000;
+    this.setTint(0xff7a1a);
+    this.scene.time.delayedCall(140, () => {
+      if (!this.dead && this.burnUntil <= this.scene.time.now) this.clearTint();
+    });
+    if (this.incinPctPerTick === 0 && this.burnStacks >= stacksToIncinerate) {
+      this.incinPctPerTick = incinPct;
+      this.lastBurnTick = now;
+      return true; // just ignited
+    }
+    return false;
+  }
+
   /** True while the zombie is locked in a hard-freeze (brittle, can't move). */
   isFrozen(now: number): boolean {
     return this.frozenUntil > now;
@@ -350,6 +397,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     let back = px;
     while (back > 0 && this.wpIndex >= 0) {
       const prev = this.waypoints[this.wpIndex];
+      if (!prev) break; // no waypoint to rewind toward (start/edge of path) — stop safely
       const dx = this.x - prev.x, dy = this.y - prev.y;
       const d = Math.hypot(dx, dy);
       if (d >= back) {
@@ -372,9 +420,11 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.scene.time.delayedCall(45, () => {
       if (this.dead) return;
       // restore a status tint if one is active, else clear
-      if (this.frozenUntil > this.scene.time.now) this.setTint(0x6cc6ff);
-      else if (this.stunUntil > this.scene.time.now) this.setTint(0xffe066);
-      else if (this.slowUntil > this.scene.time.now) this.setTint(0x9be0ff);
+      const now2 = this.scene.time.now;
+      if (this.frozenUntil > now2) this.setTint(0x6cc6ff);
+      else if (this.burnUntil > now2) this.setTint(0xff7a1a);
+      else if (this.stunUntil > now2) this.setTint(0xffe066);
+      else if (this.slowUntil > now2) this.setTint(0x9be0ff);
       else this.clearTint();
     });
   }
