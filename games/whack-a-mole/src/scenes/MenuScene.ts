@@ -275,6 +275,12 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start(SceneKeys.Game);
     };
     start.on('pointerup', go);
-    this.input.keyboard?.on('keydown', go);
+    // Keyboard start guard: the nickname prompt mounts a real <input>; while it's in
+    // the DOM, swallow keydowns here so the same keystroke (esp. Enter committing the
+    // name) can't ALSO start the game even if it fires before modalOpen clears.
+    this.input.keyboard?.on('keydown', () => {
+      if (document.querySelector('input')) return;
+      go();
+    });
   }
 }

@@ -5,10 +5,17 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
 // A small modal that lets the player type a nickname for the leaderboard.
 //
-// Phaser has no native text field, so we drive entry off the keyboard (desktop)
-// AND a hidden HTML <input> mounted over the canvas (mobile — it raises the soft
-// keyboard and feeds value back). The chosen name is saved via Storage + mirrored
-// to the registry. Validates 3–12 chars; OK is disabled until valid.
+// Phaser has no native text field, so we overlay a REAL HTML <input> on top of the
+// canvas, sized + positioned over the on-screen input box, kept almost transparent
+// (the Phaser text + caret are drawn on top for the themed look). Using a real,
+// touchable, visible input is what makes the mobile soft keyboard appear:
+//   - NO pointer-events:none  (the input must be touchable, or the OS won't raise
+//     the keyboard)
+//   - NOT opacity:0 / 1px      (a fully-hidden/zero-size input is refused by mobile
+//     browsers — we use a real size and opacity ~0.01)
+//   - focus() is called SYNCHRONOUSLY inside the pointer gesture (iOS Safari only
+//     opens the keyboard from a direct user gesture — a setTimeout/async focus is
+//     silently ignored).
 //
 // Usage:
 //   showNicknamePrompt(scene, { force: true, onDone: () => ... })
@@ -32,16 +39,20 @@ export function showNicknamePrompt(scene: Phaser.Scene, opts: NicknameOpts = {})
   const title = scene.add.text(cx, cy - 86, 'YOUR NAME', {
     fontFamily: Fonts.Display, fontSize: '30px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 5,
   }).setOrigin(0.5);
-  const hint = scene.add.text(cx, cy - 54, 'Shown on the leaderboard (3–12 chars)', {
+  const hint = scene.add.text(cx, cy - 54, 'Tap the box, then type (3–12 chars)', {
     fontFamily: 'monospace', fontSize: '10px', color: '#a89ccb',
   }).setOrigin(0.5);
 
-  // input box + the typed text + a blinking caret
-  const box = scene.add.rectangle(cx, cy - 6, GAME_WIDTH - 110, 44, 0x0e0a18, 1).setStrokeStyle(2, 0x6a5a8a);
-  const text = scene.add.text(cx, cy - 6, value, {
+  // input box + the typed text + a blinking caret (the visual; the real <input> sits on top)
+  const boxW = GAME_WIDTH - 110, boxH = 44, boxY = cy - 6;
+  const box = scene.add.rectangle(cx, boxY, boxW, boxH, 0x0e0a18, 1).setStrokeStyle(2, 0x6a5a8a);
+  const text = scene.add.text(cx, boxY, value, {
     fontFamily: 'monospace', fontSize: '20px', color: '#ffffff',
   }).setOrigin(0.5);
-  const caret = scene.add.rectangle(0, cy - 6, 2, 24, 0xffd23f).setOrigin(0, 0.5);
+  const placeholder = scene.add.text(cx, boxY, 'tap to type…', {
+    fontFamily: 'monospace', fontSize: '14px', color: '#6a5a8a',
+  }).setOrigin(0.5);
+  const caret = scene.add.rectangle(0, boxY, 2, 24, 0xffd23f).setOrigin(0, 0.5).setVisible(false);
   scene.tweens.add({ targets: caret, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
 
   const errText = scene.add.text(cx, cy + 30, '', {
@@ -58,46 +69,97 @@ export function showNicknamePrompt(scene: Phaser.Scene, opts: NicknameOpts = {})
     backgroundColor: '#3a2f4f', padding: { x: 16, y: 6 },
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-  root.add([dim, card, title, hint, box, text, caret, errText, okBtn, cancelBtn]);
+  root.add([dim, card, title, hint, box, placeholder, text, caret, errText, okBtn, cancelBtn]);
 
-  // hidden HTML input — focused on open so mobile raises the soft keyboard and so
-  // desktop paste works; we read its value back on every input event.
+  // ── the REAL HTML <input>, overlaid on the canvas over the box ──────────────────
+  // Touchable and (barely) visible so the mobile soft keyboard opens; the Phaser
+  // text/caret above render the themed look. Sized/positioned to the box in CSS
+  // pixels by mapping game coords through the canvas rect each layout.
   const dom = document.createElement('input');
+  dom.type = 'text';
   dom.maxLength = MAX;
   dom.value = value;
-  dom.style.cssText = 'position:fixed;opacity:0;pointer-events:none;left:0;top:0;width:1px;height:1px;';
+  dom.setAttribute('autocomplete', 'off');
+  dom.setAttribute('autocapitalize', 'off');
+  dom.setAttribute('autocorrect', 'off');
+  dom.setAttribute('spellcheck', 'false');
+  dom.setAttribute('enterkeyhint', 'done');
+  dom.setAttribute('aria-label', 'Nickname');
+  dom.style.cssText = [
+    'position:fixed', 'margin:0', 'padding:0', 'border:0', 'outline:none',
+    'background:transparent', 'color:transparent', 'caret-color:transparent',
+    'opacity:0.01', 'z-index:2147483647', 'font-size:16px', // 16px stops iOS zoom-on-focus
+    'text-align:center', '-webkit-appearance:none', 'border-radius:0',
+  ].join(';') + ';';
   document.body.appendChild(dom);
-  setTimeout(() => { try { dom.focus(); } catch { /* ignore */ } }, 50);
+
+  const layout = () => {
+    const canvas = scene.game.canvas;
+    const r = canvas.getBoundingClientRect();
+    const sx = r.width / GAME_WIDTH, sy = r.height / GAME_HEIGHT;
+    dom.style.left = `${r.left + (cx - boxW / 2) * sx}px`;
+    dom.style.top = `${r.top + (boxY - boxH / 2) * sy}px`;
+    dom.style.width = `${boxW * sx}px`;
+    dom.style.height = `${boxH * sy}px`;
+  };
+  layout();
+  scene.scale.on(Phaser.Scale.Events.RESIZE, layout);
+  window.addEventListener('resize', layout);
+  window.addEventListener('scroll', layout, true);
 
   const valid = () => value.trim().length >= MIN;
   const refresh = () => {
     text.setText(value);
-    caret.setPosition(text.x + text.width / 2 + 2, cy - 6);
+    placeholder.setVisible(value.length === 0);
+    caret.setVisible(value.length > 0);
+    caret.setPosition(text.x + text.width / 2 + 2, boxY);
     okBtn.setAlpha(valid() ? 1 : 0.4);
     errText.setText(value.length > 0 && !valid() ? `At least ${MIN} characters` : '');
   };
   refresh();
 
-  // keyboard entry (desktop)
-  const onKey = (ev: KeyboardEvent) => {
-    if (ev.key === 'Enter') { commit(); return; }
-    if (ev.key === 'Backspace') { value = value.slice(0, -1); refresh(); ev.preventDefault(); return; }
-    if (ev.key.length === 1 && value.length < MAX && ALLOWED.test(ev.key)) {
-      value += ev.key; refresh();
-    }
-  };
-  // sync from the hidden DOM input (mobile soft keyboard / paste)
+  // sync from the real input on every change (covers soft keyboard, paste, IME)
   const onDomInput = () => {
     value = dom.value.replace(/[^A-Za-z0-9 _-]/g, '').slice(0, MAX);
     if (dom.value !== value) dom.value = value;
     refresh();
   };
-  scene.input.keyboard?.on('keydown', onKey);
+  const onDomKey = (ev: KeyboardEvent) => {
+    if (ev.key === 'Enter') { ev.preventDefault(); commit(); }
+  };
   dom.addEventListener('input', onDomInput);
+  dom.addEventListener('keydown', onDomKey);
+
+  // Focus the real input SYNCHRONOUSLY inside the tap gesture — required for iOS to
+  // raise the keyboard. Both the box zone and the input itself trigger it.
+  const focusInput = () => { try { dom.focus({ preventScroll: true }); } catch { /* ignore */ } };
+  box.setInteractive({ useHandCursor: true });
+  box.on('pointerdown', focusInput);
+  placeholder.setInteractive({ useHandCursor: true });
+  placeholder.on('pointerdown', focusInput);
+  focusInput(); // initial focus (desktop / Android; harmless on iOS)
+
+  // Keyboard entry fallback for DESKTOP, ONLY when the real <input> does NOT have
+  // focus — otherwise the input's own 'input' event already handled the keystroke
+  // and counting it here too would double every character.
+  const onKey = (ev: KeyboardEvent) => {
+    if (document.activeElement === dom) return; // input handles it via onDomInput
+    if (ev.key === 'Enter') { commit(); return; }
+    if (ev.key === 'Backspace') { value = value.slice(0, -1); dom.value = value; refresh(); ev.preventDefault(); return; }
+    if (ev.key.length === 1 && value.length < MAX && ALLOWED.test(ev.key)) {
+      value += ev.key; dom.value = value; refresh();
+    }
+  };
+  scene.input.keyboard?.on('keydown', onKey);
 
   const close = () => {
     scene.input.keyboard?.off('keydown', onKey);
+    scene.scale.off(Phaser.Scale.Events.RESIZE, layout);
+    window.removeEventListener('resize', layout);
+    window.removeEventListener('scroll', layout, true);
     dom.removeEventListener('input', onDomInput);
+    dom.removeEventListener('keydown', onDomKey);
+    dom.blur();
     dom.remove();
     root.destroy();
   };
