@@ -426,9 +426,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.audio.play(AudioKeys.Place);
-    // a MAGIC rune-circle conjures + bursts energy under the merged hero
-    // (MAGIC_PROJECTILES_EFFECTS VFX — replaces the old boom)
-    this.playFxAnim('fx-magicproj', tgt.x, tgt.y + 6, 1.5);
+    this.mergeFx(tgt.x, tgt.y); // hand-drawn magic conjure (crisp at any scale)
     this.cameras.main.shake(80, 0.004);
     this.removeHero(src); // source consumed; its pad reverts to empty
     this.markTip('merge'); // player discovered merging
@@ -1299,7 +1297,7 @@ export class GameScene extends Phaser.Scene {
   private playFxAnim(key: string, x: number, y: number, scale = 1, angle = 0, tint?: number): void {
     const tex: Record<string, string> = {
       'fx-slash': TextureKeys.FxSlash, 'fx-fireball': TextureKeys.FxFireball,
-      'fx-ice': TextureKeys.FxIce, 'fx-magicproj': TextureKeys.FxMagicProj,
+      'fx-ice': TextureKeys.FxIce,
     };
     const spr = this.add.sprite(x, y, tex[key] ?? TextureKeys.FxFireball)
       .setDepth(16).setScale(scale).setAngle(angle).setBlendMode(Phaser.BlendModes.ADD);
@@ -1367,6 +1365,65 @@ export class GameScene extends Phaser.Scene {
         duration: Phaser.Math.Between(380, 520), ease: 'Quad.easeOut', onComplete: () => shard.destroy(),
       });
     }
+  }
+
+  /** Hand-drawn HERO-MERGE conjure FX (no spritesheet — vector graphics + tweens,
+   *  so it's always crisp and never warps). A gold magic rune-circle draws itself
+   *  at the hero's feet (two counter-rotating ringed rune wheels), gold sparks fly
+   *  INWARD to fuse, a white→gold core flashes, and a soft column of light rises. */
+  private mergeFx(x: number, y: number): void {
+    const GOLD = 0xffd23f, AMBER = 0xff9b2f, WHITE = 0xffffff;
+    const fy = y + 10; // the magic circle sits at the feet
+
+    // ── 1. ground rune-circle: a Graphics wheel (outer ring + inner ring + ticks +
+    //    rune triangles). Drawn flattened (scaleY 0.42) so it reads as on-ground.
+    const makeWheel = (radius: number, ticks: number, col: number, lw: number) => {
+      const g = this.add.graphics().setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+      g.lineStyle(lw, col, 0.95);
+      g.strokeCircle(0, 0, radius);
+      g.strokeCircle(0, 0, radius * 0.66);
+      for (let i = 0; i < ticks; i++) {
+        const a = (Math.PI * 2 * i) / ticks;
+        g.lineBetween(Math.cos(a) * radius * 0.66, Math.sin(a) * radius * 0.66, Math.cos(a) * radius, Math.sin(a) * radius);
+      }
+      g.setPosition(x, fy).setScale(0.2, 0.2 * 0.42).setAlpha(0);
+      return g;
+    };
+    const outer = makeWheel(40, 12, GOLD, 2.5);
+    const inner = makeWheel(26, 6, AMBER, 2);
+    // fade/scale in, hold spinning, then fade out — counter-rotating
+    this.tweens.add({ targets: outer, scaleX: 1, scaleY: 0.42, alpha: { from: 0, to: 1 }, duration: 220, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: outer, angle: 90, duration: 700, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: outer, alpha: 0, delay: 460, duration: 260, onComplete: () => outer.destroy() });
+    this.tweens.add({ targets: inner, scaleX: 1, scaleY: 0.42, alpha: { from: 0, to: 1 }, duration: 240, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: inner, angle: -120, duration: 700, ease: 'Sine.easeInOut' });
+    this.tweens.add({ targets: inner, alpha: 0, delay: 460, duration: 260, onComplete: () => inner.destroy() });
+
+    // ── 2. convergence sparks: gold motes spiral INWARD to the hero (the "fuse").
+    for (let i = 0; i < 12; i++) {
+      const a = (Math.PI * 2 * i) / 12;
+      const r0 = 46;
+      const sx = x + Math.cos(a) * r0, sy = fy + Math.sin(a) * r0 * 0.5;
+      const mote = this.add.circle(sx, sy, 3, i % 2 ? GOLD : WHITE, 1).setDepth(13).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: mote, x, y: y - 4, scale: 0.2, alpha: { from: 1, to: 0.4 },
+        delay: i * 12, duration: 300, ease: 'Quad.easeIn', onComplete: () => mote.destroy(),
+      });
+    }
+
+    // ── 3. core flash: white burst → gold, right after the sparks converge.
+    this.time.delayedCall(280, () => {
+      const core = this.add.circle(x, y - 2, 10, WHITE, 0.95).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: core, scale: 3, alpha: 0, duration: 260, ease: 'Quad.easeOut', onComplete: () => core.destroy() });
+      // a single clean ring pulse outward
+      const ring = this.add.circle(x, y - 2, 8, 0, 0).setStrokeStyle(3, GOLD, 0.9).setDepth(15).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({ targets: ring, scale: 5, alpha: 0, duration: 320, ease: 'Cubic.easeOut', onComplete: () => ring.destroy() });
+    });
+
+    // ── 4. rising light column: a tall thin glow that shoots up + fades (power-up).
+    const col = this.add.rectangle(x, y, 16, 54, GOLD, 0.5).setOrigin(0.5, 1).setDepth(12).setBlendMode(Phaser.BlendModes.ADD);
+    col.setScale(0.4, 0.2);
+    this.tweens.add({ targets: col, scaleX: 1, scaleY: 1.3, alpha: 0, y: y - 6, delay: 240, duration: 380, ease: 'Quad.easeOut', onComplete: () => col.destroy() });
   }
 
   // Death "shatter": a burst of little chunks that fly out radially, spin, fall
