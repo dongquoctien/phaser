@@ -208,6 +208,26 @@ export class GameScene extends Phaser.Scene {
       muteBtn.setText(muted ? '[MUTED]' : '[SOUND]');
       if (!muted) this.audio.play(AudioKeys.Click);
     });
+
+    // BACK to menu (bottom-right, mirrors the mute toggle). stopPropagation so the
+    // tap doesn't also swing the mallet; ends the round immediately and returns.
+    const backBtn = this.add
+      .text(GAME_WIDTH - 10, GAME_HEIGHT - 26, '[ BACK ]', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#00000055',
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(1, 0)
+      .setDepth(902)
+      .setInteractive({ useHandCursor: true });
+    backBtn.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      p.event?.stopPropagation?.();
+      this.running = false; // stop the loop so nothing fires during the transition
+      this.audio.play(AudioKeys.Click);
+      this.scene.start(SceneKeys.Menu);
+    });
   }
 
   private buildParticles(): void {
@@ -605,17 +625,19 @@ export class GameScene extends Phaser.Scene {
       afterGridY += 22;
     }
 
-    // LEADERBOARD button (above the retry prompt). A modal flag stops the
-    // "tap to play again" handler from also firing while the board is open.
+    // LEADERBOARD + MENU buttons (above the retry prompt), side by side. A guard
+    // flag stops the "tap to play again" handler from also firing while a button is
+    // pressed or the board overlay is open.
     let boardOpen = false;
+    const btnY = top + panelH - 64;
     const boardBtn = this.add
-      .text(cx, top + panelH - 64, '[ LEADERBOARD ]', {
+      .text(cx - 64, btnY, '[ LEADERBOARD ]', {
         fontFamily: 'monospace',
-        fontSize: '15px',
+        fontSize: '14px',
         color: '#ffffff',
         fontStyle: 'bold',
         backgroundColor: '#3a6b1f',
-        padding: { x: 10, y: 6 },
+        padding: { x: 9, y: 6 },
       })
       .setOrigin(0.5)
       .setDepth(1101)
@@ -625,6 +647,25 @@ export class GameScene extends Phaser.Scene {
       if (boardOpen) return;
       boardOpen = true;
       showLeaderboard(this, () => { boardOpen = false; });
+    });
+
+    const menuBtn = this.add
+      .text(cx + 88, btnY, '[ MENU ]', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: '#5a4a2a',
+        padding: { x: 9, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setDepth(1101)
+      .setInteractive({ useHandCursor: true });
+    menuBtn.on('pointerup', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      boardOpen = true; // suppress the restart handler
+      this.audio.play(AudioKeys.Click);
+      this.scene.start(SceneKeys.Menu);
     });
 
     const retry = this.add
@@ -639,7 +680,7 @@ export class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: retry, alpha: 0.4, duration: 600, yoyo: true, loop: -1 });
 
     // ignore the swing click that may have just ended things; arm after a beat.
-    // The leaderboard modal flag suppresses a restart while the board is open.
+    // The boardOpen flag suppresses a restart while the board/menu button is used.
     this.time.delayedCall(400, () => {
       const restart = () => { if (!boardOpen) this.scene.restart(); };
       this.input.on('pointerdown', restart);
