@@ -3,7 +3,7 @@ name: phaser-optimize-bundle
 description: Audit and shrink the production build of a Phaser + Vite + TypeScript game in this monorepo — texture atlas packing, asset compression, Vite/Rollup tree-shaking & chunking, terser settings, and measuring the dist output. Use when the user wants a "lighter build", "smaller bundle", "tối ưu build", "giảm dung lượng", "build nhẹ nhất", or reports a slow/large load.
 ---
 
-# Phaser — Optimize Bundle (nhẹ nhất)
+# Phaser — Optimize Bundle (lightest)
 
 Goal: smallest possible download + fastest first paint, without changing gameplay. Work in this order — biggest wins first. Always **measure before and after**.
 

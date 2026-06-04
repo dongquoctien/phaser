@@ -3,7 +3,7 @@ name: phaser-perf-audit
 description: Audit and fix runtime performance / FPS of a Phaser game in this monorepo — object pooling, GC/allocation in the game loop, texture atlas & draw-call batching, Arcade vs Matter physics, off-screen culling, and production render flags. Use when the user reports lag, stutter, low FPS, "giật", "lag", "tối ưu hiệu năng", "chạy mượt", or asks to make a game run faster at runtime (not download size — that's phaser-optimize-bundle).
 ---
 
-# Phaser — Runtime Performance Audit (chạy mượt nhất)
+# Phaser — Runtime Performance Audit (smoothest)
 
 Goal: stable 60 FPS on the lowest-spec target device, no GC stutter. Distinct from bundle size — here we care about per-frame cost.
 
@@ -57,7 +57,7 @@ Scan `update()` and any per-frame callback for these and fix them:
 
 A virtual joystick / touch control can feel laggy while the FPS readout says
 60 — this is **input latency**, not framerate, and users report it as "joystick
-lag / hướng đi trễ / giật". Checklist (all four were real bugs in `survivor`):
+lag / delayed direction / stutter". Checklist (all four were real bugs in `survivor`):
 
 - **Read direction every frame, not on `pointermove`.** `pointermove` fires
   *less often than the frame loop* and stops entirely when the finger is held
