@@ -373,7 +373,9 @@ export const HEROES: Record<HeroId, Full> = {
     blurb: 'Flame Breathing: hits stack BURN; at full stacks the zombie INCINERATES (%-HP/tick) and the fire spreads.',
     lore: 'A blazing-hearted swordsman whose flame never dies, no matter how bleak the night. Each strike sets the undead alight — and fire, once lit, loves to spread. "Set your heart ablaze!"',
     tiers: tiers(
-      { range: 140, fireInterval: 560, damage: 14, cost: 135 },
+      // base MUST carry the tier-scaled skill params, else tiers() interpolates them
+      // up from 0 (a level-1 hero would have burnDps 0 → no burn).
+      { range: 140, fireInterval: 560, damage: 14, cost: 135, burnDps: 8, burnStacksToIncinerate: 5, incinPctPerTick: 0.04 },
       { damage: 22, cost: 175, burnDps: 12 } as Partial<HeroTier>,
       { damage: 36, cost: 285, burnDps: 18, incinPctPerTick: 0.06, burnStacksToIncinerate: 4 } as Partial<HeroTier>,
     ),
@@ -384,7 +386,9 @@ export const HEROES: Record<HeroId, Full> = {
     blurb: 'Thunder Slam: a club smash sends an EXPANDING shockwave — damage + knockback + stun rippling outward.',
     lore: 'A horned oni princess who fights like a storm given form. One swing of her thunderous club and the ground itself revolts, hurling the horde back and rattling their bones to dust.',
     tiers: tiers(
-      { range: 96, fireInterval: 1700, damage: 26, cost: 150 },
+      // base carries quakeRadius so a level-1 Joicy already has a real shockwave
+      // (otherwise it interpolates up from 0 → invisible + hits nothing at level 1).
+      { range: 96, fireInterval: 1700, damage: 26, cost: 150, quakeRadius: 120 },
       { damage: 42, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
       { damage: 68, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
     ),
