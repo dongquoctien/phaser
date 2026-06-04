@@ -32,9 +32,14 @@ const dropDark = +flag('dark', 0); // if >0, treat pixels darker than this (max 
 // so cyan/teal FX (high green + high blue) survive instead of being eaten.
 const isBg = (r, g, b, a) => {
   if (a <= 20) return true;
+  // pure chroma green (dark sheets): green hugely dominant, R/B both low
   const pureGreen = g > 90 && g > r + 60 && g > b + 60 && r < 120 && b < 120;
+  // pastel green bg (light sheets, e.g. ~#aee7b0): green is the top channel and
+  // R≈B (neutral, no cyan/magenta cast). Cyan FX has B clearly above R, so it
+  // survives; a greenish-grey bg pixel (R and B close, G a bit higher) is keyed.
+  const pastelGreen = g >= r && g >= b && g - Math.min(r, b) > 30 && Math.abs(r - b) < 24 && b < 200;
   const dark = dropDark > 0 && Math.max(r, g, b) < dropDark;
-  return pureGreen || dark;
+  return pureGreen || pastelGreen || dark;
 };
 
 // gather each frame's opaque (non-green) pixels, trim to bbox, recenter into tile

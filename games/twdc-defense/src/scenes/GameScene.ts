@@ -426,8 +426,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.audio.play(AudioKeys.Place);
-    // a green magic rune-circle blooms under the merged hero (replaces the old boom)
-    this.playFxAnim('fx-magic', tgt.x, tgt.y + 8, 1.2);
+    // a MAGIC rune-circle conjures + bursts energy under the merged hero
+    // (MAGIC_PROJECTILES_EFFECTS VFX — replaces the old boom)
+    this.playFxAnim('fx-magicproj', tgt.x, tgt.y + 6, 1.5);
     this.cameras.main.shake(80, 0.004);
     this.removeHero(src); // source consumed; its pad reverts to empty
     this.markTip('merge'); // player discovered merging
@@ -1298,7 +1299,7 @@ export class GameScene extends Phaser.Scene {
   private playFxAnim(key: string, x: number, y: number, scale = 1, angle = 0, tint?: number): void {
     const tex: Record<string, string> = {
       'fx-slash': TextureKeys.FxSlash, 'fx-fireball': TextureKeys.FxFireball,
-      'fx-ice': TextureKeys.FxIce, 'fx-magic': TextureKeys.FxMagic,
+      'fx-ice': TextureKeys.FxIce, 'fx-magicproj': TextureKeys.FxMagicProj,
     };
     const spr = this.add.sprite(x, y, tex[key] ?? TextureKeys.FxFireball)
       .setDepth(16).setScale(scale).setAngle(angle).setBlendMode(Phaser.BlendModes.ADD);

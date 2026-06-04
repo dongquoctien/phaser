@@ -99,7 +99,7 @@ export const TextureKeys = {
   FxFireball: 'fx-fireball', // 64×64 ×7 — growing flame comet (xxKongxx burn impact)
   FxSlash: 'fx-slash',       // 80×80 ×6 — blue/orange sword-slash arc (xxKongxx hit, Oreo)
   FxIce: 'fx-ice',           // 72×72 ×5 — cyan ice-crystal burst (HAKJ splash)
-  FxMagic: 'fx-magic',       // 72×72 ×5 — green magic rune circle (hero merge)
+  FxMagicProj: 'fx-magicproj', // 72×72 ×9 — MAGIC_PROJECTILES VFX: rune circle → energy burst (hero merge)
 } as const;
 export type TextureKey = (typeof TextureKeys)[keyof typeof TextureKeys];
 
