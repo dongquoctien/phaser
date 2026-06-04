@@ -43,6 +43,7 @@ export class GameScene extends Phaser.Scene {
   private upgradePanel!: Phaser.GameObjects.Container;
   private selectedPadKey: string | null = null;
   private selectedHero: Hero | null = null;
+  private lastPickedHero: HeroId = 'oreo'; // picker pre-selects this; defaults to Oreo, then remembers the player's last pick
   private pickerOpenedBy = -1; // pointer id of the tap that opened the picker (-1 = none)
   private detailBox!: Phaser.GameObjects.Container; // hero-detail pane inside the picker
   private listHighlights = new Map<HeroId, Phaser.GameObjects.Rectangle>();
@@ -1665,9 +1666,9 @@ export class GameScene extends Phaser.Scene {
     this.listDragged = false;
     this.heroPicker.setVisible(true);
     this.updateListArrows(); // refresh the scroll-hint chevrons
-    // pre-select a random hero so the detail pane isn't empty on open
-    const randomId = Phaser.Utils.Array.GetRandom(HERO_IDS as HeroId[]);
-    this.selectHeroInPicker(randomId);
+    // pre-select the player's last-picked hero (defaults to Oreo on first open) so
+    // the detail pane isn't empty and the choice is predictable, not random.
+    this.selectHeroInPicker(this.lastPickedHero);
     // release the opening-tap lock on the next tick so it swallows ONLY the opening
     // pointerup — the X button then closes on the first real click (was needing 2).
     this.time.delayedCall(0, () => { this.pickerOpenedBy = -1; });
@@ -1692,6 +1693,7 @@ export class GameScene extends Phaser.Scene {
     // on the next tick in openHeroPicker, so taps here always register.
     this.pickerOpenedBy = -1;
     this.audio.play(AudioKeys.Click);
+    this.lastPickedHero = id; // remember so the next picker open pre-selects it
     this.selectHeroInPicker(id);
   }
 
