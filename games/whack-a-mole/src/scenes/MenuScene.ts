@@ -11,11 +11,17 @@ import {
 import { WEAPON_TEX } from '../systems/art';
 import { Audio } from '../systems/Audio';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { Storage } from '../systems/Storage';
+import { Api } from '../systems/Api';
+import { showNicknamePrompt } from '../systems/NicknamePrompt';
+import { showLeaderboard } from '../systems/LeaderboardPanel';
 
 export class MenuScene extends Phaser.Scene {
   private weapon: WeaponId = 'swatter';
   private picks: { id: WeaponId; ring: Phaser.GameObjects.Rectangle }[] = [];
   private audio!: Audio;
+  private modalOpen = false; // true while the nickname/leaderboard overlay is up
+  private nameText?: Phaser.GameObjects.Text;
 
   constructor() {
     super(SceneKeys.Menu);
@@ -23,6 +29,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     this.picks = [];
+    this.modalOpen = false; // scene instances are reused across restarts — reset
     this.audio = new Audio(this);
     // keep the previous choice across visits; default to swatter
     this.weapon = (this.registry.get(REG_WEAPON) as WeaponId) ?? 'swatter';
@@ -60,6 +67,52 @@ export class MenuScene extends Phaser.Scene {
     this.buildInstructions(386);
     this.buildWeaponPicker(508);
     this.buildPlay(688);
+    this.buildLeaderboardUi(756);
+
+    // First run: prompt for a leaderboard name (RANDOM assigns a default).
+    if (!Storage.hasNickname()) {
+      this.modalOpen = true;
+      showNicknamePrompt(this, {
+        force: true,
+        onDone: () => { this.modalOpen = false; this.refreshName(); },
+      });
+    }
+  }
+
+  // --- leaderboard + name row ----------------------------------------------
+
+  private buildLeaderboardUi(y: number): void {
+    const board = this.add
+      .text(GAME_WIDTH / 2 - 70, y, '[ LEADERBOARD ]', {
+        fontFamily: 'monospace', fontSize: '15px', color: '#ffffff', fontStyle: 'bold',
+        backgroundColor: '#3a6b1f', padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    board.on('pointerup', () => {
+      if (this.modalOpen) return;
+      this.audio.play(AudioKeys.Click);
+      this.modalOpen = true;
+      showLeaderboard(this, () => { this.modalOpen = false; });
+    });
+
+    // current name + an edit affordance
+    this.nameText = this.add
+      .text(GAME_WIDTH / 2 + 88, y, '', {
+        fontFamily: 'monospace', fontSize: '12px', color: '#2f4a18',
+      })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    this.nameText.on('pointerup', () => {
+      if (this.modalOpen) return;
+      this.modalOpen = true;
+      showNicknamePrompt(this, { onDone: () => { this.modalOpen = false; this.refreshName(); } });
+    });
+    this.refreshName();
+  }
+
+  private refreshName(): void {
+    this.nameText?.setText(`as ${Storage.getNickname()}  (edit)`);
   }
 
   // --- bonk/spare showcase --------------------------------------------------
@@ -213,11 +266,15 @@ export class MenuScene extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
+    let starting = false;
     const go = () => {
+      if (this.modalOpen || starting) return; // overlay up, or already launching
+      starting = true;
       this.audio.play(AudioKeys.Click); // also the gesture that unlocks audio
+      Api.startSession(); // fire-and-forget: gets a signed token for score submit
       this.scene.start(SceneKeys.Game);
     };
-    start.once('pointerup', go);
-    this.input.keyboard?.once('keydown', go);
+    start.on('pointerup', go);
+    this.input.keyboard?.on('keydown', go);
   }
 }

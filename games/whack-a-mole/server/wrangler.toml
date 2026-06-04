@@ -1,0 +1,19 @@
+# Cloudflare Worker config for the Whack-a-Char leaderboard backend.
+# Deploy with:  npx wrangler deploy   (from this server/ folder)
+name = "wam-leaderboard"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# KV namespace for sessions + scores. Bound as `LB` in worker.js; the underlying
+# namespace is titled "WAM_LB" so it never mixes with twdc-defense's "LB" store.
+[[kv_namespaces]]
+binding = "LB"
+id = "81d3b5a5f2734138b87a47984485a04e"
+
+[vars]
+# Lock this down to the game's static origin in production (not "*").
+ALLOW_ORIGIN = "*"
+
+# SECRET — never commit a real value. Set it with:
+#   npx wrangler secret put LEADERBOARD_SECRET
+# (a long random string; only the Worker ever sees it)

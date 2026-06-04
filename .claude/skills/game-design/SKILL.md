@@ -6,8 +6,8 @@ description: Design the FEEL of a game — core loop & pacing, juice (screen sha
 # Game Design — Feel, Loop, Juice (this monorepo)
 
 The `phaser-*` skills make a game **run** (perf, bundle, structure). This skill makes
-it **feel good to play**. Reach for it when a game is technically fine but "nhạt /
-flat / không có chiều sâu" — usually it's missing a tight core loop, readable
+it **feel good to play**. Reach for it when a game is technically fine but feels
+"flat / bland / shallow" — usually it's missing a tight core loop, readable
 combat, and **juice** (feedback per action).
 
 Distilled from public references (see `sources.md`): Jonasson & Purho "Juice it or

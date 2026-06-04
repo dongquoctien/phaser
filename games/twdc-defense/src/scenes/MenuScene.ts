@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
-import { SceneKeys, AudioKeys, TextureKeys, Fonts, mapClearedKey } from '../types/keys';
+import { SceneKeys, AudioKeys, TextureKeys, Fonts, RegistryKeys, mapClearedKey } from '../types/keys';
 import { MAP_COUNT } from '../types/map';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { Storage } from '../systems/Storage';
+import { showNicknamePrompt } from '../systems/NicknamePrompt';
+import { showLeaderboard } from '../systems/LeaderboardPanel';
+import { Api } from '../systems/Api';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -47,11 +51,41 @@ export class MenuScene extends Phaser.Scene {
       fontFamily: Fonts.Mono, fontSize: '11px', color: '#8a91b4',
     }).setOrigin(0.5);
 
+    // player name + a tap-to-edit pencil — anonymous guest identity for the board.
+    let promptOpen = false;
+    const nameLabel = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * 0.6, '', {
+      fontFamily: Fonts.Mono, fontSize: '13px', color: '#a7f070',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const refreshName = () => nameLabel.setText(`▸ ${this.registry.get(RegistryKeys.Nickname)}  ✎`);
+    refreshName();
+    const editName = (force = false) => {
+      promptOpen = true;
+      showNicknamePrompt(this, { force, onDone: () => { promptOpen = false; refreshName(); } });
+    };
+    nameLabel.on('pointerup', () => editName(false));
+
+    // First run (no nickname chosen yet): force the prompt so the board has a name.
+    if (!Storage.hasNickname()) this.time.delayedCall(250, () => editName(true));
+
+    // 🏆 leaderboard button — only when a backend is configured (else nothing to show).
+    let boardOpen = false;
+    if (Api.enabled) {
+      const trophy = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * 0.79, '🏆 LEADERBOARD', {
+        fontFamily: Fonts.Mono, fontSize: '14px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 3,
+        backgroundColor: '#2a2038', padding: { x: 14, y: 6 },
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      trophy.on('pointerup', () => {
+        boardOpen = true;
+        showLeaderboard(this, () => { boardOpen = false; });
+      });
+    }
+
     const go = () => {
+      if (promptOpen || boardOpen) return; // a modal is up — don't start the game
       if (this.cache.audio.exists(AudioKeys.Click)) this.sound.play(AudioKeys.Click, { volume: 0.4 });
       this.scene.start(SceneKeys.MapSelect);
     };
-    start.once('pointerup', go);
-    this.input.keyboard?.once('keydown', go);
+    start.on('pointerup', go);            // 'on' not 'once' — promptOpen guard handles re-entry
+    this.input.keyboard?.on('keydown', go);
   }
 }

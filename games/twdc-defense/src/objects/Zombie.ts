@@ -26,6 +26,11 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private slowFactor = 1; // 1 = normal; <1 = slowed
   private slowUntil = 0;
   private stunUntil = 0;
+  // Joicy quake: after a successful knockback the zombie is briefly KB-IMMUNE, so
+  // stacking Joicys (whose slams land out of phase) can't chain-shove + stun-lock a
+  // zombie in place forever. Slams during the window still deal damage, just no
+  // push/stun — so it reads as "shove, skip a beat, shove again".
+  private kbImmuneUntil = 0;
   private freezeStacks = 0; // Morgan: frost stacks build toward a hard-freeze
   private frozenUntil = 0;  // while > now the zombie is locked solid (can't move)
   // xxKongxx burn: each hit adds a stack; at the threshold the zombie INCINERATES,
@@ -90,7 +95,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.bossInfo = undefined; // set by the scene only when this is the wave's real boss
     this.nextHeroKillAt = 0;
     this.isElite = false;
-    this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0;
+    this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0; this.kbImmuneUntil = 0;
     this.freezeStacks = 0; this.frozenUntil = 0;
     this.burnStacks = 0; this.burnDps = 0; this.burnUntil = 0; this.incinPctPerTick = 0; this.lastBurnTick = 0;
     this.poisonDps = 0; this.poisonUntil = 0; this.vulnStacks = 0;
@@ -391,9 +396,15 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     }
   }
 
-  /** Push the zombie back along the path (rewind waypoints by `px`). */
-  knockBack(px: number): void {
-    if (this.dead) return;
+  /**
+   * Push the zombie back along the path (rewind waypoints by `px`).
+   * Honors a short KB-immunity window so stacked knockbacks can't lock a zombie in
+   * place: a push within `immuneMs` of the last is ignored. Returns `true` if it
+   * actually pushed (caller can then apply stun), `false` if immune.
+   */
+  knockBack(px: number, now = this.scene.time.now, immuneMs = 0): boolean {
+    if (this.dead) return false;
+    if (immuneMs > 0 && now < this.kbImmuneUntil) return false; // still immune — no push
     let back = px;
     while (back > 0 && this.wpIndex >= 0) {
       const prev = this.waypoints[this.wpIndex];
@@ -412,7 +423,9 @@ export class Zombie extends Phaser.GameObjects.Sprite {
         if (this.wpIndex > 0) this.wpIndex -= 1; else back = 0;
       }
     }
+    if (immuneMs > 0) this.kbImmuneUntil = now + immuneMs; // arm the cooldown for next slam
     this.updateBars();
+    return true;
   }
 
   private flash(): void {

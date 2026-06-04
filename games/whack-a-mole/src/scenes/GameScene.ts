@@ -5,6 +5,9 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Hole } from '../objects/Hole';
 import { pickChar, rollRoster, type CharDef, type Roster } from '../systems/roster';
 import { Audio } from '../systems/Audio';
+import { Storage } from '../systems/Storage';
+import { Api } from '../systems/Api';
+import { showLeaderboard } from '../systems/LeaderboardPanel';
 
 declare const __DEV__: boolean;
 
@@ -56,6 +59,8 @@ export class GameScene extends Phaser.Scene {
   private starEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private frozenUntil = 0; // hit-stop guard (ms timestamp)
   private audio!: Audio;
+  private roundStartedAt = 0; // ms epoch when the round began (for the leaderboard)
+  private submitted = false;  // guard: submit the run to the leaderboard only once
 
   constructor() {
     super(SceneKeys.Game);
@@ -76,6 +81,8 @@ export class GameScene extends Phaser.Scene {
     this.spawnInterval = 900;
     this.frozenUntil = 0;
     this.running = true;
+    this.roundStartedAt = Date.now();
+    this.submitted = false;
 
     this.audio = new Audio(this);
     this.drawBackground();
@@ -200,6 +207,26 @@ export class GameScene extends Phaser.Scene {
       const muted = this.audio.toggleMute();
       muteBtn.setText(muted ? '[MUTED]' : '[SOUND]');
       if (!muted) this.audio.play(AudioKeys.Click);
+    });
+
+    // BACK to menu (bottom-right, mirrors the mute toggle). stopPropagation so the
+    // tap doesn't also swing the mallet; ends the round immediately and returns.
+    const backBtn = this.add
+      .text(GAME_WIDTH - 10, GAME_HEIGHT - 26, '[ BACK ]', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffffff',
+        backgroundColor: '#00000055',
+        padding: { x: 6, y: 3 },
+      })
+      .setOrigin(1, 0)
+      .setDepth(902)
+      .setInteractive({ useHandCursor: true });
+    backBtn.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      p.event?.stopPropagation?.();
+      this.running = false; // stop the loop so nothing fires during the transition
+      this.audio.play(AudioKeys.Click);
+      this.scene.start(SceneKeys.Menu);
     });
   }
 
@@ -476,6 +503,10 @@ export class GameScene extends Phaser.Scene {
     this.time.removeAllEvents();
     this.holes.forEach((h) => h.duck(false));
 
+    // persist best locally + submit to the leaderboard (fail-safe, once).
+    Storage.setBest(this.score);
+    this.submitRun();
+
     // dim the field
     this.add
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
@@ -594,6 +625,49 @@ export class GameScene extends Phaser.Scene {
       afterGridY += 22;
     }
 
+    // LEADERBOARD + MENU buttons (above the retry prompt), side by side. A guard
+    // flag stops the "tap to play again" handler from also firing while a button is
+    // pressed or the board overlay is open.
+    let boardOpen = false;
+    const btnY = top + panelH - 64;
+    const boardBtn = this.add
+      .text(cx - 64, btnY, '[ LEADERBOARD ]', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: '#3a6b1f',
+        padding: { x: 9, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setDepth(1101)
+      .setInteractive({ useHandCursor: true });
+    boardBtn.on('pointerup', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      if (boardOpen) return;
+      boardOpen = true;
+      showLeaderboard(this, () => { boardOpen = false; });
+    });
+
+    const menuBtn = this.add
+      .text(cx + 88, btnY, '[ MENU ]', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: '#5a4a2a',
+        padding: { x: 9, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setDepth(1101)
+      .setInteractive({ useHandCursor: true });
+    menuBtn.on('pointerup', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      boardOpen = true; // suppress the restart handler
+      this.audio.play(AudioKeys.Click);
+      this.scene.start(SceneKeys.Menu);
+    });
+
     const retry = this.add
       .text(cx, top + panelH - 30, '▶ TAP TO PLAY AGAIN', {
         fontFamily: 'monospace',
@@ -605,11 +679,30 @@ export class GameScene extends Phaser.Scene {
       .setDepth(1101);
     this.tweens.add({ targets: retry, alpha: 0.4, duration: 600, yoyo: true, loop: -1 });
 
-    // ignore the swing click that may have just ended things; arm after a beat
+    // ignore the swing click that may have just ended things; arm after a beat.
+    // The boardOpen flag suppresses a restart while the board/menu button is used.
     this.time.delayedCall(400, () => {
-      this.input.once('pointerdown', () => this.scene.restart());
-      this.input.keyboard?.once('keydown', () => this.scene.restart());
+      const restart = () => { if (!boardOpen) this.scene.restart(); };
+      this.input.on('pointerdown', restart);
+      this.input.keyboard?.on('keydown', restart);
     });
+  }
+
+  // Fire-and-forget submit of the finished run to the leaderboard. Fail-safe:
+  // a network/CORS error never throws into the game; guarded to submit once.
+  private submitRun(): void {
+    if (this.submitted) return;
+    this.submitted = true;
+    if (!Api.enabled) return;
+    const whacks = [...this.whackCounts.values()].reduce((a, n) => a + n, 0);
+    void Api.submitRun({
+      score: this.score,
+      startedAt: this.roundStartedAt,
+      endedAt: Date.now(),
+      whacks,
+      bestCombo: this.bestCombo,
+      friendlyHits: this.friendlyHits,
+    }).catch(() => { /* fail-safe — ignore */ });
   }
 
   private cleanup(): void {

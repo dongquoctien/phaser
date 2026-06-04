@@ -116,6 +116,44 @@ private installIosUnlock(): void {
 }
 ```
 
+> ## ⚠️ Sound STACKS / blasts loud on tab return — the `pauseOnBlur` bug (2nd worst audio bug)
+> Switch to another tab during play, wait, come back → a **burst of stacked SFX fires at
+> once, very loud**, and music can double up. Hit this in twdc-defense; the iOS-resume code
+> above does NOT fix it (different root cause). Two things conspire:
+> 1. **Phaser's `pauseOnBlur` defaults to `true`** — on blur it *pauses* every playing
+>    sound, on focus it *resumes* them. Those paused SFX resume + stack on return, fighting
+>    any manual handler. **Disable it and manage tab state yourself:**
+>    `scene.sound.pauseOnBlur = false;` (set in the Audio helper constructor).
+> 2. **The game loop keeps ticking a few frames while backgrounded** and enqueues
+>    `sound.play()` against a context the browser is suspending; those buffers all fire the
+>    instant you return. So: set a `pageHidden` flag **FIRST**, then `sound.stopAll()` +
+>    `ctx.suspend()`. `playInternal`/`playMusic` must early-return while `pageHidden` so the
+>    loop can't enqueue anything.
+>
+> The robust handler (supersedes the iOS-only snippet above — it also covers iOS):
+> ```ts
+> scene.sound.pauseOnBlur = false;        // stop Phaser's auto pause/resume (the stacking source)
+> let pageHidden = false;
+> const onHide = () => { if (pageHidden) return; pageHidden = true;
+>   scene.sound.stopAll(); if (ctx.state === 'running') void ctx.suspend(); };
+> const onShow = () => { if (!pageHidden) return; pageHidden = false;
+>   if (ctx.state === 'suspended') void ctx.resume();
+>   lastPlayed = {};                       // clear stale throttle timestamps (clock jumped)
+>   setTimeout(() => {                      // small delay + re-check, so quick away→back doesn't double-fire
+>     if (pageHidden || document.hidden) return;
+>     scene.sound.stopAll();               // belt-and-braces: kill anything that slipped through
+>     if (musicKey) restartMusic();        // music was killed by stopAll — restart it
+>   }, 120);
+> };
+> // Listen to the FULL set — visibilitychange (tab) + blur/focus + pagehide (window/app switch):
+> document.addEventListener('visibilitychange', () => document.hidden ? onHide() : onShow());
+> window.addEventListener('blur', onHide); window.addEventListener('focus', onShow);
+> window.addEventListener('pagehide', onHide);
+> ```
+> And in the play path: `if (this.pageHidden) return;` at the top of `playInternal` **and**
+> `playMusic`. Also, when the scene clock jumps after a long background, **don't fire
+> overdue ambient/loop SFX** — reschedule them (e.g. skip a growl whose timer is >2s overdue).
+
 ## Background music (if used)
 `const m = this.sound.add(AudioKeys.Music, { loop: true, volume: 0.4 }); m.play();` — add
 ONE persistent instance (not `sound.play`, which is fire-and-forget). Stop it on scene
@@ -141,6 +179,9 @@ cache"). FPS unchanged by audio.
 - **Shipping `.ogg` only** — silent on every iPhone/iPad. Always add the `.m4a` sibling
   and load `[m4a, ogg]`. This is the single most common audio bug in this repo.
 - `sound.play(key)` without a cache guard (crashes before decode).
+- **Leaving `pauseOnBlur` on** + relying only on the iOS snippet — sounds STACK and blast
+  loud on tab return. Disable `pauseOnBlur`, gate the play path on a `pageHidden` flag, and
+  listen to blur/focus/pagehide (not just visibilitychange). See the boxed bug above.
 - Playing a high-frequency SFX every event with no throttle (clip + perf).
 - Shipping a whole 100+ file pack (bloat) — pick a handful.
 - Audio of unknown license. Emoji mute icons.

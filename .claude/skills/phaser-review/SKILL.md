@@ -61,6 +61,44 @@ misbehaves on v4). Full context: `.claude/skills/PHASER4.md`.
   synchronously (it's async).
 - Pixel game missing `pixelArt: true` / explicit `roundPixels: true` (v4 default false).
 
+## Gameplay-data + lifecycle pitfalls (real bugs shipped + fixed)
+
+Data-driven stats and scene reuse cause silent, hard-to-spot bugs. Flag these:
+
+- **Per-tier stats interpolated from 0.** If you build N upgrade levels by lerping between
+  a few authored "anchors" (base/mid/max), a skill param that's **only in the mid/max anchor
+  is treated as 0 in the base** → it interpolates *up from 0*, so the level-1 unit has that
+  stat = 0 (an invisible/dead skill). **The base anchor must carry every tier-scaled param.**
+  (twdc-defense: a hero's AoE radius / DoT was 0 at level 1 because only mid/max set it.)
+- **`0` is not `undefined` — the `?? fallback` trap.** `value ?? def` only falls back on
+  `undefined`/`null`, NOT on `0`. If an interpolation produced `0`, `s.x ?? def.x` keeps the
+  `0`. Read the *intended* source explicitly (per-tier vs per-def) and don't lean on `??` to
+  paper over a 0.
+- **Rounding the wrong field.** A `tiers()` that rounds cost "to nearest 5" turns an 899 buy
+  price into 900. If an exact value matters (a specific price), special-case it (e.g. keep
+  level-1 cost exact, round only the upgrade steps).
+- **Per-level small steps lost to 2dp rounding.** Interpolating a `+0.5%/level` multiplier
+  through a generic lerp that rounds to 2 decimals mangles it (1.005 → 1.0 = +0%). Compute
+  such steps directly from the tier index (`1 + 0.005*(tier+1)`), don't interpolate.
+- **Path/array index out of bounds in a "rewind" (knockback).** Pushing an enemy back along
+  a waypoint path can read `waypoints[wpIndex]` when `wpIndex` is at the edge → `undefined.x`
+  crash. Guard: `const prev = waypoints[i]; if (!prev) break;`. An AoE that knocks back many
+  enemies at once surfaces this far more often than a single-target one.
+- **Mutating a shared roster/def object.** `z.bossInfo = def.boss` then later setting a field
+  on `z.bossInfo` mutates the **shared** def for every spawn. Copy first: `{ ...def.boss }`.
+- **Scene-instance state persists across `scene.restart()`.** Phaser reuses the instance, so
+  a field set last run (last-picked item, a submitted flag, counters) carries over. **Reset
+  all run state in `create()`**, not just at declaration.
+- **Registry is RAM-only — wiped on reload.** `registry.set` does NOT persist. If progress
+  must survive a refresh, mirror it to `localStorage` (a tiny `Storage` helper) and seed the
+  registry from it in BootScene. Wrap localStorage in try/catch (private mode throws).
+- **Dev cheats must be stripped from prod.** Gate any `__dev`/`window.__GAME__` hook behind
+  `if (__DEV__)` (a Vite `define`) so tree-shaking removes it from the production bundle —
+  verify by grepping `dist/` for the hook name. Leaving it in is a cheating vector.
+- **Floating promises from async calls.** A leaderboard `submitRun()`/`fetch` in a game-over
+  path must be fire-and-forget but **fail-safe** (timeout + swallow errors) so a network/CORS
+  failure never throws into the loop; and guard a "submit once" flag.
+
 ## How to run
 1. Read `games/<name>/src/**` (scenes, objects, systems, config, keys).
 2. Walk the checklist + the v4 scanner; collect findings with exact `file:line`.

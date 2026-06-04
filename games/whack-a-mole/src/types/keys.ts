@@ -46,4 +46,5 @@ export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 
 export const RegistryKeys = {
   Muted: 'muted', // persisted mute flag across scene restarts
+  Nickname: 'nickname', // leaderboard display name (mirrored from Storage)
 } as const;

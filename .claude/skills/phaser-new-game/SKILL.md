@@ -33,7 +33,7 @@ phaser/
          └─ types/           # shared TS types/enums (SceneKeys, AssetKeys)
 ```
 
-**Non-negotiables for "chuẩn / pro / nhẹ":**
+**Non-negotiables for "standard / pro / lightweight":**
 - One **texture atlas per category** (sprites / ui / fx), never loose PNGs.
 - **Object pooling** for anything spawned in a loop (bullets, particles, enemies).
 - **String-key constants** in `types/` — never raw string literals for scene/asset keys.
@@ -206,5 +206,5 @@ After scaffolding, mention the sibling skills: `game-design` (the core loop, jui
 
 > **Design before mechanics.** Before building gameplay, name the **core loop** in
 > one sentence and decide where the **juice** goes (feedback per action) — see
-> `game-design`. A technically-correct game with no loop/juice reads as "nhạt /
-> flat / không có chiều sâu".
+> `game-design`. A technically-correct game with no loop/juice reads as "flat /
+> bland / shallow".
