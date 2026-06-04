@@ -391,15 +391,15 @@ export const HEROES: Record<HeroId, Full> = {
   joicy: {
     id: 'joicy', name: 'Joicy', tex: TextureKeys.HeroJoicy, proj: null, projSpeed: 0,
     attack: 'nova', skill: 'quake', quakeRadius: 120, knockback: 30, stunDuration: 0.8, stars: 5, tint: '#c45ce0',
-    blurb: 'Thunder Slam: a club smash sends an EXPANDING shockwave — damage + knockback + stun rippling outward.',
+    blurb: 'Thunder Slam: a club smash sends an EXPANDING shockwave — heavy AoE damage that shoves the horde back and stuns. Each enemy gets a brief knockback cooldown, so the push keeps the line honest without freezing them in place.',
     lore: 'A horned oni princess who fights like a storm given form. One swing of her thunderous club and the ground itself revolts, hurling the horde back and rattling their bones to dust.',
     tiers: tiers(
       // base carries quakeRadius so a level-1 Joicy already has a real shockwave
       // (otherwise it interpolates up from 0 → invisible + hits nothing at level 1).
       // buy price 899 (premium AoE hero); upgrades scale +10% from there.
-      { range: 96, fireInterval: 1700, damage: 26, cost: 899, quakeRadius: 120 },
-      { damage: 42, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
-      { damage: 68, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
+      { range: 96, fireInterval: 1700, damage: 30, cost: 899, quakeRadius: 120 },
+      { damage: 46, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
+      { damage: 74, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
     ),
   },
 };
