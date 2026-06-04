@@ -44,6 +44,7 @@ export class GameScene extends Phaser.Scene {
   private selectedPadKey: string | null = null;
   private selectedHero: Hero | null = null;
   private lastPickedHero: HeroId = 'oreo'; // picker pre-selects this; defaults to Oreo, then remembers the player's last pick
+  private tutorialOpen = false; // true while the How-to-Play overlay is up (blocks field taps)
   private pickerOpenedBy = -1; // pointer id of the tap that opened the picker (-1 = none)
   private detailBox!: Phaser.GameObjects.Container; // hero-detail pane inside the picker
   private listHighlights = new Map<HeroId, Phaser.GameObjects.Rectangle>();
@@ -337,6 +338,7 @@ export class GameScene extends Phaser.Scene {
   // ── input: open hero-picker on a pad, or select a placed hero ─────────────────
   private onFieldTap(p: Phaser.Input.Pointer): void {
     if (this.over) return;
+    if (this.tutorialOpen) return;     // How-to-Play overlay is modal — swallow field taps
     if (this.cinematicActive) return; // ignore taps during the boss-kill cinematic
     // While the picker is open, ignore field taps entirely — the card zones (on
     // top) handle picking and the CLOSE button cancels. Closing here would race
@@ -375,7 +377,7 @@ export class GameScene extends Phaser.Scene {
   // ── drag-to-merge ──────────────────────────────────────────────────────────────
   private onHeroDragStart(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
     const h = obj as Hero;
-    if (!(h instanceof Hero) || this.over || this.cinematicActive) return;
+    if (!(h instanceof Hero) || this.over || this.cinematicActive || this.tutorialOpen) return;
     // Only a MAX-LEVEL hero can be merge-dragged. A lower-level hero shouldn't be
     // draggable at all — leave it on its pad so the tap opens its upgrade panel
     // instead of yanking it around to no effect. A hero already at max merge (3
@@ -1947,7 +1949,8 @@ export class GameScene extends Phaser.Scene {
       prevBtn.setVisible(page > 0);
       (nextBtn as Phaser.GameObjects.Text).setText(page === pages.length - 1 ? 'PLAY ▶' : 'NEXT');
     };
-    const finish = () => { this.registry.set(RegistryKeys.TipsSeen, true); root.destroy(); };
+    this.tutorialOpen = true; // modal — block field taps underneath
+    const finish = () => { this.tutorialOpen = false; this.registry.set(RegistryKeys.TipsSeen, true); root.destroy(); };
     nextBtn.on('pointerup', () => { if (page < pages.length - 1) { page++; render(); } else finish(); });
     prevBtn.on('pointerup', () => { if (page > 0) { page--; render(); } });
     skip.on('pointerup', finish);

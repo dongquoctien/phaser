@@ -104,6 +104,7 @@ export interface HeroDef {
   incinPctPerTick?: number;      // burn: fraction of CURRENT hp burned per tick once incinerated
   burnSpreadRadius?: number;     // burn: radius the flame jumps to neighbouring zombies
   quakeRadius?: number;          // quake: final radius the shockwave expands to
+  stars?: number;                // optional fixed star rating (overrides the derived heroStars)
   tint: string;
   blurb: string;
   lore: string; // short flavour bio shown in the hero-detail panel
@@ -143,8 +144,9 @@ function tiers(base: HeroTier, t1: Partial<HeroTier>, t2: Partial<HeroTier>): He
       // integer-ish stats round; fractional skill params (slowFactor) keep 2 dp
       t[k] = Math.abs(v) < 3 && !Number.isInteger(v) ? Math.round(v * 100) / 100 : Math.round(v);
     }
-    // cost: base for level 1; each subsequent level +10% compounding
-    t.cost = Math.round((base.cost) * Math.pow(1.1, lv) / 5) * 5; // round to nearest 5
+    // cost: level 1 is the EXACT base buy price; each subsequent level is +10%
+    // compounding, rounded to the nearest 5 for tidy upgrade prices.
+    t.cost = lv === 0 ? base.cost : Math.round((base.cost) * Math.pow(1.1, lv) / 5) * 5;
     out.push(t as unknown as HeroTier);
   }
   return out;
@@ -388,13 +390,14 @@ export const HEROES: Record<HeroId, Full> = {
   },
   joicy: {
     id: 'joicy', name: 'Joicy', tex: TextureKeys.HeroJoicy, proj: null, projSpeed: 0,
-    attack: 'nova', skill: 'quake', quakeRadius: 120, knockback: 30, stunDuration: 0.8, tint: '#c45ce0',
+    attack: 'nova', skill: 'quake', quakeRadius: 120, knockback: 30, stunDuration: 0.8, stars: 5, tint: '#c45ce0',
     blurb: 'Thunder Slam: a club smash sends an EXPANDING shockwave — damage + knockback + stun rippling outward.',
     lore: 'A horned oni princess who fights like a storm given form. One swing of her thunderous club and the ground itself revolts, hurling the horde back and rattling their bones to dust.',
     tiers: tiers(
       // base carries quakeRadius so a level-1 Joicy already has a real shockwave
       // (otherwise it interpolates up from 0 → invisible + hits nothing at level 1).
-      { range: 96, fireInterval: 1700, damage: 26, cost: 150, quakeRadius: 120 },
+      // buy price 899 (premium AoE hero); upgrades scale +10% from there.
+      { range: 96, fireInterval: 1700, damage: 26, cost: 899, quakeRadius: 120 },
       { damage: 42, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
       { damage: 68, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
     ),
@@ -430,6 +433,7 @@ export function heroPower(def: HeroDef & { tiers: HeroTier[] }): number {
 
 /** 1–5 stars from Power, calibrated to this roster's spread (≈30–245). */
 export function heroStars(def: HeroDef & { tiers: HeroTier[] }): number {
+  if (def.stars != null) return def.stars; // fixed override (e.g. Joicy = 5★)
   const p = heroPower(def);
   if (p >= 200) return 5;
   if (p >= 160) return 4;

@@ -98,6 +98,7 @@ export class Hero extends Phaser.GameObjects.Image {
 
   /** Returns a FireIntent when ready to act this frame, else null. */
   update(time: number, zombies: Zombie[]): FireIntent | null {
+    if (this.dragging) return null; // a hero being dragged for a merge doesn't attack
     if (time < this.nextFireAt) return null;
     const s = this.stats;
 
