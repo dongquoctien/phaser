@@ -5,6 +5,9 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Hole } from '../objects/Hole';
 import { pickChar, rollRoster, type CharDef, type Roster } from '../systems/roster';
 import { Audio } from '../systems/Audio';
+import { Storage } from '../systems/Storage';
+import { Api } from '../systems/Api';
+import { showLeaderboard } from '../systems/LeaderboardPanel';
 
 declare const __DEV__: boolean;
 
@@ -56,6 +59,8 @@ export class GameScene extends Phaser.Scene {
   private starEmitter!: Phaser.GameObjects.Particles.ParticleEmitter;
   private frozenUntil = 0; // hit-stop guard (ms timestamp)
   private audio!: Audio;
+  private roundStartedAt = 0; // ms epoch when the round began (for the leaderboard)
+  private submitted = false;  // guard: submit the run to the leaderboard only once
 
   constructor() {
     super(SceneKeys.Game);
@@ -76,6 +81,8 @@ export class GameScene extends Phaser.Scene {
     this.spawnInterval = 900;
     this.frozenUntil = 0;
     this.running = true;
+    this.roundStartedAt = Date.now();
+    this.submitted = false;
 
     this.audio = new Audio(this);
     this.drawBackground();
@@ -476,6 +483,10 @@ export class GameScene extends Phaser.Scene {
     this.time.removeAllEvents();
     this.holes.forEach((h) => h.duck(false));
 
+    // persist best locally + submit to the leaderboard (fail-safe, once).
+    Storage.setBest(this.score);
+    this.submitRun();
+
     // dim the field
     this.add
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
@@ -594,6 +605,28 @@ export class GameScene extends Phaser.Scene {
       afterGridY += 22;
     }
 
+    // LEADERBOARD button (above the retry prompt). A modal flag stops the
+    // "tap to play again" handler from also firing while the board is open.
+    let boardOpen = false;
+    const boardBtn = this.add
+      .text(cx, top + panelH - 64, '[ LEADERBOARD ]', {
+        fontFamily: 'monospace',
+        fontSize: '15px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+        backgroundColor: '#3a6b1f',
+        padding: { x: 10, y: 6 },
+      })
+      .setOrigin(0.5)
+      .setDepth(1101)
+      .setInteractive({ useHandCursor: true });
+    boardBtn.on('pointerup', (_p: Phaser.Input.Pointer, _x: number, _y: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation?.();
+      if (boardOpen) return;
+      boardOpen = true;
+      showLeaderboard(this, () => { boardOpen = false; });
+    });
+
     const retry = this.add
       .text(cx, top + panelH - 30, '▶ TAP TO PLAY AGAIN', {
         fontFamily: 'monospace',
@@ -605,11 +638,30 @@ export class GameScene extends Phaser.Scene {
       .setDepth(1101);
     this.tweens.add({ targets: retry, alpha: 0.4, duration: 600, yoyo: true, loop: -1 });
 
-    // ignore the swing click that may have just ended things; arm after a beat
+    // ignore the swing click that may have just ended things; arm after a beat.
+    // The leaderboard modal flag suppresses a restart while the board is open.
     this.time.delayedCall(400, () => {
-      this.input.once('pointerdown', () => this.scene.restart());
-      this.input.keyboard?.once('keydown', () => this.scene.restart());
+      const restart = () => { if (!boardOpen) this.scene.restart(); };
+      this.input.on('pointerdown', restart);
+      this.input.keyboard?.on('keydown', restart);
     });
+  }
+
+  // Fire-and-forget submit of the finished run to the leaderboard. Fail-safe:
+  // a network/CORS error never throws into the game; guarded to submit once.
+  private submitRun(): void {
+    if (this.submitted) return;
+    this.submitted = true;
+    if (!Api.enabled) return;
+    const whacks = [...this.whackCounts.values()].reduce((a, n) => a + n, 0);
+    void Api.submitRun({
+      score: this.score,
+      startedAt: this.roundStartedAt,
+      endedAt: Date.now(),
+      whacks,
+      bestCombo: this.bestCombo,
+      friendlyHits: this.friendlyHits,
+    }).catch(() => { /* fail-safe — ignore */ });
   }
 
   private cleanup(): void {
