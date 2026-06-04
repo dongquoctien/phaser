@@ -10,6 +10,9 @@ export default defineConfig(({ command }) =>
     base: process.env.GAME_BASE || './',
     define: {
       __DEV__: JSON.stringify(command === 'serve'),
+      // a stable build id stamped at build time — lets the leaderboard server spot a
+      // tampered/outdated client when validating score submissions.
+      __BUILD_ID__: JSON.stringify(process.env.BUILD_ID || `dev-${command}`),
     },
     server: { port: 5187, strictPort: true },
     preview: { port: 4187, strictPort: true },
