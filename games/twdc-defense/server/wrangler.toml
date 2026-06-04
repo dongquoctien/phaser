@@ -4,11 +4,10 @@ name = "twdc-leaderboard"
 main = "worker.js"
 compatibility_date = "2024-09-01"
 
-# KV namespace for sessions + scores. Create it once, then paste the id here:
-#   npx wrangler kv namespace create LB
-# [[kv_namespaces]]
-# binding = "LB"
-# id = "<paste-the-id-from-the-command-above>"
+# KV namespace for sessions + scores.
+[[kv_namespaces]]
+binding = "LB"
+id = "31c0faee85d34c03bf81a9c14d4e64ad"
 
 [vars]
 # Lock this down to the game's static origin in production (not "*").

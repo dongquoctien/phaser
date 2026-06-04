@@ -12,3 +12,6 @@ dist-preview/
 hub-*.png
 *-menu.png
 *-gameplay.png
+
+# game env files (VITE_API_URL etc.) — committed as .env.example only
+games/*/.env

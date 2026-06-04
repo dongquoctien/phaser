@@ -63,27 +63,32 @@ export class Api {
   static get enabled(): boolean { return !!API_URL; }
 
   private static sessionToken: string | null = null;
+  private static sessionPromise: Promise<void> | null = null; // so submitRun can await a slow session
 
   /** Open a play session for a map. Stores the server-signed token for submitRun.
    *  No-op (and harmless) when the API is disabled. */
-  static async startSession(mapId: number): Promise<void> {
+  static startSession(mapId: number): Promise<void> {
     this.sessionToken = null;
-    const res = await safeFetch('/session', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ playerId: Storage.getPlayerId(), mapId, buildId: __BUILD_ID__ }),
-    });
-    if (!res || !res.ok) return;
-    try {
-      const data = (await res.json()) as { sessionToken?: string };
-      this.sessionToken = data.sessionToken ?? null;
-    } catch { /* bad JSON — ignore */ }
+    this.sessionPromise = (async () => {
+      const res = await safeFetch('/session', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ playerId: Storage.getPlayerId(), mapId, buildId: __BUILD_ID__ }),
+      });
+      if (!res || !res.ok) return;
+      try {
+        const data = (await res.json()) as { sessionToken?: string };
+        this.sessionToken = data.sessionToken ?? null;
+      } catch { /* bad JSON — ignore */ }
+    })();
+    return this.sessionPromise;
   }
 
   /** Submit a finished run. Sends identity + the server-validatable metadata.
    *  Returns the new rank if the server accepted it, else null. */
   static async submitRun(r: RunResult): Promise<{ rank: number } | null> {
     if (!API_URL) return null;
+    if (this.sessionPromise) await this.sessionPromise; // ensure the token has arrived
     const res = await safeFetch('/score', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
