@@ -53,6 +53,7 @@ export interface HeroTier {
   burnDps?: number;                // burn (xxKongxx): DoT per burn stack — scales per tier
   burnStacksToIncinerate?: number; // burn: stacks to ignite — scales per tier
   incinPctPerTick?: number;        // burn: %-HP per incinerate tick — scales per tier
+  buffMul?: number;                // buffaura: damage multiplier for nearby heroes — scales per tier
 }
 
 export interface HeroDef {
@@ -79,6 +80,10 @@ export interface HeroDef {
   stunDuration?: number;
   healPerTick?: number;
   buffMul?: number;       // buffaura: damage multiplier for nearby heroes
+  /** buffaura: +fraction of damage per LEVEL (e.g. 0.005 = +0.5%/lvl). When set the
+   *  buff is computed as 1 + buffPerLevel*(tier+1) — exact, not tier-interpolated
+   *  (tiers() rounds to 2dp which would mangle a 0.5% step). */
+  buffPerLevel?: number;
   executeThreshold?: number; // execute: hp fraction below which bonus applies
   executeMul?: number;
   // ── new-hero skill params ──
@@ -282,7 +287,7 @@ export const HEROES: Record<HeroId, Full> = {
     attack: 'aura', skill: 'buffaura', buffMul: 1.25, tint: '#5b8cff',
     blurb: 'Rally aura: boosts the damage of nearby heroes.',
     lore: 'The team cheerleader who refuses to let anyone give up. One wink from Anzu and the whole squad fights twice as hard. Morale is a weapon.',
-    tiers: tiers({ range: 120, fireInterval: 1000, damage: 0, cost: 150 }, { cost: 180, buffMul: 1.4, range: 140 } as Partial<HeroTier>, { cost: 280, buffMul: 1.6, range: 160 } as Partial<HeroTier>),
+    tiers: tiers({ range: 120, fireInterval: 1000, damage: 0, cost: 150, buffMul: 1.25 }, { cost: 180, buffMul: 1.4, range: 140 } as Partial<HeroTier>, { cost: 280, buffMul: 1.6, range: 160 } as Partial<HeroTier>),
   },
   nini: {
     id: 'nini', name: 'Nini', tex: TextureKeys.HeroNini, proj: TextureKeys.ProjBullet, projSpeed: 600,
@@ -322,14 +327,15 @@ export const HEROES: Record<HeroId, Full> = {
   },
   // ── new heroes ──
   hudong: {
-    id: 'hudong', name: 'Hudong', tex: TextureKeys.HeroHudong, proj: TextureKeys.ProjBullet, projSpeed: 520,
-    attack: 'projectile', skill: 'midas', goldifyChance: 0.18, goldifyThreshold: 0.5, goldDrop: 14, tint: '#ffc83d',
-    blurb: 'Golden Touch: a chance to turn a wounded zombie to GOLD — instant kill + a pile of bonus gold.',
-    lore: 'A wandering treasure-hunter whose lucky urn was blessed (or cursed) by a desert djinn. Everything he touches has a habit of turning to gold — zombies very much included.',
+    id: 'hudong', name: 'Hudong', tex: TextureKeys.HeroHudong, proj: null, projSpeed: 0,
+    attack: 'aura', skill: 'buffaura', buffPerLevel: 0.005, tint: '#ffc83d',
+    blurb: 'Fortune Aura: empowers nearby heroes — +0.5% damage, and +0.5% more each upgrade.',
+    lore: 'A wandering treasure-hunter whose lucky urn radiates good fortune. Stand in his golden glow and every blow strikes a little truer — and the more he hones it, the luckier you get.',
     tiers: tiers(
-      { range: 140, fireInterval: 780, damage: 18, cost: 130 },
-      { damage: 28, cost: 170, goldifyChance: 0.24, goldDrop: 22 } as Partial<HeroTier>,
-      { damage: 46, cost: 280, goldifyChance: 0.32, goldifyThreshold: 0.6, goldDrop: 36 } as Partial<HeroTier>,
+      // buff is +0.5%/level via buffPerLevel (exact); tiers only scale range/cost here
+      { range: 130, fireInterval: 1000, damage: 0, cost: 130 },
+      { cost: 165, range: 145 } as Partial<HeroTier>,
+      { cost: 270, range: 160 } as Partial<HeroTier>,
     ),
   },
   morgan: {

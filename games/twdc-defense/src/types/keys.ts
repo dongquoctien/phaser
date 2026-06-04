@@ -118,6 +118,7 @@ export const AudioKeys = {
   BossKillSlow: 'boss-kill-slow', // tense sting during the slow-mo hero-execution
   Push: 'push',                   // the actual hero-kill blow
   GameOver: 'game-over',          // played once on defeat (full volume)
+  Merge: 'merge',                 // fusion "ping" when two heroes merge
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 

@@ -425,7 +425,7 @@ export class GameScene extends Phaser.Scene {
       if (pad) { src.x = pad.x; src.y = pad.y; src.snapHome(); }
       return;
     }
-    this.audio.play(AudioKeys.Place);
+    this.audio.play(AudioKeys.Merge); // fusion "ping"
     this.mergeFx(tgt.x, tgt.y); // hand-drawn magic conjure (crisp at any scale)
     this.cameras.main.shake(80, 0.004);
     this.removeHero(src); // source consumed; its pad reverts to empty
@@ -878,11 +878,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Combined damage multiplier from every buffaura hero whose range covers (x,y).
+  // Uses the hero's PER-TIER buffMul so the aura scales as the buffer is upgraded.
   private buffAt(x: number, y: number): number {
     let mul = 1;
     for (const h of this.heroes) {
       if (h.def.skill !== 'buffaura') continue;
-      if (Phaser.Math.Distance.Between(x, y, h.x, h.y) <= h.stats.range) mul *= (h.def.buffMul ?? 1.25);
+      if (Phaser.Math.Distance.Between(x, y, h.x, h.y) > h.stats.range) continue;
+      // buffPerLevel = exact +x%/level (1 + p*(tier+1)); else tier/def buffMul
+      const m = h.def.buffPerLevel != null
+        ? 1 + h.def.buffPerLevel * (h.tier + 1)
+        : (h.stats.buffMul ?? h.def.buffMul ?? 1.25);
+      mul *= m;
     }
     return mul;
   }

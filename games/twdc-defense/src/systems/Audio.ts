@@ -24,6 +24,8 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string; 
   [AudioKeys.Push]: { volume: 0.7, throttle: 0 },
   // game-over plays at TRUE full volume (raw = bypass the global VOL_SCALE).
   [AudioKeys.GameOver]: { volume: 1.0, throttle: 0, raw: true },
+  // merge "fusion" ping — a satisfying confirm when two heroes fuse.
+  [AudioKeys.Merge]: { volume: 0.6, throttle: 0 },
 };
 
 // Global volume scale applied to every SFX + music — drop everything 30% (×0.7).

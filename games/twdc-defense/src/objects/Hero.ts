@@ -51,6 +51,8 @@ export class Hero extends Phaser.GameObjects.Image {
   private orbs: Phaser.GameObjects.Arc[] = [];
   private orbRing?: Phaser.GameObjects.Arc; // faint orbit-path ring under the orbs
   private orbTween?: Phaser.Tweens.Tween;   // shared rotation driver for the orbs
+  // aura "heartbeat" pulse ring (buff/heal/gold supports): grows small→range, fades
+  private auraPulseTimer?: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene, id: HeroId, col: number, row: number, x: number, y: number) {
     const def = HEROES[id];
@@ -73,6 +75,7 @@ export class Hero extends Phaser.GameObjects.Image {
     scene.add.existing(this);
     this.startIdle();
     if (def.skill === 'spirit') this.spawnOrbs(); // Yugitoh's orbiting guardians
+    if (def.attack === 'aura') this.startAuraPulse(); // buff/heal/gold auras: heartbeat ring
     this.chatter('place'); // greet on placement
     // selection ring (hidden until selected)
     this.ring = scene.add.circle(x, y, def.tiers[0].range, Phaser.Display.Color.HexStringToColor(def.tint).color, 0.1)
@@ -468,6 +471,31 @@ export class Hero extends Phaser.GameObjects.Image {
     });
   }
 
+  // ── aura heartbeat pulse (buff / heal / gold supports) ──────────────────────────
+  /** Emit a soft glowing ring that grows from the hero out to its buff RANGE and
+   *  fades — repeated on a steady ~1.4s beat (a "heartbeat"). Colour follows the
+   *  hero's tint; the ring stops exactly at stats.range so it reads as the area of
+   *  effect. Set up once on placement; the range is read live so it tracks upgrades. */
+  private startAuraPulse(): void {
+    const col = Phaser.Display.Color.HexStringToColor(this.def.tint).color;
+    const emit = () => {
+      if (!this.active) return;
+      const r = this.stats.range; // current AoE radius (grows with upgrades)
+      // a SINGLE thin ring outline — grows to the buff range + fades. Drawn as a FULL
+      // circle (matching the hero's range ring), centred on the hero. We tween the
+      // RADIUS (not scale) so the 2px stroke stays 2px — scaling would blow the
+      // stroke up too and the ring would spill past the actual buff range.
+      const ring = this.scene.add.circle(this.x, this.y, 8, 0x000000, 0)
+        .setStrokeStyle(2.5, col, 0.55).setDepth(8);
+      this.scene.tweens.add({
+        targets: ring, radius: r, alpha: 0,
+        duration: 1100, ease: 'Cubic.easeOut', onComplete: () => ring.destroy(),
+      });
+    };
+    emit();
+    this.auraPulseTimer = this.scene.time.addEvent({ delay: 1400, loop: true, callback: emit });
+  }
+
   /** A floating "+x%" that rises and fades (juice on each merge / shield change). */
   private floatPct(): void {
     const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 5}%`, {
@@ -490,6 +518,7 @@ export class Hero extends Phaser.GameObjects.Image {
     this.orbTween?.stop();
     for (const o of this.orbs) o.destroy();
     this.orbRing?.destroy();
+    this.auraPulseTimer?.remove();
     this.destroy();
   }
 }
