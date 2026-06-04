@@ -34,6 +34,11 @@ jobs:
         run: npm run build:all
         env:
           BASE_PATH: /${{ github.event.repository.name }}/
+          # Per-game leaderboard backend URLs (public Cloudflare Workers, not
+          # secrets). Set as repository *variables*; build-all.mjs injects each as
+          # that game's VITE_API_URL. Empty ⇒ that game builds offline.
+          VITE_API_URL_TWDC: ${{ vars.VITE_API_URL_TWDC }}
+          VITE_API_URL_WAM: ${{ vars.VITE_API_URL_WAM }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
