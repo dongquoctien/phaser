@@ -6,6 +6,7 @@ import { Projectile } from '../objects/Projectile';
 import { Hero } from '../objects/Hero';
 import { Audio } from '../systems/Audio';
 import { Storage } from '../systems/Storage';
+import { Api } from '../systems/Api';
 import { HEROES, HERO_IDS, ZOMBIES, MAP_BOSS, MAP_MINIONS, MAX_LEVEL, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
 import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, padCenter, isInsideGrid, type MapDef } from '../types/map';
 
@@ -23,6 +24,12 @@ export class GameScene extends Phaser.Scene {
   private gold = 0;
   private lives = 0;
   private wave = 0;
+  // ── leaderboard run metadata (server validates these to spot impossible runs) ──
+  private runStartedAt = 0;  // ms epoch when wave 1 began (0 until then)
+  private heroesPlaced = 0;  // total heroes deployed this run
+  private kills = 0;         // total zombies killed
+  private goldEarned = 0;    // cumulative gold gained (kills + wave rewards)
+  private runSubmitted = false; // submit the result only once
   private waveActive = false;
   private spawnQueue: ZombieId[] = [];
   private nextSpawnAt = 0;
@@ -70,6 +77,8 @@ export class GameScene extends Phaser.Scene {
     this.lives = Tuning.startLives;
     this.lastPickedHero = 'oreo'; // each new game starts the picker on Oreo
     this.wave = 0;
+    this.runStartedAt = 0; this.heroesPlaced = 0; this.kills = 0; this.goldEarned = 0; this.runSubmitted = false;
+    void Api.startSession(this.map.id); // open a leaderboard session (no-op if API off)
     this.waveActive = false;
     this.spawnQueue = [];
     this.over = false;
@@ -368,6 +377,7 @@ export class GameScene extends Phaser.Scene {
     if (!pad || pad.taken) return null;
     const h = new Hero(this, id, col, row, pad.x, pad.y);
     this.heroes.push(h);
+    this.heroesPlaced++;
     pad.taken = true;
     pad.img.setTexture(TextureKeys.PadOn); // blue → green glow once occupied
     // make the hero draggable so max-level same-type heroes can be merged
@@ -927,6 +937,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.gold += reward;
+    this.kills++; this.goldEarned += reward; // leaderboard metadata
     this.refreshHud();
     this.shatter(z.x, z.y); // chunks burst apart (no explosion flash)
     // death sound only (no Explode — it was the "drum" stacking on mass kills).
@@ -1108,6 +1119,7 @@ export class GameScene extends Phaser.Scene {
     this.awaitingFirstStart = false; // first START consumed; later waves auto-countdown
     this.countdownText.setVisible(false);
     this.wave += 1;
+    if (this.runStartedAt === 0) this.runStartedAt = Date.now(); // clock starts at wave 1
     this.waveActive = true;
     this.showStartBtn(false);
     this.refreshHud();
@@ -1853,12 +1865,14 @@ export class GameScene extends Phaser.Scene {
     this.audio.stopMusic();             // silence the loop so the sting stands alone
     this.audio.play(AudioKeys.GameOver); // full-volume defeat sound
     this.saveBest();
+    this.submitRun('overrun');
     this.endOverlay(`OVERRUN\nWave ${this.wave}\nTAP TO RETRY`, '#ff6b6b');
   }
   private win(): void {
     if (this.over) return;
     this.over = true;
     this.saveBest();
+    this.submitRun('win');
     // mark this map cleared → unlocks the next one in MapSelect (registry + localStorage)
     this.registry.set(mapClearedKey(this.map.id), true);
     Storage.setCleared(this.map.id);
@@ -1867,6 +1881,17 @@ export class GameScene extends Phaser.Scene {
       ? 'ALL MAPS CLEARED!\nYou are the champion\nTAP TO CONTINUE'
       : `VICTORY!\n${this.map.name} cleared\nNext map unlocked!\nTAP TO CONTINUE`;
     this.endOverlay(msg, '#a7f070');
+  }
+  /** Send the finished run to the leaderboard backend (once). No-op + fail-safe when
+   *  the API is disabled or offline — never blocks the game-over flow. */
+  private submitRun(outcome: 'win' | 'overrun'): void {
+    if (this.runSubmitted || this.runStartedAt === 0) return; // never started a wave
+    this.runSubmitted = true;
+    void Api.submitRun({
+      mapId: this.map.id, wave: this.wave, outcome,
+      startedAt: this.runStartedAt, endedAt: Date.now(),
+      heroesPlaced: this.heroesPlaced, kills: this.kills, goldEarned: this.goldEarned,
+    });
   }
   private saveBest(): void {
     const key = mapBestKey(this.map.id);
