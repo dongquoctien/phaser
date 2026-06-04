@@ -53,6 +53,7 @@ export class GameScene extends Phaser.Scene {
   private selectedHero: Hero | null = null;
   private lastPickedHero: HeroId = 'oreo'; // picker pre-selects this; defaults to Oreo, then remembers the player's last pick
   private tutorialOpen = false; // true while the How-to-Play overlay is up (blocks field taps)
+  private confirmOpen = false; // true while the sell-confirm overlay is up (blocks field taps)
   private pickerOpenedBy = -1; // pointer id of the tap that opened the picker (-1 = none)
   private detailBox!: Phaser.GameObjects.Container; // hero-detail pane inside the picker
   private listHighlights = new Map<HeroId, Phaser.GameObjects.Rectangle>();
@@ -85,6 +86,8 @@ export class GameScene extends Phaser.Scene {
     this.countdownActive = false;
     this.slowmo = 1;
     this.cinematicActive = false;
+    this.tutorialOpen = false;  // reset modal guards (scene instance is reused on restart)
+    this.confirmOpen = false;
     this.anims.globalTimeScale = 1;
     this.cameras.main.setZoom(1);
     this.selectedPadKey = null;
@@ -349,6 +352,7 @@ export class GameScene extends Phaser.Scene {
   private onFieldTap(p: Phaser.Input.Pointer): void {
     if (this.over) return;
     if (this.tutorialOpen) return;     // How-to-Play overlay is modal — swallow field taps
+    if (this.confirmOpen) return;      // sell-confirm overlay is modal — swallow field taps
     if (this.cinematicActive) return; // ignore taps during the boss-kill cinematic
     // While the picker is open, ignore field taps entirely — the card zones (on
     // top) handle picking and the CLOSE button cancels. Closing here would race
@@ -388,7 +392,7 @@ export class GameScene extends Phaser.Scene {
   // ── drag-to-merge ──────────────────────────────────────────────────────────────
   private onHeroDragStart(_p: Phaser.Input.Pointer, obj: Phaser.GameObjects.GameObject): void {
     const h = obj as Hero;
-    if (!(h instanceof Hero) || this.over || this.cinematicActive || this.tutorialOpen) return;
+    if (!(h instanceof Hero) || this.over || this.cinematicActive || this.tutorialOpen || this.confirmOpen) return;
     // Only a MAX-LEVEL hero can be merge-dragged. A lower-level hero shouldn't be
     // draggable at all — leave it on its pad so the tap opens its upgrade panel
     // instead of yanking it around to no effect. A hero already at max merge (3
@@ -1845,14 +1849,55 @@ export class GameScene extends Phaser.Scene {
     const sell = this.add.text(w / 2 - 58, 22, `SELL $${refund}`, { fontFamily: 'monospace', fontSize: '13px', color: '#ff9d5c', backgroundColor: '#382028', padding: { x: 10, y: 5 } }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     sell.name = 'hero-sell';
     sell.on('pointerup', () => {
-      this.removeHero(h, refund);
       this.audio.play(AudioKeys.Click);
-      this.upgradePanel.setVisible(false);
+      this.showSellConfirm(h, refund); // confirm first — selling is irreversible
     });
     this.upgradePanel.add(sell);
 
     this.upgradePanel.setVisible(true);
     this.showStartBtn(false);
+  }
+
+  /** Confirm dialog before an irreversible SELL. Self-contained modal: a dim that
+   *  blocks field taps (via the confirmOpen guard), a card with the hero + refund,
+   *  and CANCEL / CONFIRM. CONFIRM is added last so it always sits on top. */
+  private showSellConfirm(h: Hero, refund: number): void {
+    this.confirmOpen = true;
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2;
+    const root = this.add.container(0, 0).setDepth(140);
+    const dim = this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.7).setOrigin(0).setInteractive();
+    const card = this.add.rectangle(cx, cy, GAME_WIDTH - 80, 200, 0x241c34, 0.99).setStrokeStyle(3, 0xff9d5c);
+    const icon = fitImage(this.add.image(cx, cy - 58, h.def.tex), 46);
+    const title = this.add.text(cx, cy - 18, `Sell ${h.def.name}?`, {
+      fontFamily: Fonts.Display, fontSize: '24px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 4,
+    }).setOrigin(0.5);
+    const sub = this.add.text(cx, cy + 12, `Refund $${refund}  ·  cannot be undone`, {
+      fontFamily: 'monospace', fontSize: '12px', color: '#ff9d5c',
+    }).setOrigin(0.5);
+    root.add([dim, card, icon, title, sub]);
+
+    const close = () => { this.confirmOpen = false; root.destroy(); };
+    // CANCEL (left) — tapping the dim also cancels
+    const cancel = this.add.text(cx - 62, cy + 58, 'CANCEL', {
+      fontFamily: Fonts.Display, fontSize: '18px', color: '#cdd6e6', stroke: '#1a1c2c', strokeThickness: 4,
+      backgroundColor: '#3a2f4f', padding: { x: 16, y: 6 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    cancel.on('pointerup', () => { this.audio.play(AudioKeys.Click); close(); });
+    dim.on('pointerup', () => { this.audio.play(AudioKeys.Click); close(); });
+    root.add(cancel);
+
+    // CONFIRM (right) — added LAST so it draws on top; performs the actual sell.
+    const confirm = this.add.text(cx + 62, cy + 58, `SELL $${refund}`, {
+      fontFamily: Fonts.Display, fontSize: '18px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 4,
+      backgroundColor: '#8a3a3a', padding: { x: 16, y: 6 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    confirm.on('pointerup', () => {
+      close();
+      this.removeHero(h, refund);
+      this.audio.play(AudioKeys.Lose);
+      this.upgradePanel.setVisible(false);
+    });
+    root.add(confirm);
   }
 
   private refreshHud(): void {
