@@ -426,7 +426,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.audio.play(AudioKeys.Place);
-    this.boom(tgt.x, tgt.y, 0.5);
+    // a green magic rune-circle blooms under the merged hero (replaces the old boom)
+    this.playFxAnim('fx-magic', tgt.x, tgt.y + 8, 1.2);
     this.cameras.main.shake(80, 0.004);
     this.removeHero(src); // source consumed; its pad reverts to empty
     this.markTip('merge'); // player discovered merging
@@ -834,9 +835,10 @@ export class GameScene extends Phaser.Scene {
         break;
       }
       case 'bounce': {
-        // water splash: small AoE damage + a brief slow on the cluster
-        this.boom(pr.x, pr.y, 0.45);
+        // HAKJ: an ICE splash — small AoE damage + a brief slow on the cluster,
+        // with a cyan ice-crystal burst (scaled to the splash radius).
         const r = def.splashRadius ?? 40;
+        this.playFxAnim('fx-ice', pr.x, pr.y, (r * 2) / 72 * 1.1);
         for (const z of live) {
           if (z.dead) continue;
           if (Math.hypot(z.x - pr.x, z.y - pr.y) <= r) {
@@ -1294,7 +1296,11 @@ export class GameScene extends Phaser.Scene {
   /** Play a one-shot FX spritesheet animation at (x,y), then destroy it. `scale`
    *  sizes it; `angle` rotates (slash arcs); `tint` optional recolour. */
   private playFxAnim(key: string, x: number, y: number, scale = 1, angle = 0, tint?: number): void {
-    const spr = this.add.sprite(x, y, key === 'fx-slash' ? TextureKeys.FxSlash : TextureKeys.FxFireball)
+    const tex: Record<string, string> = {
+      'fx-slash': TextureKeys.FxSlash, 'fx-fireball': TextureKeys.FxFireball,
+      'fx-ice': TextureKeys.FxIce, 'fx-magic': TextureKeys.FxMagic,
+    };
+    const spr = this.add.sprite(x, y, tex[key] ?? TextureKeys.FxFireball)
       .setDepth(16).setScale(scale).setAngle(angle).setBlendMode(Phaser.BlendModes.ADD);
     if (tint !== undefined) spr.setTint(tint);
     spr.play(key);

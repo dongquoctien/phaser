@@ -62,6 +62,8 @@ export class PreloadScene extends Phaser.Scene {
     // animated FX (cut from the user's effect sheets by scripts/cut-effect-sheet.mjs)
     this.load.spritesheet(SS.FxFireball, 'effects/fireball.png', { frameWidth: 64, frameHeight: 64 });
     this.load.spritesheet(SS.FxSlash, 'effects/slash.png', { frameWidth: 80, frameHeight: 80 });
+    this.load.spritesheet(SS.FxIce, 'effects/ice.png', { frameWidth: 72, frameHeight: 72 });
+    this.load.spritesheet(SS.FxMagic, 'effects/magic.png', { frameWidth: 72, frameHeight: 72 });
   }
 
   create(): void {
@@ -165,6 +167,20 @@ export class PreloadScene extends Phaser.Scene {
         key: 'fx-slash',
         frames: this.anims.generateFrameNumbers(TextureKeys.FxSlash, { start: 0, end: 5 }),
         frameRate: 30, repeat: 0,
+      });
+    }
+    if (!this.anims.exists('fx-ice')) {
+      this.anims.create({
+        key: 'fx-ice',
+        frames: this.anims.generateFrameNumbers(TextureKeys.FxIce, { start: 0, end: 4 }),
+        frameRate: 18, repeat: 0,
+      });
+    }
+    if (!this.anims.exists('fx-magic')) {
+      this.anims.create({
+        key: 'fx-magic',
+        frames: this.anims.generateFrameNumbers(TextureKeys.FxMagic, { start: 0, end: 4 }),
+        frameRate: 14, repeat: 0,
       });
     }
   }

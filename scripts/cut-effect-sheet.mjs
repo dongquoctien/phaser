@@ -26,7 +26,16 @@ const frames = +flag('frames', 7), tile = +flag('tile', 64);
 
 const src = PNG.sync.read(readFileSync(input));
 const W = src.width;
-const isGreen = (r, g, b, a) => a > 20 && g > 110 && g > r + 25 && g > b + 25 && r < 160 && b < 160;
+const dropDark = +flag('dark', 0); // if >0, treat pixels darker than this (max channel) as background
+// Background = the chroma green OR (optionally) the dark cell border. We key only
+// pixels where green clearly dominates by a wide margin AND red+blue are both low,
+// so cyan/teal FX (high green + high blue) survive instead of being eaten.
+const isBg = (r, g, b, a) => {
+  if (a <= 20) return true;
+  const pureGreen = g > 90 && g > r + 60 && g > b + 60 && r < 120 && b < 120;
+  const dark = dropDark > 0 && Math.max(r, g, b) < dropDark;
+  return pureGreen || dark;
+};
 
 // gather each frame's opaque (non-green) pixels, trim to bbox, recenter into tile
 const out_png = new PNG({ width: tile * frames, height: tile });
@@ -38,7 +47,7 @@ for (let f = 0; f < frames; f++) {
   for (let y = y0; y < y1; y++) for (let x = cx0; x < cx1; x++) {
     const i = (y * W + x) << 2;
     const a = src.data[i + 3];
-    if (a > 30 && !isGreen(src.data[i], src.data[i + 1], src.data[i + 2], a)) {
+    if (a > 30 && !isBg(src.data[i], src.data[i + 1], src.data[i + 2], a)) {
       if (x < minX) minX = x; if (x > maxX) maxX = x;
       if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
@@ -52,7 +61,7 @@ for (let f = 0; f < frames; f++) {
     const sx = minX + Math.floor(dx / scale), sy = minY + Math.floor(dy / scale);
     const si = (sy * W + sx) << 2;
     const a = src.data[si + 3];
-    if (a <= 30 || isGreen(src.data[si], src.data[si + 1], src.data[si + 2], a)) continue;
+    if (a <= 30 || isBg(src.data[si], src.data[si + 1], src.data[si + 2], a)) continue;
     const di = ((oy + dy) * out_png.width + (ox + dx)) << 2;
     out_png.data[di] = src.data[si]; out_png.data[di + 1] = src.data[si + 1];
     out_png.data[di + 2] = src.data[si + 2]; out_png.data[di + 3] = 255;
