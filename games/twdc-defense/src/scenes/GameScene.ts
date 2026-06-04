@@ -1299,16 +1299,47 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Joicy's THUNDER SLAM: a thick ring that expands outward to the full quake
-  // radius, plus a quick ground crack flash — reads as a shockwave, not a puff.
+  // Joicy's THUNDER SLAM: a pretty purple shockwave. Several concentric rings ripple
+  // outward in a quick stagger, each growing from a tiny dot to the FULL quake radius
+  // `r` and thinning/fading as it goes, so it reads as a wave rolling out. A soft
+  // purple fill + a white core sell the impact. Rings are scaled (not radius-tweened)
+  // so the stroke stays crisp under Phaser 4 WebGL.
   private quakeFx(x: number, y: number, r: number, hex: string): void {
-    const col = Phaser.Display.Color.HexStringToColor(hex).color;
-    const ring = this.add.circle(x, y, 10, 0x000000, 0).setStrokeStyle(6, col, 0.9).setDepth(13);
-    this.tweens.add({ targets: ring, radius: r, alpha: 0, duration: 360, ease: 'Quad.easeOut', onComplete: () => ring.destroy() });
-    const inner = this.add.circle(x, y, 8, col, 0.5).setDepth(13);
-    this.tweens.add({ targets: inner, radius: r * 0.5, alpha: 0, duration: 260, ease: 'Quad.easeOut', onComplete: () => inner.destroy() });
-    const flash = this.add.circle(x, y, 16, 0xffffff, 0.8).setDepth(14);
-    this.tweens.add({ targets: flash, alpha: 0, scale: 1.6, duration: 140, onComplete: () => flash.destroy() });
+    const purple = Phaser.Display.Color.HexStringToColor(hex || '#c45ce0').color;
+    const light = 0xe0a8ff; // lighter violet for the leading ring
+    const BASE = 12; // dot radius the rings start from; we scale up to r/BASE
+
+    // soft purple shockfront fill that swells out and fades
+    const fill = this.add.circle(x, y, BASE, purple, 0.28).setDepth(12).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: fill, scale: r / BASE, alpha: 0, duration: 420, ease: 'Cubic.easeOut', onComplete: () => fill.destroy() });
+
+    // 3 staggered ripple rings, each from a dot out to the full radius
+    const rings = [
+      { col: light, w: 4, delay: 0, dur: 460, a: 0.95 },
+      { col: purple, w: 6, delay: 70, dur: 520, a: 0.9 },
+      { col: purple, w: 3, delay: 150, dur: 560, a: 0.7 },
+    ];
+    for (const cfg of rings) {
+      const ring = this.add.circle(x, y, BASE, 0x000000, 0).setStrokeStyle(cfg.w, cfg.col, cfg.a).setDepth(13).setScale(0.15);
+      this.tweens.add({
+        targets: ring, scale: r / BASE, alpha: 0, delay: cfg.delay, duration: cfg.dur,
+        ease: 'Cubic.easeOut', onComplete: () => ring.destroy(),
+      });
+    }
+
+    // bright core pop at the slam point
+    const core = this.add.circle(x, y, 14, 0xffffff, 0.85).setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: core, scale: 2.2, alpha: 0, duration: 200, ease: 'Quad.easeOut', onComplete: () => core.destroy() });
+
+    // a few purple shards kicked up along the wavefront for extra "oomph"
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8 + Phaser.Math.FloatBetween(-0.2, 0.2);
+      const shard = this.add.circle(x, y, 3, light, 0.9).setDepth(14).setBlendMode(Phaser.BlendModes.ADD);
+      this.tweens.add({
+        targets: shard, x: x + Math.cos(ang) * r * 0.9, y: y + Math.sin(ang) * r * 0.9, alpha: 0, scale: 0.3,
+        duration: Phaser.Math.Between(380, 520), ease: 'Quad.easeOut', onComplete: () => shard.destroy(),
+      });
+    }
   }
 
   // Death "shatter": a burst of little chunks that fly out radially, spin, fall
