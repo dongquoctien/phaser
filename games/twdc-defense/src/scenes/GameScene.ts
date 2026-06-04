@@ -662,8 +662,11 @@ export class GameScene extends Phaser.Scene {
           this.cameras.main.shake(140, 0.008);
           for (const z of h.inRange(live, qr)) {
             this.damageZombie(z, ndmg, h, live, now);
-            z.knockBack(def.knockback ?? 30);
-            z.applyStun(def.stunDuration ?? 0.8, now);
+            // Knockback honors a ~1.2s immunity window so stacked Joicys can't
+            // chain-shove + stun-lock a zombie forever. The slam still damages every
+            // time; it only pushes + stuns when the zombie is out of its KB cooldown.
+            if (z.knockBack(def.knockback ?? 30, now, Tuning.quakeKbImmuneMs))
+              z.applyStun(def.stunDuration ?? 0.8, now);
           }
           break;
         }
