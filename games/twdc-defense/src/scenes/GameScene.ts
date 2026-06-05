@@ -19,6 +19,8 @@ export class GameScene extends Phaser.Scene {
   private projectiles!: Phaser.GameObjects.Group;
   private heroes: Hero[] = [];
   private padByCell = new Map<string, { x: number; y: number; taken: boolean; img: Phaser.GameObjects.Image }>();
+  private fogBanks: { img: Phaser.GameObjects.Image; spd: number }[] = []; // drifting mood fog
+  private thunderTimer?: Phaser.Time.TimerEvent; // Hard-map lightning scheduler
   private waypoints: { x: number; y: number }[] = [];
 
   private gold = 0;
@@ -151,8 +153,10 @@ export class GameScene extends Phaser.Scene {
   // ── map ─────────────────────────────────────────────────────────────────────
   private drawMap(): void {
     const T = TextureKeys;
+    const theme = this.map.theme; // per-map mood (tints + overlay + vignette + fog)
     // 1. Grass field: one of 5 real grass variants per cell (+ mirror flip) so the
     //    field reads as a lush, non-repeating surface instead of one tile stamped.
+    //    Tinted by the map theme (purple dusk / cold night) for mood.
     const GRASS = [T.Grass0, T.Grass1, T.Grass2, T.Grass3, T.Grass4];
     for (let r = 0; r < GAME_HEIGHT / CELL; r++) {
       for (let c = 0; c < GAME_WIDTH / CELL; c++) {
@@ -160,6 +164,7 @@ export class GameScene extends Phaser.Scene {
         const { x, y } = cellCenter(c, r);
         const variant = GRASS[(c * 7 + r * 13 + ((c * r) % 5)) % GRASS.length];
         const img = this.add.image(x, y, variant).setDisplaySize(CELL + 1, CELL + 1).setDepth(0);
+        if (theme.groundTint !== 0xffffff) img.setTint(theme.groundTint);
         img.setFlipX(((c + r) & 1) === 1);
         img.setFlipY((c & 1) === 1);
       }
@@ -178,6 +183,7 @@ export class GameScene extends Phaser.Scene {
       const { x, y } = cellCenter(d.cell[0], d.cell[1]);
       const tex = d.kind === 'tree' ? Phaser.Utils.Array.GetRandom(TREES) : Phaser.Utils.Array.GetRandom(ROCKS);
       const spr = this.add.image(x, y + CELL * 0.18, tex).setOrigin(0.5, 0.86).setDepth(4 + y * 0.001);
+      if (theme.decorTint !== 0xffffff) spr.setTint(theme.decorTint); // wilted/dead look on harder maps
       spr.setScale((CELL * (d.kind === 'tree' ? 1.6 : 1.2)) / Math.max(spr.width, spr.height));
     }
     this.scatterExtras(pathSet(this.map), EXTRAS);
@@ -188,7 +194,70 @@ export class GameScene extends Phaser.Scene {
       const img = this.add.image(x, y, T.Pad).setDepth(2).setDisplaySize(CELL * 1.05, CELL * 1.05);
       this.padByCell.set(`${c},${r}`, { x, y, taken: false, img });
     }
+    this.drawThemeFx(); // colour wash + vignette + drifting fog (mood per map)
     this.add.rectangle(0, HUD_TOP, GAME_WIDTH, GAME_HEIGHT - HUD_TOP, 0x141019, 1).setOrigin(0, 0).setDepth(30);
+  }
+
+  /** Mood layers over the field (under heroes/HUD): a colour wash, an edge vignette
+   *  that darkens harder maps, and drifting fog banks. All driven by map.theme, so
+   *  no new art — the same tiles read as day / dusk / graveyard-night. */
+  private drawThemeFx(): void {
+    const th = this.map.theme;
+    // colour wash across the playfield (depth just above ground+decor, below heroes)
+    if (th.overlayAlpha > 0) {
+      this.add.rectangle(0, 0, GAME_WIDTH, FIELD_H, th.overlay, th.overlayAlpha).setOrigin(0, 0).setDepth(5);
+    }
+    // a LIGHTER wash OVER the characters too (depth above heroes/projectiles ~11-12,
+    // below the lightning flash 8? no — above everything gameplay, under HUD 30) so
+    // heroes + zombies pick up the map's tone without per-sprite setTint (which is
+    // reserved for status effects: burn/freeze/stun/merge). Kept subtle so colours +
+    // status tints still read clearly.
+    if (th.castAlpha > 0) {
+      this.add.rectangle(0, 0, GAME_WIDTH, FIELD_H, th.overlay, th.castAlpha).setOrigin(0, 0).setDepth(14);
+    }
+    // vignette: four dark edge bands fading inward (cheap "closing in" darkness)
+    if (th.vignette > 0) {
+      const a = th.vignette, band = Math.round(FIELD_H * 0.22);
+      const g = this.add.graphics().setDepth(7);
+      // top + bottom gradients
+      for (let i = 0; i < band; i++) {
+        const t = 1 - i / band;
+        g.fillStyle(0x05060a, a * t).fillRect(0, i, GAME_WIDTH, 1);
+        g.fillStyle(0x05060a, a * t).fillRect(0, FIELD_H - 1 - i, GAME_WIDTH, 1);
+      }
+      const bandX = Math.round(GAME_WIDTH * 0.16);
+      for (let i = 0; i < bandX; i++) {
+        const t = 1 - i / bandX;
+        g.fillStyle(0x05060a, a * t).fillRect(i, 0, 1, FIELD_H);
+        g.fillStyle(0x05060a, a * t).fillRect(GAME_WIDTH - 1 - i, 0, 1, FIELD_H);
+      }
+    }
+    // drifting fog banks — soft horizontal wisps that scroll and loop
+    if (th.fog > 0) this.spawnFog(th.fog, th.fogColor);
+  }
+
+  /** A few soft fog banks drifting sideways across the field (loops via update wrap).
+   *  Uses a baked blurry ellipse texture; depth 6 (over ground, under HUD). */
+  private spawnFog(layers: number, color: number): void {
+    if (!this.textures.exists('fog-bank')) {
+      const w = 220, h = 70;
+      const cv = this.textures.createCanvas('fog-bank', w, h)!;
+      const ctx = cv.getContext();
+      const grad = ctx.createRadialGradient(w / 2, h / 2, 6, w / 2, h / 2, w / 2);
+      grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, 7); ctx.fill();
+      cv.refresh();
+    }
+    this.fogBanks = [];
+    for (let i = 0; i < layers; i++) {
+      const y = FIELD_H * (0.2 + 0.6 * (i / Math.max(1, layers - 1)));
+      const f = this.add.image(Phaser.Math.Between(0, GAME_WIDTH), y, 'fog-bank')
+        .setTint(color).setAlpha(0.18 + 0.06 * i).setDepth(6)
+        .setScale(Phaser.Math.FloatBetween(1.1, 1.8));
+      this.fogBanks.push({ img: f, spd: (i % 2 ? 1 : -1) * Phaser.Math.FloatBetween(4, 9) });
+    }
   }
 
   /** Ambient weather per map: falling leaves on the Normal map, rain on the Hard
@@ -197,7 +266,50 @@ export class GameScene extends Phaser.Scene {
   private drawWeather(): void {
     const id = this.map.id;
     if (id === 1) this.spawnLeaves();
-    else if (id === 2) this.spawnRain();
+    else if (id === 2) { this.spawnRain(); this.spawnThunderstorm(); this.audio.startStorm(); }
+  }
+
+  /** Hard map (Dead Maze): occasional lightning — a quick double-flash wash over the
+   *  field plus a thunderclap. Scheduled on a self-rescheduling random timer so it
+   *  feels natural, not metronomic. Cleaned up on shutdown. */
+  private spawnThunderstorm(): void {
+    // a full-field flash sheet ABOVE the characters + tone wash (so lightning lights
+    // up heroes/zombies too), just under the HUD.
+    const flash = this.add.rectangle(0, 0, GAME_WIDTH, FIELD_H, 0xdfe8ff, 0)
+      .setOrigin(0, 0).setDepth(16);
+    const strike = () => {
+      if (this.over) return;
+      // lightning reads as a sharp double-flash: bright → dim → brighter → fade.
+      this.tweens.killTweensOf(flash);
+      flash.setAlpha(0);
+      this.tweens.chain({
+        targets: flash,
+        tweens: [
+          { alpha: 0.55, duration: 60, ease: 'Quad.out' },
+          { alpha: 0.12, duration: 80 },
+          { alpha: 0.7, duration: 50, ease: 'Quad.out' },
+          { alpha: 0, duration: 320, ease: 'Quad.in' },
+        ],
+      });
+      this.cameras.main.shake(180, 0.004);
+      // thunderclap a beat after the flash (light before sound), if loaded + not muted
+      this.time.delayedCall(Phaser.Math.Between(120, 340), () => {
+        if (!this.over) this.audio.play(AudioKeys.Thunder);
+      });
+    };
+    // first strike soon after entering, then re-roll the next interval each time
+    const schedule = () => {
+      this.thunderTimer = this.time.delayedCall(Phaser.Math.Between(4000, 9000), () => {
+        strike();
+        schedule();
+      });
+    };
+    this.time.delayedCall(1500, () => { strike(); schedule(); });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.thunderTimer?.remove();
+      this.tweens.killTweensOf(flash);
+      flash.destroy();
+    });
   }
 
   private ensureDot(key: string, w: number, h: number, color: number, round = false): void {
@@ -221,11 +333,17 @@ export class GameScene extends Phaser.Scene {
     (['leaf-a', 'leaf-b', 'leaf-c'] as const).forEach((tex, i) => {
       const em = this.add.particles(0, 0, tex, {
         x: { min: 0, max: GAME_WIDTH }, y: -10,
-        lifespan: 7000, frequency: 850 + i * 200, quantity: 1,
-        speedY: { min: 18, max: 34 }, speedX: { min: -14, max: 14 },
+        // lifespan × speedY must exceed the FULL field height (640) so leaves drift
+        // all the way down — otherwise they fade in the top third (the old bug).
+        lifespan: 14000, frequency: 320 + i * 90, quantity: 1,
+        speedY: { min: 48, max: 72 }, speedX: { min: -16, max: 16 },
         scale: { min: 0.8, max: 1.6 }, rotate: { min: 0, max: 360 },
-        alpha: { start: 0.9, end: 0.65 },
+        alpha: { start: 0.9, end: 0.6 },
       }).setDepth(6);
+      // pre-fill the whole field on entry so leaves already cover top-to-bottom
+      // instead of slowly filling in from the top after the map loads.
+      em.start();
+      for (let k = 0; k < 14; k++) em.emitParticleAt(Phaser.Math.Between(0, GAME_WIDTH), Phaser.Math.Between(0, FIELD_H));
       emitters.push(em);
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => emitters.forEach((e) => e.destroy()));
@@ -486,6 +604,15 @@ export class GameScene extends Phaser.Scene {
 
   // ── main loop ─────────────────────────────────────────────────────────────────
   update(time: number, deltaMs: number): void {
+    // drift the mood fog (keeps moving even on the end screen for atmosphere)
+    if (this.fogBanks.length) {
+      const fdt = deltaMs / 16.67;
+      for (const f of this.fogBanks) {
+        f.img.x += f.spd * 0.06 * fdt;
+        if (f.img.x - f.img.displayWidth / 2 > GAME_WIDTH) f.img.x = -f.img.displayWidth / 2;
+        else if (f.img.x + f.img.displayWidth / 2 < 0) f.img.x = GAME_WIDTH + f.img.displayWidth / 2;
+      }
+    }
     if (this.over) return;
     // slow-motion during the boss-kill cinematic scales all game-logic movement
     // (zombies, projectiles, DoT ticks) — tweens/anims are slowed via timeScale.
