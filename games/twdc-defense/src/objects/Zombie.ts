@@ -18,9 +18,14 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   reachedEnd = false;
   /** boss-only metadata (name + hero-kill cooldown); undefined for minions, even
    *  when a boss type walks in as an elite minion (set only on real boss waves). */
-  bossInfo?: { name: string; skillCdMs: number; throwTex?: string };
+  bossInfo?: { name: string; skillCdMs: number; throwTex?: string;
+    fill?: string; killLines?: string[]; spawnLines?: string[] };
   nextHeroKillAt = 0; // next time this boss may destroy a hero (scene clock ms)
   isElite = false; // a boss-type walking in as a tougher minion (no skill/popup); costs 3 lives at the gate
+  private bubble?: Phaser.GameObjects.Container; // boss taunt speech bubble
+  private bubbleH = 0;       // bubble height (for head-offset placement)
+  private bubbleBornAt = 0;  // time the current bubble appeared (drives its life cycle)
+  private pendingEntrance?: string[]; // boss entrance taunt, fired once it walks on-field
 
   // status
   private slowFactor = 1; // 1 = normal; <1 = slowed
@@ -95,6 +100,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.bossInfo = undefined; // set by the scene only when this is the wave's real boss
     this.nextHeroKillAt = 0;
     this.isElite = false;
+    this.bubble?.destroy(); this.bubble = undefined; this.pendingEntrance = undefined;
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0; this.kbImmuneUntil = 0;
     this.freezeStacks = 0; this.frozenUntil = 0;
     this.burnStacks = 0; this.burnDps = 0; this.burnUntil = 0; this.incinPctPerTick = 0; this.lastBurnTick = 0;
@@ -111,9 +117,67 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.hpBar.setVisible(false);
   }
 
+  /** Float a boss taunt bubble above the head (themed to the boss colour), then fade.
+   *  The bubble TRACKS the boss each frame (see updateBubble, called from step) so it
+   *  stays over the head as the boss walks. No-op for non-boss / empty lines. One at a
+   *  time. The pop/fade is driven by a manual alpha ramp (in updateBubble) rather than
+   *  a tween, so the bubble can follow position AND fade together. */
+  /** Queue the boss's entrance taunt. The boss spawns ABOVE the field (row -1), so
+   *  saying it now would float the bubble off-screen and fade before it's visible.
+   *  We hold it and let step() fire it the moment the boss crosses onto the field. */
+  bossEntrance(lines?: string[]): void {
+    if (lines && lines.length) this.pendingEntrance = lines;
+  }
+
+  bossSay(lines?: string[]): void {
+    if (!lines || !lines.length || this.dead) return;
+    const text = lines[(Math.random() * lines.length) | 0];
+    this.bubble?.destroy();
+    const pad = 5;
+    const label = this.scene.add.text(0, 0, text, {
+      fontFamily: 'monospace', fontSize: '10px', color: '#f4f4f4', align: 'center',
+      stroke: '#0a0a14', strokeThickness: 3, wordWrap: { width: 130 },
+    }).setOrigin(0.5);
+    const w = label.width + pad * 2, h = label.height + pad * 2;
+    const fill = this.bossInfo?.fill ?? '#b13e53';
+    const bg = this.scene.add.rectangle(0, 0, w, h, Phaser.Display.Color.HexStringToColor('#1a0a14').color, 0.92)
+      .setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(fill).color).setOrigin(0.5);
+    const tail = this.scene.add.triangle(0, h / 2, -4, 0, 4, 0, 0, 7, 0x1a0a14, 0.92)
+      .setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(fill).color).setOrigin(0.5);
+    const c = this.scene.add.container(this.pathX || this.x, 0, [bg, tail, label]).setDepth(45).setAlpha(0);
+    this.bubble = c;
+    this.bubbleH = h;
+    this.bubbleBornAt = this.scene.time.now;
+    this.updateBubble(); // place it over the head immediately (don't wait a frame)
+  }
+
+  /** Keep the speech bubble pinned over the boss's head and run its pop-in / hold /
+   *  fade-out life cycle. Called every frame from step(); cheap no-op when idle. */
+  private updateBubble(): void {
+    const c = this.bubble;
+    if (!c) return;
+    const HOLD = 1700, FADE = 320, POP = 160;
+    const age = this.scene.time.now - this.bubbleBornAt;
+    if (age >= HOLD + FADE) { c.destroy(); this.bubble = undefined; return; }
+    // follow the head (use the true path position so it doesn't jitter with the gait)
+    const headLift = (this.animated ? this.displayHeight * 0.74 : 16) + this.bubbleH * 0.5 + 6;
+    c.x = this.pathX || this.x;
+    c.y = (this.pathY || this.y) - headLift;
+    // life cycle: scale/alpha pop-in, hold, then fade up & out
+    if (age < POP) {
+      const t = age / POP; c.setAlpha(t).setScale(0.6 + 0.4 * t);
+    } else if (age < HOLD) {
+      c.setAlpha(1).setScale(1);
+    } else {
+      c.setAlpha(1 - (age - HOLD) / FADE).setScale(1);
+    }
+  }
+
   despawn(): void {
     this.dead = true;
     this.dying = false;
+    this.bubble?.destroy(); this.bubble = undefined; // drop any lingering taunt
+    this.pendingEntrance = undefined;
     this.pathX = 0; this.pathY = 0; // clear gait state for the next pooled use
     this.setRotation(0).setAngle(0).setAlpha(1).setScale(this.baseScale);
     if (this.animated) { this.stop(); this.setOrigin(0.5, 0.78); }
@@ -129,6 +193,14 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   /** Step toward the next waypoint. Returns 'end' if it reached the exit. */
   step(dt: number, now: number): 'end' | null {
     if (this.dead || this.dying) return null; // death/end-attack tween owns it now
+
+    if (this.bubble) this.updateBubble(); // keep any taunt bubble pinned over the head
+    // entrance taunt: fire once the boss has actually walked onto the visible field
+    // (it spawns ~67px above the top edge), so players see the line.
+    if (this.pendingEntrance && (this.pathY || this.y) > 24) {
+      const lines = this.pendingEntrance; this.pendingEntrance = undefined;
+      this.bossSay(lines);
+    }
 
     // undo last frame's gait render-offset so movement math runs on the true path
     // position (otherwise the bob/lurch would feed back into waypoint steering).

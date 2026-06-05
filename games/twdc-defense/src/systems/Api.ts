@@ -40,6 +40,7 @@ export interface LeaderboardEntry {
   nickname: string;
   wave: number;
   at: number;
+  champion?: boolean; // true if this player has cleared all 3 maps (server-flagged)
 }
 
 const TIMEOUT_MS = 6000;

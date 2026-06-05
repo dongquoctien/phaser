@@ -20,8 +20,8 @@ export class Hero extends Phaser.GameObjects.Image {
   private readonly homeX: number; // true pad x; attacks always lunge from + return here
   tier = 0;
   spent = 0; // total gold sunk into this hero (buy + upgrades); drives sell refund
-  // ── merge state ── each merge adds +5% damage AND a gold-shield tier (max 3).
-  // A boss hit consumes one shield tier (hero survives, loses that tier's bonus).
+  // ── merge state ── each merge adds +15% damage, +8% range, AND a gold-shield tier
+  // (max 3). A boss hit consumes one shield tier (hero survives, loses that bonus).
   mergeTiers = 0;
   dragging = false; // true while being dragged for a merge
   private nextFireAt = 0;
@@ -44,6 +44,7 @@ export class Hero extends Phaser.GameObjects.Image {
   private mergeGlow?: Phaser.GameObjects.Arc;      // soft glow disc under the circle
   private mergePct?: Phaser.GameObjects.Text;     // "+x%" label below the hero
   private shieldIcons: Phaser.GameObjects.Graphics[] = []; // shield badges above the head
+  private lvLabel?: Phaser.GameObjects.Text;      // persistent "Lv N" badge over the head
   // combo (xxKingxx): rising bonus damage while striking the SAME target
   private comboTarget: Zombie | null = null;
   comboCount = 0;
@@ -81,7 +82,7 @@ export class Hero extends Phaser.GameObjects.Image {
     this.ring = scene.add.circle(x, y, def.tiers[0].range, Phaser.Display.Color.HexStringToColor(def.tint).color, 0.1)
       .setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(def.tint).color, 0.5)
       .setDepth(9).setVisible(false);
-    // a small "Lv" pip baked into depth via tint pop on upgrade
+    this.refreshLevel(); // show the "Lv1" badge from the moment it's placed
   }
 
   get stats(): HeroTier { return this.def.tiers[this.tier]; }
@@ -89,8 +90,14 @@ export class Hero extends Phaser.GameObjects.Image {
   get nextUpgradeCost(): number { return this.canUpgrade ? this.def.tiers[this.tier + 1].cost : 0; }
   /** True once the hero is fully upgraded (the only state that may be merged). */
   get isMaxLevel(): boolean { return this.tier >= this.def.tiers.length - 1; }
-  /** Damage multiplier from merges: +5% per merge tier (max 3 → +15%). */
-  get mergeMult(): number { return 1 + 0.05 * this.mergeTiers; }
+  /** Damage multiplier from merges: +15% per merge tier (max 3 → +45%). */
+  get mergeMult(): number { return 1 + 0.15 * this.mergeTiers; }
+  /** Range multiplier from merges: +8% per merge tier (max 3 → +24%) so a fused
+   *  hero also reaches noticeably further, not just hits harder. */
+  get mergeRangeMult(): number { return 1 + 0.08 * this.mergeTiers; }
+  /** The hero's EFFECTIVE attack range = current tier range × merge range bonus.
+   *  Use this everywhere a hero's reach is needed so merges actually extend it. */
+  get range(): number { return this.stats.range * this.mergeRangeMult; }
   get hasShield(): boolean { return this.mergeTiers > 0; }
   /** True once the hero has merged the maximum 3 tiers — it can't merge further,
    *  so it shouldn't be drag-pickable anymore. */
@@ -106,7 +113,7 @@ export class Hero extends Phaser.GameObjects.Image {
       // radius effects fire on cooldown regardless of a specific target, but
       // nova/orbit should only bother if something is in range of the effect.
       if (this.def.attack === 'nova' || this.def.attack === 'orbit') {
-        const reach = this.def.attack === 'orbit' ? (this.def.orbRadius ?? s.range) : s.range;
+        const reach = this.def.attack === 'orbit' ? (this.def.orbRadius ?? this.range) : this.range;
         const any = zombies.some((z) => !z.dead && !z.dying && Phaser.Math.Distance.Between(z.x, z.y, this.x, this.y) <= reach);
         if (!any) return null;
       }
@@ -116,7 +123,7 @@ export class Hero extends Phaser.GameObjects.Image {
     }
 
     // projectile / melee: target the FRONT-most zombie in range
-    const target = this.frontTargetInRange(zombies, s.range);
+    const target = this.frontTargetInRange(zombies, this.range);
     if (!target) return null;
     this.nextFireAt = time + s.fireInterval;
     const angle = Math.atan2(target.y - this.y, target.x - this.x);
@@ -238,7 +245,8 @@ export class Hero extends Phaser.GameObjects.Image {
   upgrade(): void {
     if (!this.canUpgrade) return;
     this.tier += 1;
-    this.ring.setRadius(this.stats.range);
+    this.ring.setRadius(this.range);
+    this.refreshLevel(); // update the head badge (Lv2, Lv3 … MAX)
     if (this.def.skill === 'spirit') this.spawnOrbs(); // more/wider orbs per tier
     this.chatter('upgrade');
     // celebratory pop relative to the resting scale (not a hard 1.18 that would
@@ -252,7 +260,7 @@ export class Hero extends Phaser.GameObjects.Image {
   }
 
   setSelected(on: boolean): void {
-    this.ring.setRadius(this.stats.range).setVisible(on);
+    this.ring.setRadius(this.range).setVisible(on);
   }
 
   /** Snap back to the pad after a cancelled drag (a little settle bounce). */
@@ -266,11 +274,11 @@ export class Hero extends Phaser.GameObjects.Image {
     });
   }
 
-  /** Add `add` merge tiers (each = +5% damage + 1 gold shield), refresh visuals,
-   *  pop FX. Merge value is CONSERVED (Clash-Royale style): the caller passes the
-   *  full worth of the consumed source — a plain max hero is worth 1 tier, a hero
-   *  that was already merged is worth its tiers + 1 — so two +5% heroes combine to
-   *  +15%, never losing value. Caps at 3 tiers. Returns true if anything was gained. */
+  /** Add `add` merge tiers (each = +15% damage + +8% range + 1 gold shield), refresh
+   *  visuals, pop FX. Merge value is CONSERVED (Clash-Royale style): the caller passes
+   *  the full worth of the consumed source — a plain max hero is worth 1 tier, a hero
+   *  that was already merged is worth its tiers + 1 — so two single-merge heroes combine
+   *  to a 3-tier hero, never losing value. Caps at 3 tiers. Returns true if gained. */
   mergeOnce(add = 1): boolean {
     if (this.mergeTiers >= 3) return false;
     this.mergeTiers = Math.min(3, this.mergeTiers + Math.max(1, add));
@@ -286,8 +294,8 @@ export class Hero extends Phaser.GameObjects.Image {
     return true;
   }
 
-  /** Boss hit lands on a shielded hero: pop one shield tier (lose its +5% too).
-   *  Returns true if a shield absorbed the hit (hero survives). */
+  /** Boss hit lands on a shielded hero: pop one shield tier (lose that tier's
+   *  +15% damage / +8% range too). Returns true if a shield absorbed it (survives). */
   consumeShield(): boolean {
     if (this.mergeTiers <= 0) return false;
     this.mergeTiers -= 1;
@@ -415,8 +423,10 @@ export class Hero extends Phaser.GameObjects.Image {
       this.drawShield(g, 8);
       this.shieldIcons.push(g);
     }
-    // persistent "+x%" label below the feet
-    const pct = this.mergeTiers * 5;
+    // selection/range ring follows the merged (larger) range too
+    this.ring.setRadius(this.range);
+    // persistent "+x%" damage label below the feet (now +15%/tier)
+    const pct = this.mergeTiers * 15;
     if (pct > 0) {
       if (!this.mergePct) {
         this.mergePct = this.scene.add.text(this.x, this.y + 20, '', {
@@ -427,6 +437,24 @@ export class Hero extends Phaser.GameObjects.Image {
     } else if (this.mergePct) {
       this.mergePct.destroy(); this.mergePct = undefined;
     }
+    this.refreshLevel(); // keep the Lv badge pinned over the head too
+  }
+
+  /** Persistent "Lv N" badge above the hero so the player can read every hero's
+   *  level at a glance (without tapping it). Sits top-LEFT of the head so it never
+   *  overlaps the centred shield badges. Turns gold + reads "MAX" at full level. */
+  private refreshLevel(): void {
+    const max = this.isMaxLevel;
+    const txt = max ? 'MAX' : `Lv${this.tier + 1}`;
+    const color = max ? '#ffd23f' : '#ffffff';
+    const bx = this.x - 14, by = this.y - 30; // top-left of the head
+    if (!this.lvLabel) {
+      this.lvLabel = this.scene.add.text(bx, by, txt, {
+        fontFamily: 'monospace', fontSize: '10px', color, fontStyle: 'bold',
+        stroke: '#1a1c2c', strokeThickness: 3, backgroundColor: '#1a1c2ccc', padding: { x: 3, y: 1 },
+      }).setOrigin(0.5).setDepth(13);
+    }
+    this.lvLabel.setPosition(bx, by).setText(txt).setColor(color);
   }
 
   // ── combo (xxKingxx) ──────────────────────────────────────────────────────────
@@ -478,13 +506,13 @@ export class Hero extends Phaser.GameObjects.Image {
   // ── aura heartbeat pulse (buff / heal / gold supports) ──────────────────────────
   /** Emit a soft glowing ring that grows from the hero out to its buff RANGE and
    *  fades — repeated on a steady ~1.4s beat (a "heartbeat"). Colour follows the
-   *  hero's tint; the ring stops exactly at stats.range so it reads as the area of
+   *  hero's tint; the ring stops exactly at the hero's range so it reads as the area of
    *  effect. Set up once on placement; the range is read live so it tracks upgrades. */
   private startAuraPulse(): void {
     const col = Phaser.Display.Color.HexStringToColor(this.def.tint).color;
     const emit = () => {
       if (!this.active) return;
-      const r = this.stats.range; // current AoE radius (grows with upgrades)
+      const r = this.range; // current AoE radius (grows with upgrades + merges)
       // a SINGLE thin ring outline — grows to the buff range + fades. Drawn as a FULL
       // circle (matching the hero's range ring), centred on the hero. We tween the
       // RADIUS (not scale) so the 2px stroke stays 2px — scaling would blow the
@@ -502,7 +530,7 @@ export class Hero extends Phaser.GameObjects.Image {
 
   /** A floating "+x%" that rises and fades (juice on each merge / shield change). */
   private floatPct(): void {
-    const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 5}%`, {
+    const t = this.scene.add.text(this.x, this.y - 34, `+${this.mergeTiers * 15}%`, {
       fontFamily: 'monospace', fontSize: '13px', color: '#ffd23f', stroke: '#7a5a00', strokeThickness: 4,
     }).setOrigin(0.5).setDepth(20);
     this.scene.tweens.add({ targets: t, y: t.y - 22, alpha: 0, duration: 700, ease: 'Quad.out', onComplete: () => t.destroy() });
@@ -518,6 +546,7 @@ export class Hero extends Phaser.GameObjects.Image {
     this.mergeGround?.destroy(); // destroys its child ring graphics too
     this.mergeGlow?.destroy();
     this.mergePct?.destroy();
+    this.lvLabel?.destroy();
     for (const s of this.shieldIcons) s.destroy();
     this.orbTween?.stop();
     for (const o of this.orbs) o.destroy();
