@@ -144,7 +144,13 @@ const model = games.map((game) => {
 // Absolute origin for Open Graph image URLs (social scrapers need full URLs).
 const ORIGIN = process.env.OG_ORIGIN ?? 'https://dongquoctien.github.io';
 const ogUrl = `${ORIGIN}${BASE}og-hub.png`;
-writeFileSync('dist/index.html', renderHub({ games: model, ogImage: ogUrl, baseUrl: `${ORIGIN}${BASE}` }));
+// "Cast parade" mascots: a hand-picked, diverse set of the project's real pixel
+// heroes (twdc-defense/public/heroes-pixel/). Inlined into the hub by renderParade.
+// Only files that exist are used (renderParade skips missing ones).
+const CAST = ['oreo', 'joicy', 'evilcat', 'morgan', 'gauchi', 'yugitoh', 'mimi', 'xxkong']
+  .map((id) => join(gamesDir, 'twdc-defense', 'public', 'heroes-pixel', `${id}.png`))
+  .filter((p) => existsSync(p));
+writeFileSync('dist/index.html', renderHub({ games: model, ogImage: ogUrl, baseUrl: `${ORIGIN}${BASE}`, paradeSprites: CAST }));
 // .nojekyll skips Jekyll processing on GitHub Pages.
 writeFileSync('dist/.nojekyll', '');
 // Ship the hub's OG share image to the site root.

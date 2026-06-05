@@ -2,6 +2,12 @@
 // build-all.mjs calls renderHub({games}) and writes the result to dist/index.html.
 // Self-contained: inline CSS, system fonts (no network/base64 font), zero JS.
 // Each game is one pastel <a> card; cards ARE the crawlable content.
+//
+// A "cast parade" strip of real pixel sprites (base64-inlined) marches under the
+// header — pure CSS bob, no JS, honours prefers-reduced-motion. It turns the
+// project's actual character art into the hub's mascots.
+
+import { readFileSync } from 'node:fs';
 
 function escapeHtml(s) {
   return String(s)
@@ -131,7 +137,25 @@ function groupByCategory(games) {
 }
 
 /** Render the full hub document. */
-export function renderHub({ games, title = 'PHASER ARCADE', ogImage = '', baseUrl = '' }) {
+// Build the "cast parade" strip: each path is a small transparent pixel PNG that
+// gets base64-inlined (no extra requests) and bobs on a staggered loop. Missing
+// files are skipped silently so the hub never breaks on a renamed sprite.
+export function renderParade(spritePaths = []) {
+  const tiles = spritePaths
+    .map((p, i) => {
+      let b64;
+      try { b64 = readFileSync(p).toString('base64'); }
+      catch { return ''; } // sprite gone — skip it, don't break the build
+      // stagger each sprite's bob so the row ripples instead of bouncing in unison
+      const delay = (i * 0.18).toFixed(2);
+      return `        <img class="cast" src="data:image/png;base64,${b64}" alt="" loading="lazy" style="--d:${delay}s" />`;
+    })
+    .filter(Boolean);
+  if (!tiles.length) return '';
+  return `    <div class="parade" aria-hidden="true">\n${tiles.join('\n')}\n    </div>`;
+}
+
+export function renderHub({ games, title = 'PHASER ARCADE', ogImage = '', baseUrl = '', paradeSprites = [] }) {
   const groups = groupByCategory(games);
   // render sections; only show the category heading when there's more than one
   let gi = 0; // global card index (stable colours/numbers across sections)
@@ -203,6 +227,36 @@ ${ogImage ? `    <meta property="og:type" content="website" />
         0%,100% { transform: translateY(0); }
         50%     { transform: translateY(-5px); }
       }
+      @keyframes cast-bob {
+        0%,100% { transform: translateY(0) scaleY(1); }
+        50%     { transform: translateY(-7px) scaleY(1.04); }
+      }
+      /* the cast parade: a centered row of real pixel sprites bobbing under the header */
+      .parade {
+        max-width: 1280px;
+        margin: -4px auto 30px;
+        display: flex;
+        flex-wrap: nowrap;            /* one tidy row — never a stacked wall */
+        justify-content: center;
+        align-items: flex-end;
+        gap: clamp(10px, 3vw, 34px);
+        padding: 8px 16px 0;
+        min-height: 96px;
+      }
+      .parade .cast {
+        width: 76px;
+        height: auto;
+        flex: 0 0 auto;
+        image-rendering: pixelated; /* crisp integer-scaled pixels */
+        transform-origin: 50% 100%;
+        animation: cast-bob 2.4s ease-in-out infinite;
+        animation-delay: var(--d, 0s);
+        filter: drop-shadow(0 6px 6px rgba(0,0,0,0.45));
+      }
+      /* drop mascots as the viewport narrows so the single row always fits */
+      @media (max-width: 760px) { .parade .cast:nth-child(n+7) { display: none; } }
+      @media (max-width: 560px) { .parade .cast:nth-child(n+5) { display: none; } .parade .cast { width: 64px; } }
+      @media (max-width: 400px) { .parade .cast:nth-child(n+4) { display: none; } }
       header {
         max-width: 1280px;
         margin: 0 auto 28px;
@@ -366,7 +420,7 @@ ${ogImage ? `    <meta property="og:type" content="website" />
       @media (prefers-reduced-motion: reduce) {
         .card { transition: none; }
         .card:hover, .card:focus-visible { transform: none; }
-        .wordmark, .card-art { animation: none; }
+        .wordmark, .card-art, .parade .cast { animation: none; }
       }
     </style>
   </head>
@@ -377,6 +431,7 @@ ${ogImage ? `    <meta property="og:type" content="website" />
       <div class="menu" aria-hidden="true"><span></span><span></span><span></span></div>
       <p class="sub">${n} game${n === 1 ? '' : 's'} · click to play</p>
     </header>
+${renderParade(paradeSprites)}
     <main class="catalog">
 ${sections}
     </main>
