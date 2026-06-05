@@ -3,6 +3,8 @@ import { SceneKeys, AudioKeys, Fonts, TextureKeys, mapBestKey, mapClearedKey } f
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { MAPS } from '../types/map';
 import { MAP_BOSS, ZOMBIES, type ZombieId } from '../types/roster';
+import { Storage } from '../systems/Storage';
+import { drawCrown, drawLock } from '../systems/Icons';
 
 // Map-select screen: one card per map showing name, difficulty, best wave, and a
 // portrait of that map's BOSS. Maps unlock progressively — map N is playable only
@@ -27,6 +29,11 @@ export class MapSelectScene extends Phaser.Scene {
     this.add.text(GAME_WIDTH / 2, 36, 'SELECT MAP', {
       fontFamily: Fonts.Display, fontSize: '40px', color: '#ff3b30', stroke: '#1a1c2c', strokeThickness: 7,
     }).setOrigin(0.5);
+
+    // CHAMPION banner — shown once every map is cleared. Read from Storage (survives a
+    // reload, unlike the RAM-only registry). A pixel crown flanks the word on each side.
+    const allCleared = MAPS.every((_, i) => Storage.isCleared(i));
+    if (allCleared) this.drawChampionBanner();
 
     const cardW = GAME_WIDTH - 60;
     const cardH = 190;
@@ -72,9 +79,11 @@ export class MapSelectScene extends Phaser.Scene {
         });
         void play;
       } else {
-        this.add.text(cx, cy + cardH / 2 - 22, '🔒 Clear the previous map', {
+        const hintY = cy + cardH / 2 - 22;
+        const hint = this.add.text(cx + 8, hintY, 'Clear the previous map', {
           fontFamily: 'monospace', fontSize: '11px', color: '#8a7aa6',
         }).setOrigin(0.5);
+        drawLock(this, cx - hint.width / 2 - 2, hintY, 11); // pixel lock before the text
       }
       void card;
     });
@@ -84,6 +93,19 @@ export class MapSelectScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: '14px', color: '#8a91b4',
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     back.on('pointerup', () => this.scene.start(SceneKeys.Menu));
+  }
+
+  /** A small golden "CHAMPION" ribbon under the header, flanked by two pixel crowns,
+   *  shown only when all maps are cleared. Pulses gently to draw the eye. */
+  private drawChampionBanner(): void {
+    const cx = GAME_WIDTH / 2, y = 78;
+    const label = this.add.text(cx, y, 'CHAMPION', {
+      fontFamily: Fonts.Display, fontSize: '22px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 5,
+    }).setOrigin(0.5);
+    const half = label.width / 2;
+    const left = drawCrown(this, cx - half - 16, y, 20);
+    const right = drawCrown(this, cx + half + 16, y, 20);
+    this.tweens.add({ targets: [label, left, right], alpha: { from: 0.6, to: 1 }, duration: 800, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
   }
 
   // Render the map's headline BOSS portrait (idle frame of its sheet) in a framed
@@ -114,9 +136,9 @@ export class MapSelectScene extends Phaser.Scene {
       stroke: '#1a1c2c', strokeThickness: 3, align: 'center', wordWrap: { width: w - 6 },
     }).setOrigin(0.5, 1);
 
-    // a small lock badge top-right so it still reads as locked
+    // a small pixel lock badge top-right so it still reads as locked (no emoji)
     if (!unlocked) {
-      this.add.text(x + w - 6, y + 4, '🔒', { fontFamily: Fonts.Mono, fontSize: '14px' }).setOrigin(1, 0);
+      drawLock(this, x + w - 11, y + 11, 15);
     }
   }
 }

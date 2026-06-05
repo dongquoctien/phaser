@@ -116,6 +116,13 @@ export default {
         await env.LB.put(key, JSON.stringify({ ...prev, nickname })); // keep best wave, update name
       }
 
+      // CHAMPION: winning the LAST map (id 2 / Hard) means all three were cleared
+      // (Easy + Normal must be cleared to unlock Hard). Mark the player a champion
+      // permanently — surfaced as a crown beside their name on every leaderboard tab.
+      if (mapId === 2 && b.outcome === 'win') {
+        await env.LB.put(`champ:${claims.playerId}`, '1');
+      }
+
       const board = await topFor(env, mapId);
       const rank = board.findIndex((e) => e.playerId === claims.playerId) + 1;
       return json({ ok: true, rank: rank || null }, env);
@@ -124,7 +131,7 @@ export default {
     // ── GET /leaderboard?mapId=N ──
     if (url.pathname === '/leaderboard' && request.method === 'GET') {
       const mapId = (url.searchParams.get('mapId') || '0') | 0;
-      const board = (await topFor(env, mapId)).map(({ nickname, wave, at }) => ({ nickname, wave, at }));
+      const board = (await topFor(env, mapId)).map(({ nickname, wave, at, champion }) => ({ nickname, wave, at, champion }));
       return json({ entries: board }, env);
     }
 
@@ -132,13 +139,20 @@ export default {
   },
 };
 
-// List every best:<mapId>:* entry, sort by wave desc, return TOP_N (with playerId).
+// List every best:<mapId>:* entry, sort by wave desc, return TOP_N (with playerId +
+// a `champion` flag). We list the `champ:` prefix ONCE into a Set rather than reading
+// a champ key per row, so it stays two list calls regardless of board size.
 async function topFor(env, mapId) {
   const prefix = `best:${mapId}:`;
-  const list = await env.LB.list({ prefix });
+  const [list, champList] = await Promise.all([
+    env.LB.list({ prefix }),
+    env.LB.list({ prefix: 'champ:' }),
+  ]);
+  const champs = new Set(champList.keys.map((k) => k.name.slice('champ:'.length)));
   const rows = await Promise.all(list.keys.map(async (k) => {
     const v = await env.LB.get(k.name, 'json');
-    return v && { playerId: k.name.slice(prefix.length), ...v };
+    const playerId = k.name.slice(prefix.length);
+    return v && { playerId, champion: champs.has(playerId), ...v };
   }));
   return rows.filter(Boolean).sort((a, b) => b.wave - a.wave || a.at - b.at).slice(0, TOP_N);
 }

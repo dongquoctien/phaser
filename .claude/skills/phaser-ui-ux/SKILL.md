@@ -1,6 +1,6 @@
 ---
 name: phaser-ui-ux
-description: Build correct, bug-free UI/UX in a Phaser game — modal overlays that actually block input underneath, scrollable lists (radius vs scale, header occlusion, scroll-arrows, drag-vs-tap), predictable pre-selection (not random), ground-plane perspective FX, text-entry fields (DOM input), and depth/draw-order. Use when adding or fixing any in-game UI — popups, pickers, menus, leaderboards, tutorials, dialogs, HUD overlays — or when a UI "lets clicks through", "scrolls wrong", "header disappears", "input doesn't type", "effect looks tilted/wrong", or "picks random". The hard-won UI counterpart to game-design (feel) and phaser-review (code).
+description: Build correct, bug-free UI/UX in a Phaser game — modal overlays that actually block input underneath, scrollable lists (radius vs scale, header occlusion, scroll-arrows, drag-vs-tap), predictable pre-selection (not random), ground-plane perspective FX, text-entry fields (DOM input), depth/draw-order, and drawing icons as pixel-art (NO emoji/SVG). Use when adding or fixing any in-game UI — popups, pickers, menus, leaderboards, tutorials, dialogs, HUD overlays, icons/badges — or when a UI "lets clicks through", "scrolls wrong", "header disappears", "input doesn't type", "effect looks tilted/wrong", "picks random", or uses an emoji as an icon. The hard-won UI counterpart to game-design (feel) and phaser-review (code).
 ---
 
 # Phaser UI/UX (this monorepo)
@@ -139,7 +139,31 @@ cleans up any DOM/listeners — not a method tangled into a scene. Callers set t
 on open and clear it in `onClose`. This is how NicknamePrompt / LeaderboardPanel stay
 testable and leak-free.
 
+## 8. Icons: NO color emoji — draw pixel-art (these are pixel games)
+Never use a color emoji (🏆 👑 🔒 👆 ✨ 🟦 …) as an in-game icon. Emoji render
+differently per OS/font, break the pixel aesthetic, and can't be themed. Don't reach for
+SVG either — in a pixel-art game it looks off-tone (smooth vs. blocky). Draw icons as
+**pixel-art via Graphics**: author a bitmap as a char-grid + palette and render each pixel
+as a `fillRect` square cell.
+```ts
+// systems/Icons.ts — reusable across scenes
+function drawPixels(scene, x, y, rows: string[], palette: Record<string, number>, cell: number) {
+  const c = scene.add.container(x, y); const g = scene.add.graphics();
+  const w = Math.max(...rows.map(r => r.length)), ox = -(w*cell)/2, oy = -(rows.length*cell)/2;
+  rows.forEach((row, r) => [...row].forEach((ch, col) => {
+    if (ch !== '.' && palette[ch] !== undefined) g.fillStyle(palette[ch], 1).fillRect(ox+col*cell, oy+r*cell, cell, cell);
+  }));
+  return c.add(g);
+}
+// drawCrown/drawTrophy/drawLock each = a *_ROWS bitmap + palette → returns a centred Container
+```
+Returning a Container lets callers `setScale`, place it beside a text label (offset by the
+text's measured width), or add a pulse/glow tween. Plain single-colour **text** glyphs
+(★ ✕ ▸ → ✓ ⚔) are fine — they're font characters, crisp, not emoji.
+
 ## Verify (Playwright MCP)
+- No color emoji in `src/` (scan unicode emoji ranges; allow text glyphs ★✕▸→✓). Icons
+  render as drawn Graphics — screenshot Menu/MapSelect/overlays to confirm.
 - Open a modal → tap a gameplay pad/button underneath → assert **nothing happens** (no
   placement, no scene change). Type while a text modal is up → assert the game didn't start.
 - Scroll a list to the bottom → assert the last row is fully on-screen, the header still
@@ -158,6 +182,7 @@ testable and leak-free.
   mobile soft keyboard won't open (iOS needs a real, visible input focused *synchronously in a
   tap*). Double-counting keystrokes from input-event + keydown both firing.
 - Hard-coding a list's row count into its scroll bounds (breaks when the list grows).
+- Using a color emoji (or an SVG) as an in-game icon — draw pixel-art via Graphics instead.
 
 See also: **game-design** (how UI should *feel* — juice, readability), **phaser-review**
 (scene-lifecycle cleanup, key constants), **phaser-smoketest** (the verify harness).

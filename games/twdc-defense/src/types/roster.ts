@@ -454,7 +454,10 @@ export interface ZombieDef {
   sheet?: string;
   /** boss-only: shown in the intro popup + drives the hero-kill skill.
    *  `fill`/`outline`/`glow` colour the intro title + glow to match the boss theme. */
-  boss?: { name: string; skillCdMs: number; fill: string; outline: string; glow: number };
+  boss?: { name: string; skillCdMs: number; fill: string; outline: string; glow: number;
+    spawnLines?: string[];  // taunt on entry
+    killLines?: string[];   // taunt when it destroys a hero
+  };
 }
 
 export const ZOMBIES: Record<ZombieId, ZombieDef> = {
@@ -467,12 +470,22 @@ export const ZOMBIES: Record<ZombieId, ZombieDef> = {
   // ── bosses (one per map). skillCdMs = how often it destroys a hero (Easy slow → Hard fast).
   //    Title colours are themed per boss (toxic-green queen / blood-red king / drowned-cyan).
   // HP from this PR (boss +20%); cooldown from main (PR #21 -5s).
-  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 840, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss',
-    boss: { name: 'Dark Princess Oreo', skillCdMs: 9000, fill: '#5ee62e', outline: '#0a2a0c', glow: 0x2a5a1d } },
+  // All three bosses share the SAME base HP (1320) so kill-time is comparable across
+  // maps — the rising difficulty comes from the per-map enemyHpMul (1 / 1.25 / 1.6)
+  // and especially the skill cooldown (how fast the boss destroys a hero: 9 / 7 /
+  // 5s) + tougher minions, NOT a bigger HP wall.
+  boss: { id: 'boss', tex: TextureKeys.ZombieBossStand, hp: 1320, speedMul: 0.5, bounty: 8, scale: 0.5, sheet: 'boss',
+    boss: { name: 'Dark Princess Oreo', skillCdMs: 9000, fill: '#5ee62e', outline: '#0a2a0c', glow: 0x2a5a1d,
+      spawnLines: ['Kneel before your princess.', 'This field is MINE.', 'Such fragile little heroes…'],
+      killLines: ['How disappointing.', 'Next.', 'Was that all?'] } },
   khoai: { id: 'khoai', tex: TextureKeys.ZombieKhoaiStand, hp: 1320, speedMul: 0.5, bounty: 12, scale: 0.5, sheet: 'khoai',
-    boss: { name: 'King Khoai', skillCdMs: 6500, fill: '#ff3b3b', outline: '#3a0606', glow: 0x5a1d1d } },
-  hakj: { id: 'hakj', tex: TextureKeys.ZombieHakjStand, hp: 1920, speedMul: 0.55, bounty: 16, scale: 0.5, sheet: 'hakj',
-    boss: { name: 'Hakj the Drowned', skillCdMs: 4500, fill: '#3be0ff', outline: '#06303a', glow: 0x1d4a5a } },
+    boss: { name: 'King Khoai', skillCdMs: 7000, fill: '#ff3b3b', outline: '#3a0606', glow: 0x5a1d1d,
+      spawnLines: ['Bow to KING KHOAI!', 'I will crush you all!', 'My reign begins NOW.'],
+      killLines: ['CRUSHED!', 'Kneel!', 'Off with their heads!'] } },
+  hakj: { id: 'hakj', tex: TextureKeys.ZombieHakjStand, hp: 1320, speedMul: 0.55, bounty: 16, scale: 0.5, sheet: 'hakj',
+    boss: { name: 'Hakj the Drowned', skillCdMs: 5000, fill: '#3be0ff', outline: '#06303a', glow: 0x1d4a5a,
+      spawnLines: ['The deep has come for you…', 'Drown with me.', 'No air. No hope.'],
+      killLines: ['Down you go…', 'The tide takes another.', 'Glub glub.'] } },
 };
 
 /** The boss that headlines each map (by map.id). */

@@ -4,6 +4,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Api, type LeaderboardEntry } from './Api';
 import { Storage } from './Storage';
 import { MAPS } from '../types/map';
+import { drawCrown, drawTrophy } from './Icons';
 
 // A full-screen leaderboard overlay: difficulty tabs across the top, a fetched
 // top-N list below (rank · nickname · best wave), with loading / empty / offline
@@ -14,10 +15,12 @@ export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void
   const cx = GAME_WIDTH / 2;
   const root = scene.add.container(0, 0).setDepth(130);
   const dim = scene.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x05060a, 0.94).setOrigin(0).setInteractive();
-  const title = scene.add.text(cx, 34, '🏆 LEADERBOARD', {
+  const title = scene.add.text(cx, 34, 'LEADERBOARD', {
     fontFamily: Fonts.Display, fontSize: '30px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 5,
   }).setOrigin(0.5);
-  root.add([dim, title]);
+  // hand-drawn trophy to the left of the title (no emoji)
+  const trophy = drawTrophy(scene, cx - title.width / 2 - 18, 34, 26);
+  root.add([dim, title, trophy]);
 
   const close = () => { root.destroy(); onClose?.(); };
   // close button (top-right)
@@ -60,7 +63,14 @@ export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void
         listItems.push(hl); root.add(hl);
       }
       const rank = scene.add.text(x0, y, `${i + 1}`.padStart(2, ' '), { fontFamily: 'monospace', fontSize: '14px', color: rankCol }).setOrigin(0, 0.5);
-      const name = scene.add.text(x0 + 34, y, e.nickname + (mine ? '  (you)' : ''), { fontFamily: 'monospace', fontSize: '14px', color: mine ? '#a7f070' : '#e8dcff' }).setOrigin(0, 0.5);
+      // champions get a small hand-drawn crown before the name (no emoji); shove the
+      // name right to make room for it.
+      const nameX = x0 + 34 + (e.champion ? 16 : 0);
+      if (e.champion) {
+        const crown = drawCrown(scene, x0 + 40, y, 13);
+        listItems.push(crown); root.add(crown);
+      }
+      const name = scene.add.text(nameX, y, e.nickname + (mine ? '  (you)' : ''), { fontFamily: 'monospace', fontSize: '14px', color: mine ? '#a7f070' : '#e8dcff' }).setOrigin(0, 0.5);
       const wave = scene.add.text(GAME_WIDTH - 24, y, String(e.wave), { fontFamily: 'monospace', fontSize: '14px', color: '#73eff7' }).setOrigin(1, 0.5);
       listItems.push(rank, name, wave); root.add([rank, name, wave]);
     });

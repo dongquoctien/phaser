@@ -6,6 +6,7 @@ import { Storage } from '../systems/Storage';
 import { showNicknamePrompt } from '../systems/NicknamePrompt';
 import { showLeaderboard } from '../systems/LeaderboardPanel';
 import { Api } from '../systems/Api';
+import { drawTrophy } from '../systems/Icons';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -67,14 +68,17 @@ export class MenuScene extends Phaser.Scene {
     // First run (no nickname chosen yet): force the prompt so the board has a name.
     if (!Storage.hasNickname()) this.time.delayedCall(250, () => editName(true));
 
-    // 🏆 leaderboard button — only when a backend is configured (else nothing to show).
+    // leaderboard button — only when a backend is configured (else nothing to show).
+    // A hand-drawn trophy sits to the left of the label (no emoji, project rule).
     let boardOpen = false;
     if (Api.enabled) {
-      const trophy = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT * 0.79, '🏆 LEADERBOARD', {
+      const by = GAME_HEIGHT * 0.79;
+      const btn = this.add.text(GAME_WIDTH / 2 + 8, by, 'LEADERBOARD', {
         fontFamily: Fonts.Mono, fontSize: '14px', color: '#ffd23f', stroke: '#1a1c2c', strokeThickness: 3,
         backgroundColor: '#2a2038', padding: { x: 14, y: 6 },
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      trophy.on('pointerup', () => {
+      drawTrophy(this, btn.x - btn.width / 2 - 10, by, 18);
+      btn.on('pointerup', () => {
         boardOpen = true;
         showLeaderboard(this, () => { boardOpen = false; });
       });

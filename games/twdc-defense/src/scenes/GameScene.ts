@@ -7,6 +7,7 @@ import { Hero } from '../objects/Hero';
 import { Audio } from '../systems/Audio';
 import { Storage } from '../systems/Storage';
 import { Api } from '../systems/Api';
+import { drawCrown } from '../systems/Icons';
 import { HEROES, HERO_IDS, ZOMBIES, MAP_BOSS, MAP_MINIONS, MAX_LEVEL, heroPower, heroStars, type HeroId, type ZombieId, type HeroDef, type HeroTier } from '../types/roster';
 import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, padCenter, isInsideGrid, type MapDef } from '../types/map';
 
@@ -559,9 +560,9 @@ export class GameScene extends Phaser.Scene {
 
   /** Merge `src` into `tgt` with CONSERVED value (Clash-Royale style): the source's
    *  full worth carries over. A plain max hero is worth 1 tier; a source already at
-   *  N tiers is worth N+1 (itself + the heroes it had absorbed). So +5%(1) into a
-   *  plain hero → +10%(2); two +5% heroes → +15%(3). Each tier = +5% damage + 1 gold
-   *  shield, capped at 3. src is removed (pad freed). */
+   *  N tiers is worth N+1 (itself + the heroes it had absorbed). So a 1-tier source
+   *  into a plain hero → 2 tiers; two 1-tier heroes → 3 tiers. Each tier = +15% damage
+   *  + +8% range + 1 gold shield, capped at 3. src is removed (pad freed). */
   private mergeHeroes(src: Hero, tgt: Hero): void {
     if (!tgt.mergeOnce(src.mergeTiers + 1)) { // target already maxed merges → snap src back
       const pad = this.padByCell.get(`${src.col},${src.row}`);
@@ -662,6 +663,7 @@ export class GameScene extends Phaser.Scene {
         } else {
           this.bossKillHero(z);
         }
+        z.bossSay(z.bossInfo.killLines); // taunt on the hero-kill
         z.nextHeroKillAt = time + z.bossInfo.skillCdMs;
       }
     }
@@ -724,11 +726,11 @@ export class GameScene extends Phaser.Scene {
         if (!intent.target) return;
         this.audio.playPitched(AudioKeys.Shoot);
         const isCrit = def.skill === 'crit' && Math.random() < (def.critChance ?? 0);
-        const buff = this.buffAt(h.x, h.y) * h.mergeMult; // merge adds +5%/tier
+        const buff = this.buffAt(h.x, h.y) * h.mergeMult; // merge adds +15%/tier
         const dmg = (isCrit ? s.damage * (def.critMul ?? 1) : s.damage) * buff;
         if (def.skill === 'multishot') {
           // fire a bolt at each of the N front-most targets
-          const targets = this.frontN(live, h, s.range, def.shots ?? 3);
+          const targets = this.frontN(live, h, h.range, def.shots ?? 3);
           for (const t of targets) {
             const a = Math.atan2(t.y - h.y, t.x - h.x);
             this.spawnProjectile(h, def, s, a, dmg, false);
@@ -747,7 +749,7 @@ export class GameScene extends Phaser.Scene {
       case 'melee': {
         const mdmg = s.damage * this.buffAt(h.x, h.y) * h.mergeMult;
         if (def.skill === 'cleave') {
-          const hits = h.inRange(live, s.range);
+          const hits = h.inRange(live, h.range);
           for (const z of hits) this.damageZombie(z, mdmg, h, live, now);
           this.slashFx(h.x, h.y, def.tint);
         } else if (def.skill === 'combo') {
@@ -801,8 +803,8 @@ export class GameScene extends Phaser.Scene {
           }
           break;
         }
-        const hits = h.inRange(live, s.range);
-        this.novaFx(h.x, h.y, s.range, def.tint);
+        const hits = h.inRange(live, h.range);
+        this.novaFx(h.x, h.y, h.range, def.tint);
         this.audio.play(AudioKeys.Explode);
         this.cameras.main.shake(60, 0.003);
         for (const z of hits) {
@@ -1039,7 +1041,7 @@ export class GameScene extends Phaser.Scene {
     let mul = 1;
     for (const h of this.heroes) {
       if (h.def.skill !== 'buffaura') continue;
-      if (Phaser.Math.Distance.Between(x, y, h.x, h.y) > h.stats.range) continue;
+      if (Phaser.Math.Distance.Between(x, y, h.x, h.y) > h.range) continue;
       // buffPerLevel = exact +x%/level (1 + p*(tier+1)); else tier/def buffMul
       const m = h.def.buffPerLevel != null
         ? 1 + h.def.buffPerLevel * (h.tier + 1)
@@ -1065,7 +1067,7 @@ export class GameScene extends Phaser.Scene {
     let reward = z.bounty;
     // professor gold aura: +bonus if a professor is nearby
     for (const h of this.heroes) {
-      if (h.def.skill === 'goldaura' && Phaser.Math.Distance.Between(z.x, z.y, h.x, h.y) <= h.stats.range) {
+      if (h.def.skill === 'goldaura' && Phaser.Math.Distance.Between(z.x, z.y, h.x, h.y) <= h.range) {
         reward += h.def.goldBonus ?? 3;
         break;
       }
@@ -1395,6 +1397,8 @@ export class GameScene extends Phaser.Scene {
       const throwTex = id === 'khoai' ? TextureKeys.FxPotato : id === 'hakj' ? TextureKeys.FxBoneSpear : undefined;
       z.bossInfo = { ...def.boss, throwTex };
       z.nextHeroKillAt = this.time.now + def.boss.skillCdMs;
+      z.bossEntrance(def.boss.spawnLines); // entrance taunt (fires once it's on-field)
+
     } else if (def.boss) {
       z.isElite = true; // boss-type spawned as a minion → tougher, costs 3 at the gate (no hero-kill)
     }
@@ -1943,8 +1947,12 @@ export class GameScene extends Phaser.Scene {
     const w = GAME_WIDTH - 16;
     const bg = this.add.rectangle(0, 0, w, 88, 0x241c34, 0.98).setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(h.def.tint).color);
     const icon = fitImage(this.add.image(-w / 2 + 26, -20, h.def.tex), 40);
-    const title = this.add.text(-w / 2 + 50, -38, `${h.def.name}  Lv${h.tier + 1}/${MAX_LEVEL}`, { fontFamily: 'monospace', fontSize: '13px', color: '#ffffff' });
-    const stats = this.add.text(-w / 2 + 50, -20, `DMG ${h.stats.damage} · RNG ${h.stats.range} · ${(1000 / h.stats.fireInterval).toFixed(1)}/s`, { fontFamily: 'monospace', fontSize: '10px', color: '#cdd6e6' });
+    // show MERGE rank in the title + EFFECTIVE (merge-boosted) damage/range in stats,
+    // so the player can see exactly what a merge bought them.
+    const mergeTag = h.mergeTiers > 0 ? `  ${'★'.repeat(h.mergeTiers)}+${h.mergeTiers * 15}%` : '';
+    const title = this.add.text(-w / 2 + 50, -38, `${h.def.name}  Lv${h.tier + 1}/${MAX_LEVEL}${mergeTag}`, { fontFamily: 'monospace', fontSize: '13px', color: h.mergeTiers > 0 ? '#ffd23f' : '#ffffff' });
+    const effDmg = Math.round(h.stats.damage * h.mergeMult);
+    const stats = this.add.text(-w / 2 + 50, -20, `DMG ${effDmg} · RNG ${Math.round(h.range)} · ${(1000 / h.stats.fireInterval).toFixed(1)}/s`, { fontFamily: 'monospace', fontSize: '10px', color: '#cdd6e6' });
     const blurb = this.add.text(-w / 2 + 14, 4, h.def.blurb, { fontFamily: 'monospace', fontSize: '9px', color: h.def.tint, wordWrap: { width: w - 150 } });
     this.upgradePanel.add([bg, icon, title, stats, blurb]);
 
@@ -2052,10 +2060,61 @@ export class GameScene extends Phaser.Scene {
     this.registry.set(mapClearedKey(this.map.id), true);
     Storage.setCleared(this.map.id);
     const last = this.map.id >= MAP_COUNT - 1;
-    const msg = last
-      ? 'ALL MAPS CLEARED!\nYou are the champion\nTAP TO CONTINUE'
-      : `VICTORY!\n${this.map.name} cleared\nNext map unlocked!\nTAP TO CONTINUE`;
-    this.endOverlay(msg, '#a7f070');
+    if (last) { this.championOverlay(); return; } // beat the final map → full celebration
+    this.endOverlay(`VICTORY!\n${this.map.name} cleared\nNext map unlocked!\nTAP TO CONTINUE`, '#a7f070');
+  }
+
+  /** Final-map victory: a full CHAMPION celebration — a big hand-drawn crown (no
+   *  emoji), confetti rain, and a run summary. Tap to return to the map select. */
+  private championOverlay(): void {
+    this.add.rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x0a0a14, 0.82).setOrigin(0).setDepth(90);
+    const cx = GAME_WIDTH / 2, cy = GAME_HEIGHT / 2;
+
+    // big crown above the title, with a gentle pulse + a soft glow disc behind it
+    const glow = this.add.circle(cx, cy - 120, 60, 0xffd23f, 0.16).setDepth(90);
+    this.tweens.add({ targets: glow, alpha: 0.3, scale: 1.15, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    const crown = drawCrown(this, cx, cy - 120, 80).setDepth(92);
+    this.tweens.add({ targets: crown, scale: 1.1, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+    this.add.text(cx, cy - 44, 'CHAMPION!', {
+      fontFamily: Fonts.Display, fontSize: '52px', color: '#ffd23f', align: 'center', stroke: '#1a1c2c', strokeThickness: 8,
+    }).setOrigin(0.5).setDepth(92);
+    this.add.text(cx, cy + 6, 'All 3 maps cleared!', {
+      fontFamily: Fonts.Display, fontSize: '24px', color: '#a7f070', stroke: '#1a1c2c', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(92);
+    this.add.text(cx, cy + 48, `Kills ${this.kills}  ·  Heroes ${this.heroesPlaced}`, {
+      fontFamily: 'monospace', fontSize: '15px', color: '#cdd6e6',
+    }).setOrigin(0.5).setDepth(92);
+    this.add.text(cx, cy + 110, 'TAP TO CONTINUE', {
+      fontFamily: Fonts.Display, fontSize: '20px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 5,
+    }).setOrigin(0.5).setDepth(92);
+
+    this.confetti(); // first burst
+    this.time.addEvent({ delay: 900, repeat: 2, callback: () => this.confetti() }); // a few more waves
+
+    this.time.delayedCall(900, () => { this.input.once('pointerup', () => this.scene.start(SceneKeys.MapSelect)); });
+  }
+
+  /** A burst of multi-colour confetti rectangles raining from the top, tumbling +
+   *  fading. Pure tweens (no particle system) so it stays crisp + dependency-free. */
+  private confetti(): void {
+    const cols = [0xffd23f, 0xff3b3b, 0x5ee62e, 0x3be0ff, 0xff7adf, 0xffffff];
+    for (let i = 0; i < 28; i++) {
+      const x = Phaser.Math.Between(20, GAME_WIDTH - 20);
+      const col = cols[i % cols.length];
+      const w = Phaser.Math.Between(4, 7), h = Phaser.Math.Between(7, 12);
+      const c = this.add.rectangle(x, -10, w, h, col, 1).setDepth(93).setAngle(Phaser.Math.Between(0, 360));
+      this.tweens.add({
+        targets: c,
+        y: GAME_HEIGHT + 20,
+        x: x + Phaser.Math.Between(-40, 40),
+        angle: c.angle + Phaser.Math.Between(180, 540),
+        alpha: { from: 1, to: 0.2 },
+        duration: Phaser.Math.Between(1400, 2400),
+        ease: 'Quad.easeIn',
+        onComplete: () => c.destroy(),
+      });
+    }
   }
   /** Send the finished run to the leaderboard backend (once). No-op + fail-safe when
    *  the API is disabled or offline — never blocks the game-over flow. */
@@ -2083,15 +2142,17 @@ export class GameScene extends Phaser.Scene {
     // each page: an emoji-ish icon source (a texture key, or null = draw a glyph),
     // a fallback glyph, a colour, a title and 1–2 short lines.
     const pages: Array<{ tex: string | null; glyph: string; col: string; title: string; lines: string[] }> = [
-      { tex: T.Pad, glyph: '🟦', col: '#5ad1ff', title: 'PLACE HEROES',
+      { tex: T.Pad, glyph: '[]', col: '#5ad1ff', title: 'PLACE HEROES',
         lines: ['Tap a glowing PAD to open the', 'hero list, then PLACE a hero on it.'] },
       { tex: null, glyph: '▶', col: '#a7f070', title: 'START THE WAVE',
         lines: ['Press START WAVE to send the', 'zombies in. Survive every wave!'] },
-      { tex: T.HeroOreo, glyph: '⬆', col: '#ffe066', title: 'UPGRADE & SELL',
+      // NOTE: pages with a real `tex` show that sprite as the icon; `glyph` is only a
+      // text fallback when tex is missing — kept as plain text (no emoji, project rule).
+      { tex: T.HeroOreo, glyph: 'UP', col: '#ffe066', title: 'UPGRADE & SELL',
         lines: ['Tap a hero to UPGRADE it (max Lv10),', 'or SELL it to refund 60% of its cost.'] },
-      { tex: T.HeroHakj, glyph: '✨', col: '#ffd23f', title: 'MERGE FOR POWER',
-        lines: ['Drag a MAX-LEVEL hero onto another of', 'the SAME type: +5% damage + a gold', 'shield that blocks one boss hit (max 3).'] },
-      { tex: T.ZombieBossStand, glyph: '👑', col: '#ff5d5d', title: 'BEWARE THE BOSS',
+      { tex: T.HeroHakj, glyph: '+', col: '#ffd23f', title: 'MERGE FOR POWER',
+        lines: ['Drag a MAX-LEVEL hero onto another of', 'the SAME type: +15% damage & +8% range', 'per tier + a gold shield vs boss (max 3).'] },
+      { tex: T.ZombieBossStand, glyph: '!', col: '#ff5d5d', title: 'BEWARE THE BOSS',
         lines: ['Bosses can execute your heroes — and', 'one reaching the gate costs 10 lives!'] },
     ];
 
@@ -2164,8 +2225,8 @@ export class GameScene extends Phaser.Scene {
    *  becomes relevant. `key` is the RegistryKey persisting "already shown". */
   private markTip(key: string): void {
     let regKey: string | null = null, msg = '';
-    if (key === 'pad') { regKey = RegistryKeys.HintPadSeen; msg = '👆 Tap a glowing PAD to place a hero'; }
-    else if (key === 'merge') { regKey = RegistryKeys.HintMergeSeen; msg = '✨ Drag a max-level hero onto a same-type one to MERGE'; }
+    if (key === 'pad') { regKey = RegistryKeys.HintPadSeen; msg = 'Tap a glowing PAD to place a hero'; }
+    else if (key === 'merge') { regKey = RegistryKeys.HintMergeSeen; msg = 'Drag a max-level hero onto a same-type one to MERGE'; }
     if (!regKey || this.registry.get(regKey)) return; // unknown or already shown
     this.registry.set(regKey, true);
     this.showToast(msg);
