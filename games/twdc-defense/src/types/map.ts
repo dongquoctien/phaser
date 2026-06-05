@@ -6,6 +6,22 @@ import { CELL, GRID_COLS, GRID_ROWS } from '../tuning';
 // and a difficulty modifier. Maps get longer/twistier with fewer pads + tougher
 // zombies as you go. Heroes are placed on PADS, never on the road.
 
+// Per-map visual mood — applied over the SHARED tiles (tint + colour overlay + fog)
+// so each map FEELS different without new art. Easy = bright day; Normal = eerie
+// purple dusk/swamp; Hard = cold graveyard night.
+export interface MapTheme {
+  groundTint: number;    // multiply-tint on the grass tiles
+  decorTint: number;     // tint on trees/rocks (wilted/dead look on harder maps)
+  roadTint: number;      // tint on the dirt road
+  overlay: number;       // a full-field colour wash (mood)
+  overlayAlpha: number;  // 0 = none (sits UNDER characters — tints the ground)
+  castAlpha: number;     // a lighter wash OVER characters too, so heroes+zombies share
+                         //   the map's tone without per-sprite tint (0 = none)
+  vignette: number;      // 0 = none; >0 = darkness creeping in from the edges (alpha)
+  fog: number;           // number of drifting fog layers (0 = none)
+  fogColor: number;
+}
+
 export interface MapDef {
   id: number;
   name: string;
@@ -15,7 +31,21 @@ export interface MapDef {
   decor: ReadonlyArray<{ cell: readonly [number, number]; kind: 'tree' | 'rock' }>;
   enemyHpMul: number; // multiplies zombie hp
   startGold: number;
+  theme: MapTheme;
 }
+
+const THEME_DAY: MapTheme = {
+  groundTint: 0xffffff, decorTint: 0xffffff, roadTint: 0xffffff,
+  overlay: 0x000000, overlayAlpha: 0, castAlpha: 0, vignette: 0, fog: 0, fogColor: 0xffffff,
+};
+const THEME_DUSK: MapTheme = { // Normal — purple dusk / haunted swamp
+  groundTint: 0x9a7fb5, decorTint: 0x8a6f9a, roadTint: 0x7a5f6a,
+  overlay: 0x3a1d5a, overlayAlpha: 0.22, castAlpha: 0.08, vignette: 0.18, fog: 2, fogColor: 0xb89cc8,
+};
+const THEME_NIGHT: MapTheme = { // Hard — cold graveyard night
+  groundTint: 0x5a6a78, decorTint: 0x44505c, roadTint: 0x3a4350,
+  overlay: 0x0a1424, overlayAlpha: 0.42, castAlpha: 0.14, vignette: 0.40, fog: 3, fogColor: 0x8aa0b4,
+};
 
 type Cell = [number, number];
 const seg = (push: (c: number, r: number) => void) => push; // alias for readability
@@ -77,6 +107,7 @@ function buildPath3(): Cell[] {
 export const MAPS: ReadonlyArray<MapDef> = [
   {
     id: 0, name: 'Greenfields', difficulty: 'Easy', enemyHpMul: 1, startGold: 260,
+    theme: THEME_DAY,
     path: buildPath1(),
     pads: [
       [4, 0], [6, 0], [8, 0],
@@ -94,6 +125,7 @@ export const MAPS: ReadonlyArray<MapDef> = [
   },
   {
     id: 1, name: 'Twisted Vale', difficulty: 'Normal', enemyHpMul: 1.25, startGold: 240,
+    theme: THEME_DUSK,
     path: buildPath2(),
     pads: [
       [0, 0], [4, 0], [11, 0],
@@ -110,6 +142,7 @@ export const MAPS: ReadonlyArray<MapDef> = [
   },
   {
     id: 2, name: 'Dead Maze', difficulty: 'Hard', enemyHpMul: 1.6, startGold: 220,
+    theme: THEME_NIGHT,
     path: buildPath3(),
     pads: [
       [0, 1], [11, 1],

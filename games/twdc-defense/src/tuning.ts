@@ -19,9 +19,9 @@ export const Tuning = {
 
   // Joicy quake knockback-immunity window (ms). After a slam pushes a zombie it's
   // KB/stun-immune this long, so a wall of out-of-phase Joicys can't stun-lock the
-  // horde in place. ~1.2s < Joicy's 1.7s fire interval, so a lone Joicy still pushes
+  // horde in place. ~1.4s < Joicy's 1.7s fire interval, so a lone Joicy still pushes
   // on (nearly) every slam — only rapid stacked slams get throttled.
-  quakeKbImmuneMs: 1200,
+  quakeKbImmuneMs: 1400,
 
   // Wave spawning
   spawnInterval: 650, // ms between zombies in a wave

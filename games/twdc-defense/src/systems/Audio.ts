@@ -26,6 +26,12 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string; 
   [AudioKeys.GameOver]: { volume: 1.0, throttle: 0, raw: true },
   // merge "fusion" ping — a satisfying confirm when two heroes fuse.
   [AudioKeys.Merge]: { volume: 0.6, throttle: 0 },
+  // lightning STRIKE on the Hard map — bold but throttled so overlapping strikes
+  // never stack into a roar.
+  [AudioKeys.Thunder]: { volume: 0.6, throttle: 1200 },
+  // looping storm ambience — played as a low, persistent bed (see startStorm); this
+  // entry is only used if it's ever triggered via play() (kept for type completeness).
+  [AudioKeys.Storm]: { volume: 0.22, throttle: 0 },
 };
 
 // Global volume scale applied to every SFX + music — drop everything 30% (×0.7).
@@ -39,6 +45,7 @@ export class Audio {
   private lastPlayed: Record<string, number> = {}; // keyed by throttle slot (group or key)
   private music?: Phaser.Sound.BaseSound; // current looping track
   private musicKey?: MusicKey;
+  private storm?: Phaser.Sound.BaseSound; // looping storm ambience (Hard map)
   private pageHidden = false; // true while the tab is backgrounded — drop all sound
 
   constructor(scene: Phaser.Scene) {
@@ -51,7 +58,7 @@ export class Audio {
     scene.sound.pauseOnBlur = false;
     this.installVisibilityHandling();
     // stop music when the scene shuts down so it doesn't leak across restarts
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMusic());
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => { this.stopMusic(); this.stopStorm(); });
   }
 
   /** True while the tab/window is backgrounded — callers can use this to skip
@@ -76,6 +83,24 @@ export class Audio {
     this.music?.destroy();
     this.music = undefined;
     this.musicKey = undefined;
+  }
+
+  // ── ambient storm bed (Hard map) — a SECOND looping layer that sits UNDER the
+  //    music so it adds atmosphere without drowning the track. Volume is kept low. ──
+  /** Start the looping storm ambience (no-op if already running / backgrounded). */
+  startStorm(): void {
+    if (this.pageHidden) return;
+    if (this.storm?.isPlaying) return;
+    if (!this.scene.cache.audio.exists(AudioKeys.Storm)) return;
+    this.stopStorm();
+    // ×0.5 of music volume so it stays a quiet bed beneath the soundtrack.
+    this.storm = this.scene.sound.add(AudioKeys.Storm, { loop: true, volume: MUSIC_VOL * 0.5 });
+    this.storm.play();
+  }
+  stopStorm(): void {
+    this.storm?.stop();
+    this.storm?.destroy();
+    this.storm = undefined;
   }
 
   // iOS Safari starts the WebAudio context "suspended" and only resumes it from a
@@ -114,10 +139,12 @@ export class Audio {
       if (ctx.state === 'suspended') void ctx.resume();
       this.lastPlayed = {}; // clear stale throttle timestamps (time jumped while hidden)
       if (showTimer) clearTimeout(showTimer);
+      const stormWasOn = !!this.storm; // stopAll() will have killed it — restore below
       showTimer = setTimeout(() => {
         if (this.pageHidden || document.hidden) return; // hid again before the tick
         this.scene.sound.stopAll(); // belt-and-braces: kill anything that slipped through
         if (this.musicKey) { const k = this.musicKey; this.musicKey = undefined; this.playMusic(k); }
+        if (stormWasOn) { this.storm = undefined; this.startStorm(); } // restart the storm bed too
       }, 120);
     };
 

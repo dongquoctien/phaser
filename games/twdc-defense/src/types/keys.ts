@@ -123,6 +123,8 @@ export const AudioKeys = {
   Push: 'push',                   // the actual hero-kill blow
   GameOver: 'game-over',          // played once on defeat (full volume)
   Merge: 'merge',                 // fusion "ping" when two heroes merge
+  Thunder: 'thunder',             // a lightning STRIKE — played on each flash (Hard map)
+  Storm: 'storm',                 // looping storm ambience — runs the whole Hard map (low vol)
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 
