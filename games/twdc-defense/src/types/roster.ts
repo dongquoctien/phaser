@@ -172,10 +172,10 @@ export const HEROES: Record<HeroId, Full> = {
   },
   oreo: {
     id: 'oreo', name: 'Oreo', tex: TextureKeys.HeroOreo, proj: TextureKeys.ProjArrow, projSpeed: 420,
-    attack: 'projectile', skill: 'multishot', shots: 3, tint: '#ff7da8',
-    blurb: 'Long-range shuriken volley — strikes the 3 nearest zombies across the field.',
+    attack: 'projectile', skill: 'multishot', shots: 3, critChance: 0.25, critMul: 2, tint: '#ff7da8',
+    blurb: 'Long-range shuriken volley — strikes the 3 nearest zombies, with a chance for a 2× critical.',
     lore: 'Top of her class in the ninja club — right before class got cancelled forever. Now her homework is survival, and she always hits the deadline.',
-    tiers: tiers({ range: 230, fireInterval: 620, damage: 9, cost: 100 }, { damage: 14, cost: 130, range: 245 } as Partial<HeroTier>, { damage: 22, cost: 200, shots: 4, range: 255 } as Partial<HeroTier>),
+    tiers: tiers({ range: 230, fireInterval: 620, damage: 15, cost: 100 }, { damage: 22, cost: 130, range: 245 } as Partial<HeroTier>, { damage: 34, cost: 200, shots: 4, range: 255 } as Partial<HeroTier>),
   },
   rwah: {
     id: 'rwah', name: 'Rwah', tex: TextureKeys.HeroRwah, proj: TextureKeys.ProjPoison, projSpeed: 320,
@@ -214,8 +214,8 @@ export const HEROES: Record<HeroId, Full> = {
   },
   normal: {
     id: 'normal', name: 'Normal', tex: TextureKeys.HeroNormal, proj: TextureKeys.ProjBolt, projSpeed: 600,
-    attack: 'projectile', skill: 'chain', chainJumps: 3, chainRange: 70, tint: '#7df9ff',
-    blurb: 'Lightning leaps from zombie to zombie (3 jumps).',
+    attack: 'projectile', skill: 'chain', chainJumps: 3, chainRange: 70, critChance: 0.2, critMul: 2, tint: '#7df9ff',
+    blurb: 'Lightning leaps from zombie to zombie (3 jumps), with a chance for a 2× critical.',
     lore: 'A perfectly "normal" little orange critter — if you ignore the chainsaw growing out of his head and the live current crackling off it. Adorable, loyal, and absolutely lethal to anything undead.',
     tiers: tiers({ range: 140, fireInterval: 850, damage: 20, cost: 115 }, { damage: 32, cost: 150 }, { damage: 50, cost: 250, chainJumps: 4 } as Partial<HeroTier>),
   },
@@ -322,19 +322,19 @@ export const HEROES: Record<HeroId, Full> = {
   },
   shiba: {
     id: 'shiba', name: 'Shiba', tex: TextureKeys.HeroShiba, proj: TextureKeys.ProjSpit, projSpeed: 360,
-    attack: 'projectile', skill: 'bounceball', chainRange: 92, tint: '#e8932e',
-    blurb: 'Throws a ball that bounces between adjacent zombies — more bounces per level.',
+    attack: 'projectile', skill: 'bounceball', chainRange: 92, critChance: 0.2, critMul: 2, tint: '#e8932e',
+    blurb: 'Throws a ball that bounces between adjacent zombies (more per level), with a chance for a 2× critical.',
     lore: 'A very good boy with a very loud bork and an even better fetch. He hurls his favourite ball into the horde and it just... keeps bouncing. Such physics. Much doom.',
     tiers: tiers({ range: 130, fireInterval: 820, damage: 22, cost: 120, bounces: 2 }, { damage: 35, cost: 160, bounces: 3 }, { damage: 56, cost: 255, bounces: 4 }),
   },
   // ── new heroes ──
   hudong: {
     id: 'hudong', name: 'Hudong', tex: TextureKeys.HeroHudong, proj: null, projSpeed: 0,
-    attack: 'aura', skill: 'buffaura', buffPerLevel: 0.005, tint: '#ffc83d',
-    blurb: 'Fortune Aura: empowers nearby heroes — +0.5% damage, and +0.5% more each upgrade.',
+    attack: 'aura', skill: 'buffaura', buffPerLevel: 0.05, tint: '#ffc83d',
+    blurb: 'Fortune Aura: empowers nearby heroes — +5% damage, and +5% more each upgrade.',
     lore: 'A wandering treasure-hunter whose lucky urn radiates good fortune. Stand in his golden glow and every blow strikes a little truer — and the more he hones it, the luckier you get.',
     tiers: tiers(
-      // buff is +0.5%/level via buffPerLevel (exact); tiers only scale range/cost here
+      // buff is +5%/level via buffPerLevel (exact); tiers only scale range/cost here
       { range: 130, fireInterval: 1000, damage: 0, cost: 130 },
       { cost: 165, range: 145 } as Partial<HeroTier>,
       { cost: 270, range: 160 } as Partial<HeroTier>,
@@ -377,8 +377,8 @@ export const HEROES: Record<HeroId, Full> = {
   xxkong: {
     id: 'xxkong', name: 'xxKongxx', tex: TextureKeys.HeroXxkong, proj: TextureKeys.ProjBullet, projSpeed: 560,
     attack: 'projectile', skill: 'burn',
-    burnDps: 8, burnDuration: 3, burnStacksToIncinerate: 5, incinPctPerTick: 0.04, burnSpreadRadius: 40, tint: '#ff7a1a',
-    blurb: 'Flame Breathing: hits stack BURN; at full stacks the zombie INCINERATES (%-HP/tick) and the fire spreads.',
+    burnDps: 8, burnDuration: 3, burnStacksToIncinerate: 5, incinPctPerTick: 0.04, burnSpreadRadius: 40, critChance: 0.15, critMul: 2, tint: '#ff7a1a',
+    blurb: 'Flame Breathing: hits stack BURN; at full stacks the zombie INCINERATES (%-HP/tick) and the fire spreads. Chance for a 2× critical strike.',
     lore: 'A blazing-hearted swordsman whose flame never dies, no matter how bleak the night. Each strike sets the undead alight — and fire, once lit, loves to spread. "Set your heart ablaze!"',
     tiers: tiers(
       // base MUST carry the tier-scaled skill params, else tiers() interpolates them
@@ -396,8 +396,8 @@ export const HEROES: Record<HeroId, Full> = {
     tiers: tiers(
       // base carries quakeRadius so a level-1 Joicy already has a real shockwave
       // (otherwise it interpolates up from 0 → invisible + hits nothing at level 1).
-      // buy price 899 (premium AoE hero); upgrades scale +10% from there.
-      { range: 96, fireInterval: 1700, damage: 30, cost: 899, quakeRadius: 120 },
+      // buy price 999 (premium AoE hero); upgrades scale +10% from there.
+      { range: 96, fireInterval: 1700, damage: 30, cost: 999, quakeRadius: 120 },
       { damage: 46, cost: 195, quakeRadius: 134 } as Partial<HeroTier>,
       { damage: 74, cost: 300, quakeRadius: 150, knockback: 40, stunDuration: 1.1 } as Partial<HeroTier>,
     ),

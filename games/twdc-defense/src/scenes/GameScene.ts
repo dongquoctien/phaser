@@ -725,23 +725,30 @@ export class GameScene extends Phaser.Scene {
       case 'projectile': {
         if (!intent.target) return;
         this.audio.playPitched(AudioKeys.Shoot);
-        const isCrit = def.skill === 'crit' && Math.random() < (def.critChance ?? 0);
         const buff = this.buffAt(h.x, h.y) * h.mergeMult; // merge adds +15%/tier
-        const dmg = (isCrit ? s.damage * (def.critMul ?? 1) : s.damage) * buff;
+        // crit is INDEPENDENT of skill now — ANY hero with a critChance can crit (so
+        // Oreo keeps multishot AND can land 3× crits). Each shot rolls its own crit.
+        const rollDmg = () => {
+          const crit = Math.random() < (def.critChance ?? 0);
+          return { dmg: (crit ? s.damage * (def.critMul ?? 1) : s.damage) * buff, crit };
+        };
         if (def.skill === 'multishot') {
-          // fire a bolt at each of the N front-most targets
+          // fire a bolt at each of the N front-most targets (each rolls crit)
           const targets = this.frontN(live, h, h.range, def.shots ?? 3);
           for (const t of targets) {
             const a = Math.atan2(t.y - h.y, t.x - h.x);
-            this.spawnProjectile(h, def, s, a, dmg, false);
+            const r = rollDmg();
+            this.spawnProjectile(h, def, s, a, r.dmg, r.crit);
           }
         } else if (def.skill === 'doubleshot') {
-          // two bolts at the front target, slightly fanned
+          // two bolts at the front target, slightly fanned (each rolls crit)
           for (let i = 0; i < (def.shots ?? 2); i++) {
-            this.spawnProjectile(h, def, s, intent.angle + (i === 0 ? -0.08 : 0.08), dmg, false);
+            const r = rollDmg();
+            this.spawnProjectile(h, def, s, intent.angle + (i === 0 ? -0.08 : 0.08), r.dmg, r.crit);
           }
         } else {
-          this.spawnProjectile(h, def, s, intent.angle, dmg, isCrit);
+          const r = rollDmg();
+          this.spawnProjectile(h, def, s, intent.angle, r.dmg, r.crit);
         }
         this.muzzle(h.x + Math.cos(intent.angle) * 14, h.y + Math.sin(intent.angle) * 14, def.tint);
         break;
@@ -852,7 +859,7 @@ export class GameScene extends Phaser.Scene {
         // bounce keeps near-full damage (slight 0.9 falloff so it stays punchy).
         let current = hit;
         const hitSet = new Set<Zombie>([current]);
-        this.damageZombie(current, pr.damage, null, live, now);
+        this.damageZombie(current, pr.damage, null, live, now, pr.isCrit); // first hit can crit
         const bounces = pr.tier.bounces ?? 2; // scales per upgrade tier (2 → 3 → 4)
         const range = def.chainRange ?? 90;
         let dmg = pr.damage;
@@ -926,7 +933,7 @@ export class GameScene extends Phaser.Scene {
         // xxKongxx (Flame Breathing): hit damage + a BURN stack. At the stack
         // threshold the zombie incinerates (%-HP/tick). The flame also SPREADS a
         // weaker burn to nearby zombies so a packed lane all catches fire.
-        this.damageZombie(hit, pr.damage, null, live, now);
+        this.damageZombie(hit, pr.damage, null, live, now, pr.isCrit); // direct hit can crit
         const dps = pr.tier.burnDps ?? def.burnDps ?? 8;
         const stacks = pr.tier.burnStacksToIncinerate ?? def.burnStacksToIncinerate ?? 5;
         const incin = pr.tier.incinPctPerTick ?? def.incinPctPerTick ?? 0.04;
@@ -953,7 +960,7 @@ export class GameScene extends Phaser.Scene {
       case 'chain': {
         let current = hit;
         const hitSet = new Set<Zombie>([current]);
-        this.damageZombie(current, pr.damage, null, live, now);
+        this.damageZombie(current, pr.damage, null, live, now, pr.isCrit); // first zap can crit
         const jumps = def.chainJumps ?? 3;
         const range = def.chainRange ?? 70;
         for (let j = 0; j < jumps; j++) {
@@ -1020,7 +1027,7 @@ export class GameScene extends Phaser.Scene {
       }
       case 'multishot': {
         // Oreo: shuriken strike — a quick white slash spark per hit (long range now).
-        this.damageZombie(hit, pr.damage, null, live, now);
+        this.damageZombie(hit, pr.damage, null, live, now, pr.isCrit); // each shuriken can crit
         this.playFxAnim('fx-slash', hit.x, hit.y, 0.5, Phaser.Math.Between(0, 359), 0xffffff);
         break;
       }
@@ -1028,7 +1035,7 @@ export class GameScene extends Phaser.Scene {
       case 'crit':
       default: {
         if (pr.isCrit) this.boom(pr.x, pr.y, 0.6);
-        this.damageZombie(hit, pr.damage, null, live, now);
+        this.damageZombie(hit, pr.damage, null, live, now, pr.isCrit);
         break;
       }
     }
@@ -1036,7 +1043,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Combined damage multiplier from every buffaura hero whose range covers (x,y).
-  // Uses the hero's PER-TIER buffMul so the aura scales as the buffer is upgraded.
+  // Uses the hero's PER-TIER buffMul so the aura scales as the buffer is upgraded, and
+  // MERGES amplify the buff: a merged buffer's bonus is scaled by its mergeMult, so
+  // merging buff-aura heroes (e.g. Hudong) is worthwhile instead of wasted.
   private buffAt(x: number, y: number): number {
     let mul = 1;
     for (const h of this.heroes) {
@@ -1046,7 +1055,8 @@ export class GameScene extends Phaser.Scene {
       const m = h.def.buffPerLevel != null
         ? 1 + h.def.buffPerLevel * (h.tier + 1)
         : (h.stats.buffMul ?? h.def.buffMul ?? 1.25);
-      mul *= m;
+      // scale ONLY the bonus part by merge tiers (+15%/tier), so a plain 1.0 stays 1.0
+      mul *= 1 + (m - 1) * h.mergeMult;
     }
     return mul;
   }
@@ -1058,8 +1068,42 @@ export class GameScene extends Phaser.Scene {
       .slice(0, n);
   }
 
-  private damageZombie(z: Zombie, amount: number, _by: Hero | null, _live: Zombie[], _now: number): void {
+  private damageZombie(z: Zombie, amount: number, _by: Hero | null, _live: Zombie[], _now: number, isCrit = false): void {
+    this.damageNumber(z.x, z.y, amount, isCrit); // floating damage feedback
     if (z.applyDamage(amount)) this.killZombie(z);
+  }
+
+  /** Floating damage number (game-juice). Normal hits: small white numerals that rise
+   *  + fade. CRITS stand out — bigger, hot orange, a "CRIT!" tag, a sharper pop and a
+   *  tiny screen shake — per damage-number best practices (animate a secondary element,
+   *  colour-code, make crits read bigger). Random x-offset so stacked hits don't overlap. */
+  private damageNumber(x: number, y: number, amount: number, isCrit: boolean): void {
+    const n = Math.max(1, Math.round(amount));
+    const jx = Phaser.Math.Between(-8, 8); // jitter so multishot hits don't stack
+    const startY = y - 18;
+    if (isCrit) {
+      const t = this.add.text(x + jx, startY, `${n}!`, {
+        fontFamily: Fonts.Display, fontSize: '26px', color: '#ff7a1a',
+        stroke: '#3a0a00', strokeThickness: 5,
+      }).setOrigin(0.5).setDepth(35).setScale(0.4);
+      const tag = this.add.text(x + jx, startY - 20, 'CRIT!', {
+        fontFamily: Fonts.Display, fontSize: '14px', color: '#ffd23f', stroke: '#3a0a00', strokeThickness: 4,
+      }).setOrigin(0.5).setDepth(35).setAlpha(0);
+      this.cameras.main.shake(80, 0.004);
+      // punchy pop then rise + fade
+      this.tweens.add({ targets: t, scale: 1.25, duration: 110, ease: 'Back.out',
+        onComplete: () => this.tweens.add({ targets: t, scale: 1, duration: 80 }) });
+      this.tweens.add({ targets: [t, tag], alpha: { from: 1, to: 0 }, y: '-=34', duration: 720, delay: 160, ease: 'Quad.in',
+        onComplete: () => { t.destroy(); tag.destroy(); } });
+      this.tweens.add({ targets: tag, alpha: 1, duration: 100 });
+    } else {
+      const t = this.add.text(x + jx, startY, `${n}`, {
+        fontFamily: Fonts.Display, fontSize: '15px', color: '#ffffff', stroke: '#1a1c2c', strokeThickness: 3,
+      }).setOrigin(0.5).setDepth(34).setScale(0.6);
+      this.tweens.add({ targets: t, scale: 1, duration: 90, ease: 'Back.out' });
+      this.tweens.add({ targets: t, alpha: 0, y: '-=24', duration: 560, delay: 90, ease: 'Quad.in',
+        onComplete: () => t.destroy() });
+    }
   }
 
   private killZombie(z: Zombie): void {

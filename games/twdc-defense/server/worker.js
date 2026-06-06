@@ -21,7 +21,11 @@
 //   best:<mapId>:<player>  → JSON  (a player's best run on a map)
 //   The leaderboard is derived by listing best:<mapId>:* and sorting.
 
-const TOKEN_TTL_MS = 30 * 60 * 1000;   // a session token is valid for 30 minutes
+const TOKEN_TTL_MS = 3 * 60 * 60 * 1000; // a session token is valid for 3 hours — a
+                                         // single run (placing heroes, 20 waves with
+                                         // countdowns) can take well over 30 min, and an
+                                         // expired token silently dropped the score.
+                                         // Anti-cheat stays: single-use jti + sanity checks.
 const MAX_WAVE = 20;                   // the game has 20 waves
 const MIN_SEC_PER_WAVE = 6;            // a run can't clear faster than this per wave
 const TOP_N = 50;
