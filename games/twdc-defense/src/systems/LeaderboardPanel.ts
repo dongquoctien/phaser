@@ -7,9 +7,19 @@ import { MAPS } from '../types/map';
 import { drawCrown, drawTrophy } from './Icons';
 
 // A full-screen leaderboard overlay: difficulty tabs across the top, a fetched
-// top-N list below (rank · nickname · best wave), with loading / empty / offline
-// states and the local player's own row highlighted. Self-contained — call
+// top-N list below (rank · nickname · time · best wave), with loading / empty /
+// offline states and the local player's own row highlighted. Self-contained — call
 // showLeaderboard(scene) and it cleans itself up on close.
+
+/** Format a run length (ms) as m:ss (or h:mm:ss past an hour). '—' when unknown
+ *  (legacy entries recorded before run time was tracked). */
+function fmtTime(ms?: number): string {
+  if (ms == null || !isFinite(ms) || ms < 0) return '—';
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  const mm = h ? String(m).padStart(2, '0') : String(m);
+  return (h ? `${h}:` : '') + `${mm}:${String(sec).padStart(2, '0')}`;
+}
 
 export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void {
   const cx = GAME_WIDTH / 2;
@@ -50,10 +60,13 @@ export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void
     if (entries.length === 0) { addLine('No scores yet — be the first!'); return; }
     const me = Storage.getNickname();
     const rowH = 30, x0 = 24;
+    // column anchors (right-aligned): TIME then WAVE at the far right
+    const waveX = GAME_WIDTH - 24, timeX = GAME_WIDTH - 78;
     // header row
     const head = scene.add.text(x0, listTop, '#   NAME', { fontFamily: 'monospace', fontSize: '11px', color: '#6a5a8a' }).setOrigin(0, 0.5);
-    const headW = scene.add.text(GAME_WIDTH - 24, listTop, 'WAVE', { fontFamily: 'monospace', fontSize: '11px', color: '#6a5a8a' }).setOrigin(1, 0.5);
-    listItems.push(head, headW); root.add([head, headW]);
+    const headT = scene.add.text(timeX, listTop, 'TIME', { fontFamily: 'monospace', fontSize: '11px', color: '#6a5a8a' }).setOrigin(1, 0.5);
+    const headW = scene.add.text(waveX, listTop, 'WAVE', { fontFamily: 'monospace', fontSize: '11px', color: '#6a5a8a' }).setOrigin(1, 0.5);
+    listItems.push(head, headT, headW); root.add([head, headT, headW]);
     entries.slice(0, 20).forEach((e, i) => {
       const y = listTop + 24 + i * rowH;
       const mine = e.nickname === me;
@@ -70,9 +83,14 @@ export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void
         const crown = drawCrown(scene, x0 + 40, y, 13);
         listItems.push(crown); root.add(crown);
       }
-      const name = scene.add.text(nameX, y, e.nickname + (mine ? '  (you)' : ''), { fontFamily: 'monospace', fontSize: '14px', color: mine ? '#a7f070' : '#e8dcff' }).setOrigin(0, 0.5);
-      const wave = scene.add.text(GAME_WIDTH - 24, y, String(e.wave), { fontFamily: 'monospace', fontSize: '14px', color: '#73eff7' }).setOrigin(1, 0.5);
-      listItems.push(rank, name, wave); root.add([rank, name, wave]);
+      // clamp the name so it can't run into the TIME column
+      let label = e.nickname + (mine ? ' (you)' : '');
+      const maxNameChars = mine ? 11 : 13;
+      if (label.length > maxNameChars + (mine ? 6 : 0)) label = label.slice(0, maxNameChars) + (mine ? ' (you)' : '…');
+      const name = scene.add.text(nameX, y, label, { fontFamily: 'monospace', fontSize: '14px', color: mine ? '#a7f070' : '#e8dcff' }).setOrigin(0, 0.5);
+      const time = scene.add.text(timeX, y, fmtTime(e.durationMs), { fontFamily: 'monospace', fontSize: '13px', color: '#cdb4f0' }).setOrigin(1, 0.5);
+      const wave = scene.add.text(waveX, y, String(e.wave), { fontFamily: 'monospace', fontSize: '14px', color: '#73eff7' }).setOrigin(1, 0.5);
+      listItems.push(rank, name, time, wave); root.add([rank, name, time, wave]);
     });
   };
 

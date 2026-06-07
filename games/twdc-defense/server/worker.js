@@ -9,7 +9,9 @@
 //   POST /score       { sessionToken, playerId, nickname, mapId, wave, outcome,
 //                       startedAt, endedAt, heroesPlaced, kills, goldEarned, buildId }
 //                                                        → { ok, rank }
-//   GET  /leaderboard?mapId=N                            → { entries: [...] }
+//   GET  /leaderboard?mapId=N                            → { entries: [{nickname,
+//                       wave, durationMs, at, champion}, ...] }  (sorted wave desc,
+//                       then fastest durationMs, then earliest)
 //
 // Anti-cheat = SERVER-SIDE sanity checks + a signed, single-use session token. It
 // stops casual tampering (editing localStorage / numbers / replaying a payload); it
@@ -18,7 +20,9 @@
 //
 // Storage: Workers KV (binding `LB`). Keys:
 //   nonce:<jti>            → '1'   (marks a session token as spent; TTL = token life)
-//   best:<mapId>:<player>  → JSON  (a player's best run on a map)
+//   best:<mapId>:<player>  → JSON  { nickname, wave, durationMs, at } — a player's best
+//                                    run (highest wave; ties = fastest finish)
+//   champ:<player>         → '1'   (cleared all 3 maps)
 //   The leaderboard is derived by listing best:<mapId>:* and sorting.
 
 const TOKEN_TTL_MS = 3 * 60 * 60 * 1000; // a session token is valid for 3 hours — a
@@ -109,15 +113,20 @@ export default {
       if (!['win', 'overrun'].includes(b.outcome)) reasons.push('bad outcome');
       if (reasons.length) return json({ error: 'rejected', reasons }, env, 422);
 
-      // accept: mark token spent, then keep the player's BEST wave for this map
+      // accept: mark token spent, then keep the player's BEST run for this map.
       await env.LB.put(`nonce:${claims.jti}`, '1', { expirationTtl: Math.ceil(TOKEN_TTL_MS / 1000) });
       const nickname = cleanNick(b.nickname);
+      const durationMs = Math.max(0, Math.round(Number(b.endedAt) - Number(b.startedAt)));
       const key = `best:${mapId}:${claims.playerId}`;
       const prev = await env.LB.get(key, 'json');
-      if (!prev || wave > prev.wave) {
-        await env.LB.put(key, JSON.stringify({ nickname, wave, at: Date.now() }));
+      // "better" = higher wave, OR same wave finished FASTER (smaller durationMs). A
+      // legacy entry with no durationMs counts as slowest, so any timed run beats it.
+      const isBetter = !prev || wave > prev.wave ||
+        (wave === prev.wave && durationMs < (prev.durationMs ?? Infinity));
+      if (isBetter) {
+        await env.LB.put(key, JSON.stringify({ nickname, wave, durationMs, at: Date.now() }));
       } else if (prev.nickname !== nickname) {
-        await env.LB.put(key, JSON.stringify({ ...prev, nickname })); // keep best wave, update name
+        await env.LB.put(key, JSON.stringify({ ...prev, nickname })); // keep best run, update name
       }
 
       // CHAMPION: winning the LAST map (id 2 / Hard) means all three were cleared
@@ -135,7 +144,7 @@ export default {
     // ── GET /leaderboard?mapId=N ──
     if (url.pathname === '/leaderboard' && request.method === 'GET') {
       const mapId = (url.searchParams.get('mapId') || '0') | 0;
-      const board = (await topFor(env, mapId)).map(({ nickname, wave, at, champion }) => ({ nickname, wave, at, champion }));
+      const board = (await topFor(env, mapId)).map(({ nickname, wave, durationMs, at, champion }) => ({ nickname, wave, durationMs, at, champion }));
       return json({ entries: board }, env);
     }
 
@@ -158,5 +167,10 @@ async function topFor(env, mapId) {
     const playerId = k.name.slice(prefix.length);
     return v && { playerId, champion: champs.has(playerId), ...v };
   }));
-  return rows.filter(Boolean).sort((a, b) => b.wave - a.wave || a.at - b.at).slice(0, TOP_N);
+  // rank: higher wave first; ties broken by FASTER finish (smaller durationMs); then
+  // by earliest achieved. Legacy rows without durationMs sort last within their wave.
+  const dur = (e) => (e.durationMs == null ? Infinity : e.durationMs);
+  return rows.filter(Boolean)
+    .sort((a, b) => b.wave - a.wave || dur(a) - dur(b) || a.at - b.at)
+    .slice(0, TOP_N);
 }
