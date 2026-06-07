@@ -125,6 +125,7 @@ export const AudioKeys = {
   Merge: 'merge',                 // fusion "ping" when two heroes merge
   Thunder: 'thunder',             // a lightning STRIKE — played on each flash (Hard map)
   Storm: 'storm',                 // looping storm ambience — runs the whole Hard map (low vol)
+  IceUlt: 'ice-ult',              // HAKJ ultimate — icy magic-attack whoosh on the map freeze
 } as const;
 export type AudioKey = (typeof AudioKeys)[keyof typeof AudioKeys];
 

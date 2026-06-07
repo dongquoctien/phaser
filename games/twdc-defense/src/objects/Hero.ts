@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { Fonts } from '../types/keys';
 import { HEROES, type HeroId, type HeroDef, type HeroTier } from '../types/roster';
 import { pickLine, type VoiceEvent } from '../types/voicelines';
 import { Zombie } from './Zombie';
@@ -49,10 +50,16 @@ export class Hero extends Phaser.GameObjects.Image {
   private shieldIcons: Phaser.GameObjects.Graphics[] = []; // shield badges above the head
   private lvLabel?: Phaser.GameObjects.Text;      // persistent "Lv N" badge over the head
   private nextBuffSparkAt = 0;                    // throttle for the "being buffed" spark
-  // ultimate charge RING at the feet (only for heroes with def.ultimate, e.g. HAKJ):
-  // a radial arc that fills 0→full as the ult charges, glowing + pulsing when ready.
+  // ultimate energy AURA (only for heroes with def.ultimate, e.g. HAKJ). Two layers:
+  //  ultRing  (depth 10, BEHIND the hero) — back half of the swirling water bands.
+  //  ultFront (depth 12, in FRONT) — front half of the water bands + glowing eyes.
+  //  ultGlow  (depth 9)  — a bright copy of the hero sprite = silhouette rim glow.
+  //  ultLabel (depth 13) — the "ULTI" tap-prompt at the feet.
+  //  All only appear at "enough rage" (ultReady).
   private ultRing?: Phaser.GameObjects.Graphics;
-  private ultRingTween?: Phaser.Tweens.Tween;
+  private ultFront?: Phaser.GameObjects.Graphics;
+  private ultGlow?: Phaser.GameObjects.Sprite; // bright silhouette copy behind hero (rim glow)
+  private ultLabel?: Phaser.GameObjects.Text;  // "ULTI" prompt under the feet when ready
   // combo (xxKingxx): rising bonus damage while striking the SAME target
   private comboTarget: Zombie | null = null;
   comboCount = 0;
@@ -92,7 +99,19 @@ export class Hero extends Phaser.GameObjects.Image {
       .setDepth(9).setVisible(false);
     this.refreshLevel(); // show the "Lv1" badge from the moment it's placed
     if (this.hasUltimate) {
-      this.ultRing = scene.add.graphics().setDepth(8); // sits at the feet, under the hero
+      this.ultRing = scene.add.graphics().setDepth(10);  // behind the hero sprite (11)
+      this.ultFront = scene.add.graphics().setDepth(12); // in front of the hero
+      // rim glow: a brightened copy of the hero's OWN sprite (transparent PNG), so the
+      // halo traces the real silhouette. Sits just behind, additively tinted, hidden
+      // until the ult is ready.
+      this.ultGlow = scene.add.sprite(x, y, def.tex)
+        .setOrigin(this.originX, this.originY).setScale(this.baseScale)
+        .setTint(0xbfeaff).setBlendMode(Phaser.BlendModes.ADD).setDepth(9).setVisible(false);
+      // "ULTI" tap-prompt under the feet
+      this.ultLabel = scene.add.text(x, y + this.displayHeight * 0.5, 'ULTI ✦', {
+        fontFamily: Fonts.Mono, fontSize: '9px', color: '#dffaff', stroke: '#0a2436', strokeThickness: 3,
+        backgroundColor: '#16486acc', padding: { x: 4, y: 2 },
+      }).setOrigin(0.5, 0).setDepth(13).setVisible(false);
       this.updateUltRing();
     }
   }
@@ -128,37 +147,101 @@ export class Hero extends Phaser.GameObjects.Image {
     return true;
   }
 
-  /** Draw the ult charge ring at the hero's feet: a faint full track + a bright arc
-   *  that sweeps 0→360° as charge fills. When full it turns solid + pulses, signalling
-   *  "tap me to unleash". No-op for heroes without an ultimate. */
-  private updateUltRing(): void {
+  /** Draw a LIVING blue energy aura around HAKJ's body that grows with ult charge:
+   *  jagged ice flames licking upward, each tongue flickering tall/short over time
+   *  (sine-driven, not random-per-frame, so it shimmers smoothly). Faint at low charge,
+   *  a bright pulsing blaze when ready. Call every frame so it animates; `updateUltRing`
+   *  (no time) is the cheap static refresh used by the charge hooks. */
+  private updateUltRing(now = this.scene.time.now): void {
     const g = this.ultRing;
     if (!g) return;
-    const R = 18, cx = this.homeX, cy = this.y + this.displayHeight * 0.42; // at the feet
-    const ICE = 0x6cc6ff;
+    const cx = this.homeX, cy = this.y + this.displayHeight * 0.12; // around the body
+    const halfW = this.displayWidth * 0.55;
+    const ICE = 0x6cc6ff, CORE = 0xdffaff;
     g.clear();
-    // faint background track
-    g.lineStyle(3, 0x16263a, 0.85).strokeCircle(cx, cy, R);
-    const frac = Math.min(1, this.ultCharge / 100);
-    if (frac > 0) {
-      // bright arc from top (−90°) clockwise, proportional to charge
-      const start = -Math.PI / 2;
-      g.lineStyle(3, ICE, 1).beginPath();
-      g.arc(cx, cy, R, start, start + Math.PI * 2 * frac, false);
-      g.strokePath();
+    this.ultFront?.clear(); // always wipe the front layer first (water/eyes)
+    if (!this.ultReady) {
+      // not full yet → no aura (the rage effects only appear at full charge)
+      this.ultGlow?.setVisible(false);
+      this.ultLabel?.setVisible(false);
+      return;
     }
-    if (this.ultReady) {
-      // ready: solid ring + glow + a steady pulse to draw the eye ("tap to cast")
-      g.lineStyle(4, 0x9fe8ff, 1).strokeCircle(cx, cy, R);
-      g.fillStyle(ICE, 0.14).fillCircle(cx, cy, R);
-      if (!this.ultRingTween) {
-        this.ultRingTween = this.scene.tweens.add({
-          targets: g, alpha: 0.45, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut',
-        });
+    const tt = now / 1000;
+    const breathe = 0.5 + 0.5 * Math.sin(tt * 3);
+
+    // ── "enough rage" layers — wrap the body (NO foot flames) ───────────────────
+    const gf = this.ultFront;
+    if (gf) {
+      const midY = this.y; // body centre
+      const rx = halfW * 1.5, ry = this.displayHeight * 0.16; // swirl ellipse radii
+      const WATER = 0x3aa0e0;
+      void cx; void cy; // (rim glow is the silhouette sprite below, not an ellipse)
+      // WATER SWIRL — several horizontal water BANDS stacked up the body, each a
+      //    flat arc wrapping around it (front + back halves), drifting around the axis
+      //    over time so the whole thing reads as a rotating vortex (ref: Isaac Rubio
+      //    2d water FX). Front half on gf (over hero), back half on g (behind).
+      const BANDS = 4;
+      for (let bd = 0; bd < BANDS; bd++) {
+        const u = bd / (BANDS - 1);                       // 0 (bottom) .. 1 (top)
+        const bandY = midY + (u - 0.5) * this.displayHeight * 0.85;
+        const spin = tt * 2.2 + bd * 0.8;                 // each band offset → swirl
+        const bw = rx * (0.7 + 0.3 * Math.sin(u * Math.PI)); // wider in the middle
+        // walk the ellipse in segments; split into front/back polylines
+        const STEPS = 14;
+        const drawHalf = (layer: Phaser.GameObjects.Graphics, fromFront: boolean, col: number, width: number, alpha: number) => {
+          layer.lineStyle(width, col, alpha); let started = false;
+          for (let s = 0; s <= STEPS; s++) {
+            const a = (s / STEPS) * Math.PI * 2 + spin;
+            const isFront = Math.sin(a) > 0;
+            if (isFront !== fromFront) { started = false; continue; }
+            const px = cx + Math.cos(a) * bw;
+            const py = bandY + Math.sin(a) * ry;
+            if (!started) { layer.beginPath(); layer.moveTo(px, py); started = true; } else layer.lineTo(px, py);
+          }
+          if (started) layer.strokePath();
+        };
+        // back half (behind hero) — dimmer; front half (over hero) — brighter + a glint
+        drawHalf(g, false, WATER, 3.5, 0.7);
+        drawHalf(g, false, CORE, 1.2, 0.4);
+        drawHalf(gf, true, WATER, 4, 0.9);
+        drawHalf(gf, true, CORE, 1.6, 0.85);
+        // a moving white glint dot riding the FRONT of each band
+        const ga = -Math.PI / 2 + Math.sin(tt * 3 + bd) * 0.8; // near the front centre
+        gf.fillStyle(0xffffff, 0.95).fillCircle(cx + Math.cos(ga) * bw, bandY + Math.sin(ga) * ry, 2);
       }
-    } else if (this.ultRingTween) {
-      this.ultRingTween.stop(); this.ultRingTween = undefined; g.setAlpha(1);
+      // a few stray water droplets flicking around (front)
+      for (let d = 0; d < 4; d++) {
+        const da = tt * 1.5 + d * 1.9;
+        const dr = rx * (1.0 + 0.15 * Math.sin(tt * 5 + d));
+        gf.fillStyle(ICE, 0.8).fillCircle(cx + Math.cos(da) * dr, midY + Math.sin(da) * ry * 2.4, 1.6);
+      }
+      // GLOWING EYES — two bright dots where HAKJ's eyes sit (front)
+      const eyeY = this.y - this.displayHeight * 0.04, eyeDX = this.displayWidth * 0.13;
+      const eg = 0.7 + 0.3 * Math.sin(tt * 6);
+      for (const sgn of [-1, 1]) {
+        gf.fillStyle(CORE, eg).fillCircle(this.x + sgn * eyeDX, eyeY, 2.4);
+        gf.fillStyle(0xffffff, eg).fillCircle(this.x + sgn * eyeDX, eyeY, 1.1);
+      }
     }
+
+    // SILHOUETTE RIM GLOW — a brightened, slightly larger copy of HAKJ's own sprite
+    // behind it, breathing in alpha/scale → a glowing border that traces the real
+    // character outline (the PNG is transparent). + the "ULTI" tap-prompt at the feet.
+    if (this.ultGlow) {
+      this.ultGlow.setVisible(true).setPosition(this.x, this.y)
+        .setScale(this.baseScale * (1.08 + 0.04 * breathe))
+        .setAlpha(0.45 + 0.35 * breathe);
+    }
+    if (this.ultLabel) {
+      this.ultLabel.setVisible(true).setPosition(this.x, this.y + this.displayHeight * 0.5)
+        .setAlpha(0.75 + 0.25 * breathe);
+    }
+  }
+
+  /** Per-frame tick for the energy aura (called from the scene update loop) so it
+   *  shimmers continuously, not only when charge changes. */
+  tickUltAura(now: number): void {
+    if (this.ultRing && this.ultCharge > 2) this.updateUltRing(now);
   }
   get hasShield(): boolean { return this.mergeTiers > 0; }
   /** True once the hero has merged the maximum 3 tiers — it can't merge further,
@@ -629,8 +712,10 @@ export class Hero extends Phaser.GameObjects.Image {
     this.mergeGlow?.destroy();
     this.mergePct?.destroy();
     this.lvLabel?.destroy();
-    this.ultRingTween?.stop();
     this.ultRing?.destroy();
+    this.ultFront?.destroy();
+    this.ultGlow?.destroy();
+    this.ultLabel?.destroy();
     for (const s of this.shieldIcons) s.destroy();
     this.orbTween?.stop();
     for (const o of this.orbs) o.destroy();

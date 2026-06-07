@@ -658,7 +658,7 @@ export class GameScene extends Phaser.Scene {
    *  ring blasting out from the caster, a camera punch (shake + quick zoom), an ice
    *  burst on every zombie, then a lingering frost sheet. Pure Graphics — no asset. */
   private freezeImpactFx(ox: number, oy: number): void {
-    this.audio.play(AudioKeys.Explode);
+    this.audio.play(AudioKeys.IceUlt); // icy magic whoosh
     // camera punch: a sharp shake + a quick zoom in-and-out
     this.cameras.main.shake(240, 0.009);
     this.cameras.main.zoomTo(1.03, 90, 'Quad.easeOut', true);
@@ -678,6 +678,26 @@ export class GameScene extends Phaser.Scene {
       if (z.dead || z.dying) continue;
       this.iceShatterFx(z.x, z.y);
     }
+    this.snowBurst(); // snow falls across the whole screen
+  }
+
+  /** A flurry of snow drifting down the whole field — a short burst on the ult cast.
+   *  Pure tweens (no asset): white flakes fall + sway + fade. */
+  private snowBurst(): void {
+    const FLAKES = 70;
+    for (let i = 0; i < FLAKES; i++) {
+      const x = Phaser.Math.Between(0, GAME_WIDTH);
+      const r = Phaser.Math.FloatBetween(1.2, 3);
+      const flake = this.add.circle(x, Phaser.Math.Between(-40, 0), r, 0xffffff, Phaser.Math.FloatBetween(0.6, 1)).setDepth(18);
+      const fall = Phaser.Math.Between(1600, 3000);
+      this.tweens.add({
+        targets: flake, y: FIELD_H + 10, x: x + Phaser.Math.Between(-30, 30),
+        duration: fall, delay: Phaser.Math.Between(0, 900), ease: 'Sine.in',
+        onComplete: () => flake.destroy(),
+      });
+      // gentle horizontal sway while falling
+      this.tweens.add({ targets: flake, x: `+=${Phaser.Math.Between(-18, 18)}`, duration: fall / 2, yoyo: true, repeat: 1, ease: 'Sine.inOut' });
+    }
   }
 
   // ── main loop ─────────────────────────────────────────────────────────────────
@@ -696,13 +716,12 @@ export class GameScene extends Phaser.Scene {
     // (zombies, projectiles, DoT ticks) — tweens/anims are slowed via timeScale.
     const dt = (deltaMs / 1000) * this.slowmo;
 
-    // ULTIMATE: passively charge any ultimate hero (HAKJ) while a wave is live, then
-    // refresh the HUD button. (The per-kill bonus is added in killZombie.)
-    if (this.waveActive) {
-      for (const h of this.heroes) {
-        if (!h.hasUltimate || h.ultReady) continue;
-        h.addUltCharge((100 / h.def.ultimate!.chargeSeconds) * dt); // ring self-updates
-      }
+    // ULTIMATE: passively charge any ultimate hero (HAKJ) while a wave is live; tick its
+    // energy aura EVERY frame so it shimmers. (Per-kill charge bonus added in killZombie.)
+    for (const h of this.heroes) {
+      if (!h.hasUltimate) continue;
+      if (this.waveActive && !h.ultReady) h.addUltCharge((100 / h.def.ultimate!.chargeSeconds) * dt);
+      h.tickUltAura(time); // animate the aura continuously
     }
 
     if (this.waveActive && this.spawnQueue.length > 0 && time >= this.nextSpawnAt) {
@@ -737,8 +756,9 @@ export class GameScene extends Phaser.Scene {
         continue;
       }
       // real boss hero-kill skill: full slow-mo cinematic, on its own cooldown.
-      // (Elite minions do NOT attack heroes — they're just tougher walkers.)
-      if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt) {
+      // (Elite minions do NOT attack heroes — they're just tougher walkers.) A FROZEN
+      // boss is locked solid — it can't launch its execute while HAKJ's ice holds it.
+      if (z.bossInfo && this.heroes.length && time >= z.nextHeroKillAt && !z.isFrozen(time)) {
         // khoai/hakj hurl a projectile at a hero (ranged execute — no camera zoom,
         // works fine with a menu open). The Easy boss uses the slow-mo cinematic,
         // falling back to a quick no-cinematic kill if a menu is open.

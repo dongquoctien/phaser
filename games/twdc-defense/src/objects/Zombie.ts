@@ -427,19 +427,31 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     });
   }
 
-  /** Draw a pixel-style ice slab at the zombie's feet (so a frozen zombie reads as
-   *  encased in ice, not just tinted). Angular facets, not a smooth blob, to match the
-   *  game's pixel art. Sits just under the sprite. */
+  /** Draw an ICE-CRYSTAL CLUSTER at the zombie's feet (like the IMPACT_VFX ice sprite —
+   *  jagged shards jutting up from a thin frosty base), so a frozen zombie reads as
+   *  encased in ice. Pixel-art angular facets, not a smooth blob. Sits under the sprite. */
   private drawIceBlock(): void {
     this.clearIceBlock();
-    const x = this.pathX || this.x, y = (this.pathY || this.y) + this.displayHeight * 0.30;
+    const x = this.pathX || this.x, y = (this.pathY || this.y) + this.displayHeight * 0.34;
     const g = this.scene.add.graphics().setDepth(9); // under the zombie sprite (depth 10)
-    const w = 22, h = 13;
-    // base slab (translucent ice) + lighter top facet + a bright highlight chip
-    g.fillStyle(0x6cc6ff, 0.5).fillRect(x - w / 2, y - h / 2, w, h);
-    g.fillStyle(0x9fe8ff, 0.6).fillRect(x - w / 2, y - h / 2, w, 4);          // top facet
-    g.fillStyle(0xffffff, 0.7).fillRect(x - w / 2 + 3, y - h / 2 + 1, 4, 2);  // glint
-    g.lineStyle(1, 0x4aa6e6, 0.9).strokeRect(x - w / 2, y - h / 2, w, h);     // outline
+    const FILL = 0x6cc6ff, LIGHT = 0x9fe8ff, EDGE = 0x4aa6e6;
+    // thin frosty base disc the shards grow from
+    g.fillStyle(FILL, 0.45).fillEllipse(x, y + 2, 26, 8);
+    // a cluster of angular shards (tall centre, shorter sides) — drawn as filled
+    // triangles with a lighter inner facet + dark edge for a crisp ice look.
+    const shards = [
+      { dx: 0,   h: 16, w: 5 }, // tall centre spike
+      { dx: -8,  h: 10, w: 4 },
+      { dx: 8,   h: 11, w: 4 },
+      { dx: -4,  h: 7,  w: 3 },
+      { dx: 6,   h: 6,  w: 3 },
+    ];
+    for (const s of shards) {
+      const bx = x + s.dx, by = y + 3;
+      g.fillStyle(FILL, 0.85).fillTriangle(bx - s.w, by, bx + s.w, by, bx, by - s.h);          // body
+      g.fillStyle(LIGHT, 0.9).fillTriangle(bx - s.w * 0.4, by, bx + s.w * 0.4, by, bx, by - s.h * 0.78); // bright facet
+      g.lineStyle(1, EDGE, 0.95).strokeTriangle(bx - s.w, by, bx + s.w, by, bx, by - s.h);     // edge
+    }
     this.iceBlock = g;
   }
   private clearIceBlock(): void {

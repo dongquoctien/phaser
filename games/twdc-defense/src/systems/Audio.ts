@@ -32,6 +32,8 @@ const SFX: Record<AudioKey, { volume: number; throttle: number; group?: string; 
   // looping storm ambience — played as a low, persistent bed (see startStorm); this
   // entry is only used if it's ever triggered via play() (kept for type completeness).
   [AudioKeys.Storm]: { volume: 0.22, throttle: 0 },
+  // HAKJ ultimate freeze — a punchy icy magic whoosh, full-ish volume (it's a big moment).
+  [AudioKeys.IceUlt]: { volume: 0.7, throttle: 0 },
 };
 
 // Global volume scale applied to every SFX + music — drop everything 30% (×0.7).
