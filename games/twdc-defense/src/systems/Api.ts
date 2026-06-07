@@ -39,6 +39,7 @@ export interface RunResult {
 export interface LeaderboardEntry {
   nickname: string;
   wave: number;
+  durationMs?: number; // run length (ms); ties on wave are broken by fastest finish
   at: number;
   champion?: boolean; // true if this player has cleared all 3 maps (server-flagged)
 }
