@@ -13,6 +13,10 @@ import { MAPS, MAP_COUNT, pathSet, pathWaypoints, cellCenter, padCenter, isInsid
 
 declare const __DEV__: boolean;
 
+// Damage multiplier vs a frozen (brittle) zombie — applies to EVERY hero's hit while
+// the target is hard-frozen (HAKJ ultimate or Morgan's deep-freeze).
+const BRITTLE_MUL = 1.5;
+
 export class GameScene extends Phaser.Scene {
   private audio!: Audio;
   private map!: MapDef; // the map being played (chosen in MapSelectScene)
@@ -49,6 +53,8 @@ export class GameScene extends Phaser.Scene {
   private livesText!: Phaser.GameObjects.Text;
   private waveText!: Phaser.GameObjects.Text;
   private startBtn!: Phaser.GameObjects.Text;
+  private ultBtn!: Phaser.GameObjects.Text;       // HAKJ ultimate button (footer)
+  private ultBtnTween?: Phaser.Tweens.Tween;      // ready-state pulse
   private countdownText!: Phaser.GameObjects.Text;
   private heroPicker!: Phaser.GameObjects.Container;
   private upgradePanel!: Phaser.GameObjects.Container;
@@ -505,6 +511,7 @@ export class GameScene extends Phaser.Scene {
     pad.img.setTexture(TextureKeys.PadOn); // blue → green glow once occupied
     // make the hero draggable so max-level same-type heroes can be merged
     h.setInteractive({ draggable: true, useHandCursor: true });
+    if (h.hasUltimate) this.refreshUltButton(); // surface the ULT button when HAKJ lands
     return h;
   }
 
@@ -601,6 +608,71 @@ export class GameScene extends Phaser.Scene {
     this.startBtn.setVisible(on);
     if (on) this.startBtn.setInteractive({ useHandCursor: true });
     else this.startBtn.disableInteractive();
+    this.refreshUltButton(); // keep the ULT button's modal-hide in sync with the panels
+  }
+
+  // ── ULTIMATE (HAKJ map-freeze) ────────────────────────────────────────────────
+  /** The ultimate hero on the field with the most charge (drives the shared button). */
+  private ultHero(): Hero | null {
+    let best: Hero | null = null;
+    for (const h of this.heroes) {
+      if (!h.hasUltimate) continue;
+      if (!best || h.ultCharge > best.ultCharge) best = h;
+    }
+    return best;
+  }
+
+  /** Sync the footer ULT button to the current charge: hidden when no ultimate hero,
+   *  dim "FREEZE 63%" while charging, bright + pulsing "FREEZE ✦ READY" when full. */
+  private refreshUltButton(): void {
+    if (!this.ultBtn) return;
+    const h = this.ultHero();
+    // hide while a modal panel is up (picker/upgrade) so it never sits under another control
+    const modal = this.heroPicker?.visible || this.upgradePanel?.visible;
+    if (!h || modal) { this.ultBtn.setVisible(false); this.ultBtnTween?.stop(); this.ultBtnTween = undefined; return; }
+    const label = h.def.ultimate!.label;
+    this.ultBtn.setVisible(true);
+    if (h.ultReady) {
+      this.ultBtn.setText(`${label} ✦`).setColor('#0a2436').setBackgroundColor('#6cc6ff').setAlpha(1);
+      if (!this.ultBtnTween) {
+        this.ultBtnTween = this.tweens.add({ targets: this.ultBtn, scale: 1.08, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+      }
+    } else {
+      this.ultBtnTween?.stop(); this.ultBtnTween = undefined;
+      this.ultBtn.setScale(1).setText(`${label} ${Math.floor(h.ultCharge)}%`).setColor('#6cc6ff').setBackgroundColor('#16263a').setAlpha(0.8);
+    }
+  }
+
+  /** Fire HAKJ's ultimate: freeze EVERY live zombie (boss for half as long), reset the
+   *  charge, and play the map-wide freeze FX. No-op unless an ultimate hero is ready. */
+  private castUltimate(): void {
+    if (this.over) return;
+    const h = this.ultHero();
+    if (!h || !h.consumeUlt()) return;
+    const u = h.def.ultimate!;
+    const now = this.time.now;
+    for (const z of this.zombies) {
+      if (z.dead || z.dying) continue;
+      const dur = z.bossInfo ? u.freezeSec * 0.5 : u.freezeSec; // bosses resist — half time
+      z.hardFreeze(dur, now);
+    }
+    this.freezeMapFx();
+    this.audio.play(AudioKeys.Explode);
+    this.cameras.main.shake(180, 0.006);
+    this.refreshUltButton();
+  }
+
+  /** Map-wide freeze visual (Graphics, no asset): a quick blue wash over the field +
+   *  expanding ice rings on each frozen zombie. */
+  private freezeMapFx(): void {
+    // a blue flash over the whole field that fades fast
+    const wash = this.add.rectangle(0, 0, GAME_WIDTH, FIELD_H, 0x6cc6ff, 0.34).setOrigin(0).setDepth(16);
+    this.tweens.add({ targets: wash, alpha: 0, duration: 520, ease: 'Quad.out', onComplete: () => wash.destroy() });
+    // an ice burst on each live zombie
+    for (const z of this.zombies) {
+      if (z.dead || z.dying) continue;
+      this.iceShatterFx(z.x, z.y);
+    }
   }
 
   // ── main loop ─────────────────────────────────────────────────────────────────
@@ -618,6 +690,19 @@ export class GameScene extends Phaser.Scene {
     // slow-motion during the boss-kill cinematic scales all game-logic movement
     // (zombies, projectiles, DoT ticks) — tweens/anims are slowed via timeScale.
     const dt = (deltaMs / 1000) * this.slowmo;
+
+    // ULTIMATE: passively charge any ultimate hero (HAKJ) while a wave is live, then
+    // refresh the HUD button. (The per-kill bonus is added in killZombie.)
+    if (this.waveActive) {
+      let chargedAny = false;
+      for (const h of this.heroes) {
+        if (!h.hasUltimate || h.ultReady) continue;
+        const secs = h.def.ultimate!.chargeSeconds;
+        h.addUltCharge((100 / secs) * dt);
+        chargedAny = true;
+      }
+      if (chargedAny) this.refreshUltButton();
+    }
 
     if (this.waveActive && this.spawnQueue.length > 0 && time >= this.nextSpawnAt) {
       const next = this.spawnQueue.shift()!;
@@ -921,12 +1006,11 @@ export class GameScene extends Phaser.Scene {
       }
       case 'freeze': {
         // Morgan Le Fay (Deep Freeze): every hit lands frost damage AND a freeze
-        // stack. Enough stacks HARD-FREEZE the zombie (full stop). A frozen zombie
-        // is brittle — it takes bonus (brittle) damage from this hit.
-        const wasFrozen = hit.isFrozen(now);
-        const dmg = wasFrozen ? pr.damage * (def.brittleMul ?? 2) : pr.damage;
-        if (wasFrozen) this.iceShatterFx(hit.x, hit.y);
-        this.damageZombie(hit, dmg, null, live, now);
+        // stack. Enough stacks HARD-FREEZE the zombie (full stop). The brittle bonus
+        // vs a frozen target is applied centrally in damageZombie now (so ALL heroes
+        // benefit), so we just pass the base damage + a shatter spark when frozen.
+        if (hit.isFrozen(now)) this.iceShatterFx(hit.x, hit.y);
+        this.damageZombie(hit, pr.damage, null, live, now);
         if (!hit.dead && !hit.dying) {
           hit.addFreezeStack(def.freezeStacksToFreeze ?? 3, def.freezeDuration ?? 1.8, now);
         }
@@ -1071,9 +1155,12 @@ export class GameScene extends Phaser.Scene {
       .slice(0, n);
   }
 
-  private damageZombie(z: Zombie, amount: number, _by: Hero | null, _live: Zombie[], _now: number, isCrit = false): void {
-    this.damageNumber(z.x, z.y, amount, isCrit); // floating damage feedback
-    if (z.applyDamage(amount)) this.killZombie(z);
+  private damageZombie(z: Zombie, amount: number, _by: Hero | null, _live: Zombie[], now: number, isCrit = false): void {
+    // BRITTLE: a frozen zombie (HAKJ ultimate, or Morgan's deep-freeze) takes extra
+    // damage from EVERY source — applied here so all heroes benefit, not just the freezer.
+    const dmg = z.isFrozen(now) ? amount * BRITTLE_MUL : amount;
+    this.damageNumber(z.x, z.y, dmg, isCrit); // floating damage feedback
+    if (z.applyDamage(dmg)) this.killZombie(z);
   }
 
   /** Floating damage number (game-juice). Normal hits: small white numerals that rise
@@ -1121,7 +1208,13 @@ export class GameScene extends Phaser.Scene {
     }
     this.gold += reward;
     this.kills++; this.goldEarned += reward; // leaderboard metadata
+    // ULTIMATE: every team kill tops up the ultimate charge (hybrid time + kills).
+    let ultBumped = false;
+    for (const h of this.heroes) {
+      if (h.hasUltimate && !h.ultReady) { h.addUltCharge(h.def.ultimate!.chargePerKill); ultBumped = true; }
+    }
     this.refreshHud();
+    if (ultBumped) this.refreshUltButton();
     this.shatter(z.x, z.y); // chunks burst apart (no explosion flash)
     // death sound only (no Explode — it was the "drum" stacking on mass kills).
     this.audio.play(Math.random() < 0.5 ? AudioKeys.ZombieDie : AudioKeys.ZombieDie2);
@@ -1258,6 +1351,7 @@ export class GameScene extends Phaser.Scene {
     this.heroes = this.heroes.filter((x) => x !== h);
     if (this.selectedHero === h) this.clearSelection();
     h.destroyAll();
+    if (h.hasUltimate) this.refreshUltButton(); // hide/recompute the ULT button
   }
 
   // ── waves ─────────────────────────────────────────────────────────────────────
@@ -1723,6 +1817,16 @@ export class GameScene extends Phaser.Scene {
       backgroundColor: '#2a2038', padding: { x: 16, y: 6 },
     }).setOrigin(0.5, 0).setDepth(40).setInteractive({ useHandCursor: true });
     this.startBtn.on('pointerup', () => { this.audio.play(AudioKeys.Click); this.skipCountdown(); });
+
+    // ULTIMATE button (HAKJ map-freeze) — bottom-right of the footer. Hidden unless an
+    // ultimate hero is on the field; dim while charging (shows %), bright + pulsing
+    // when ready. refreshUltButton() keeps it in sync.
+    this.ultBtn = this.add.text(GAME_WIDTH - 14, HUD_TOP + 64, '', {
+      fontFamily: 'monospace', fontSize: '13px', color: '#6cc6ff', stroke: '#0a2436', strokeThickness: 4,
+      backgroundColor: '#16263a', padding: { x: 10, y: 6 }, align: 'center',
+    }).setOrigin(1, 0).setDepth(40).setVisible(false).setInteractive({ useHandCursor: true });
+    this.ultBtn.on('pointerup', () => this.castUltimate());
+    this.refreshUltButton();
 
     this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 12, 'Tap a pad → pick a hero · tap a hero to upgrade', {
       fontFamily: 'monospace', fontSize: '9px', color: '#8a7aa6', align: 'center', wordWrap: { width: GAME_WIDTH - 16 },

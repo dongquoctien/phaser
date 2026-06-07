@@ -410,6 +410,18 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.scene.time.delayedCall(durationS * 1000, () => { if (!this.dead) this.clearTint(); });
   }
 
+  /** HAKJ ultimate: hard-freeze this zombie for `durationS` directly (no frost-stack
+   *  build-up). Locks it solid (can't move — step() honors frozenUntil) + ice tint;
+   *  while frozen it's brittle (extra damage, applied scene-side). Refreshes if longer. */
+  hardFreeze(durationS: number, now: number): void {
+    if (this.dead || this.dying) return;
+    this.frozenUntil = Math.max(this.frozenUntil, now + durationS * 1000);
+    this.setTint(0x6cc6ff); // solid ice
+    this.scene.time.delayedCall(durationS * 1000, () => {
+      if (!this.dead && this.frozenUntil <= this.scene.time.now) this.clearTint();
+    });
+  }
+
   /** gnaw (Jibgor): add a vulnerability stack so the next bites bite harder. */
   gnaw(): void {
     if (this.dead) return;
