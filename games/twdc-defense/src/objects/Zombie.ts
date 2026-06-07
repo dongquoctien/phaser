@@ -38,6 +38,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private kbImmuneUntil = 0;
   private freezeStacks = 0; // Morgan: frost stacks build toward a hard-freeze
   private frozenUntil = 0;  // while > now the zombie is locked solid (can't move)
+  private iceBlock?: Phaser.GameObjects.Graphics; // ice slab drawn at the feet while frozen
   // xxKongxx burn: each hit adds a stack; at the threshold the zombie INCINERATES,
   // taking a % of its CURRENT hp per tick (shreds high-hp targets) until burn ends.
   private burnStacks = 0;
@@ -101,6 +102,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.nextHeroKillAt = 0;
     this.isElite = false;
     this.bubble?.destroy(); this.bubble = undefined; this.pendingEntrance = undefined;
+    this.clearIceBlock();
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0; this.kbImmuneUntil = 0;
     this.freezeStacks = 0; this.frozenUntil = 0;
     this.burnStacks = 0; this.burnDps = 0; this.burnUntil = 0; this.incinPctPerTick = 0; this.lastBurnTick = 0;
@@ -178,6 +180,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.dying = false;
     this.bubble?.destroy(); this.bubble = undefined; // drop any lingering taunt
     this.pendingEntrance = undefined;
+    this.clearIceBlock(); // drop any ice slab
     this.pathX = 0; this.pathY = 0; // clear gait state for the next pooled use
     this.setRotation(0).setAngle(0).setAlpha(1).setScale(this.baseScale);
     if (this.animated) { this.stop(); this.setOrigin(0.5, 0.78); }
@@ -294,6 +297,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   playDeath(onDone?: () => void): void {
     if (this.dying || this.dead) { onDone?.(); return; }
     this.dying = true;
+    this.clearIceBlock(); // shatter any ice slab on death
     this.hpBarBg.setVisible(false);
     this.hpBar.setVisible(false);
 
@@ -417,9 +421,42 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     if (this.dead || this.dying) return;
     this.frozenUntil = Math.max(this.frozenUntil, now + durationS * 1000);
     this.setTint(0x6cc6ff); // solid ice
+    this.drawIceBlock(); // a chunky ice slab encasing the feet
     this.scene.time.delayedCall(durationS * 1000, () => {
-      if (!this.dead && this.frozenUntil <= this.scene.time.now) this.clearTint();
+      if (!this.dead && this.frozenUntil <= this.scene.time.now) { this.clearTint(); this.clearIceBlock(); }
     });
+  }
+
+  /** Draw an ICE-CRYSTAL CLUSTER at the zombie's feet (like the IMPACT_VFX ice sprite —
+   *  jagged shards jutting up from a thin frosty base), so a frozen zombie reads as
+   *  encased in ice. Pixel-art angular facets, not a smooth blob. Sits under the sprite. */
+  private drawIceBlock(): void {
+    this.clearIceBlock();
+    const x = this.pathX || this.x, y = (this.pathY || this.y) + this.displayHeight * 0.34;
+    const g = this.scene.add.graphics().setDepth(9); // under the zombie sprite (depth 10)
+    const FILL = 0x6cc6ff, LIGHT = 0x9fe8ff, EDGE = 0x4aa6e6;
+    // thin frosty base disc the shards grow from
+    g.fillStyle(FILL, 0.45).fillEllipse(x, y + 2, 26, 8);
+    // a cluster of angular shards (tall centre, shorter sides) — drawn as filled
+    // triangles with a lighter inner facet + dark edge for a crisp ice look.
+    const shards = [
+      { dx: 0,   h: 16, w: 5 }, // tall centre spike
+      { dx: -8,  h: 10, w: 4 },
+      { dx: 8,   h: 11, w: 4 },
+      { dx: -4,  h: 7,  w: 3 },
+      { dx: 6,   h: 6,  w: 3 },
+    ];
+    for (const s of shards) {
+      const bx = x + s.dx, by = y + 3;
+      g.fillStyle(FILL, 0.85).fillTriangle(bx - s.w, by, bx + s.w, by, bx, by - s.h);          // body
+      g.fillStyle(LIGHT, 0.9).fillTriangle(bx - s.w * 0.4, by, bx + s.w * 0.4, by, bx, by - s.h * 0.78); // bright facet
+      g.lineStyle(1, EDGE, 0.95).strokeTriangle(bx - s.w, by, bx + s.w, by, bx, by - s.h);     // edge
+    }
+    this.iceBlock = g;
+  }
+  private clearIceBlock(): void {
+    this.iceBlock?.destroy();
+    this.iceBlock = undefined;
   }
 
   /** gnaw (Jibgor): add a vulnerability stack so the next bites bite harder. */
