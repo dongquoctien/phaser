@@ -49,6 +49,10 @@ export class Hero extends Phaser.GameObjects.Image {
   private shieldIcons: Phaser.GameObjects.Graphics[] = []; // shield badges above the head
   private lvLabel?: Phaser.GameObjects.Text;      // persistent "Lv N" badge over the head
   private nextBuffSparkAt = 0;                    // throttle for the "being buffed" spark
+  // ultimate charge RING at the feet (only for heroes with def.ultimate, e.g. HAKJ):
+  // a radial arc that fills 0→full as the ult charges, glowing + pulsing when ready.
+  private ultRing?: Phaser.GameObjects.Graphics;
+  private ultRingTween?: Phaser.Tweens.Tween;
   // combo (xxKingxx): rising bonus damage while striking the SAME target
   private comboTarget: Zombie | null = null;
   comboCount = 0;
@@ -87,6 +91,10 @@ export class Hero extends Phaser.GameObjects.Image {
       .setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(def.tint).color, 0.5)
       .setDepth(9).setVisible(false);
     this.refreshLevel(); // show the "Lv1" badge from the moment it's placed
+    if (this.hasUltimate) {
+      this.ultRing = scene.add.graphics().setDepth(8); // sits at the feet, under the hero
+      this.updateUltRing();
+    }
   }
 
   get stats(): HeroTier { return this.def.tiers[this.tier]; }
@@ -110,12 +118,47 @@ export class Hero extends Phaser.GameObjects.Image {
   addUltCharge(pts: number): void {
     if (!this.hasUltimate || this.ultCharge >= 100) return;
     this.ultCharge = Math.min(100, this.ultCharge + pts);
+    this.updateUltRing();
   }
   /** Spend a full charge (call when the ultimate fires). Returns false if not ready. */
   consumeUlt(): boolean {
     if (!this.ultReady) return false;
     this.ultCharge = 0;
+    this.updateUltRing();
     return true;
+  }
+
+  /** Draw the ult charge ring at the hero's feet: a faint full track + a bright arc
+   *  that sweeps 0→360° as charge fills. When full it turns solid + pulses, signalling
+   *  "tap me to unleash". No-op for heroes without an ultimate. */
+  private updateUltRing(): void {
+    const g = this.ultRing;
+    if (!g) return;
+    const R = 18, cx = this.homeX, cy = this.y + this.displayHeight * 0.42; // at the feet
+    const ICE = 0x6cc6ff;
+    g.clear();
+    // faint background track
+    g.lineStyle(3, 0x16263a, 0.85).strokeCircle(cx, cy, R);
+    const frac = Math.min(1, this.ultCharge / 100);
+    if (frac > 0) {
+      // bright arc from top (−90°) clockwise, proportional to charge
+      const start = -Math.PI / 2;
+      g.lineStyle(3, ICE, 1).beginPath();
+      g.arc(cx, cy, R, start, start + Math.PI * 2 * frac, false);
+      g.strokePath();
+    }
+    if (this.ultReady) {
+      // ready: solid ring + glow + a steady pulse to draw the eye ("tap to cast")
+      g.lineStyle(4, 0x9fe8ff, 1).strokeCircle(cx, cy, R);
+      g.fillStyle(ICE, 0.14).fillCircle(cx, cy, R);
+      if (!this.ultRingTween) {
+        this.ultRingTween = this.scene.tweens.add({
+          targets: g, alpha: 0.45, duration: 480, yoyo: true, repeat: -1, ease: 'Sine.inOut',
+        });
+      }
+    } else if (this.ultRingTween) {
+      this.ultRingTween.stop(); this.ultRingTween = undefined; g.setAlpha(1);
+    }
   }
   get hasShield(): boolean { return this.mergeTiers > 0; }
   /** True once the hero has merged the maximum 3 tiers — it can't merge further,
@@ -586,6 +629,8 @@ export class Hero extends Phaser.GameObjects.Image {
     this.mergeGlow?.destroy();
     this.mergePct?.destroy();
     this.lvLabel?.destroy();
+    this.ultRingTween?.stop();
+    this.ultRing?.destroy();
     for (const s of this.shieldIcons) s.destroy();
     this.orbTween?.stop();
     for (const o of this.orbs) o.destroy();

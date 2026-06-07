@@ -38,6 +38,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   private kbImmuneUntil = 0;
   private freezeStacks = 0; // Morgan: frost stacks build toward a hard-freeze
   private frozenUntil = 0;  // while > now the zombie is locked solid (can't move)
+  private iceBlock?: Phaser.GameObjects.Graphics; // ice slab drawn at the feet while frozen
   // xxKongxx burn: each hit adds a stack; at the threshold the zombie INCINERATES,
   // taking a % of its CURRENT hp per tick (shreds high-hp targets) until burn ends.
   private burnStacks = 0;
@@ -101,6 +102,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.nextHeroKillAt = 0;
     this.isElite = false;
     this.bubble?.destroy(); this.bubble = undefined; this.pendingEntrance = undefined;
+    this.clearIceBlock();
     this.slowFactor = 1; this.slowUntil = 0; this.stunUntil = 0; this.kbImmuneUntil = 0;
     this.freezeStacks = 0; this.frozenUntil = 0;
     this.burnStacks = 0; this.burnDps = 0; this.burnUntil = 0; this.incinPctPerTick = 0; this.lastBurnTick = 0;
@@ -178,6 +180,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     this.dying = false;
     this.bubble?.destroy(); this.bubble = undefined; // drop any lingering taunt
     this.pendingEntrance = undefined;
+    this.clearIceBlock(); // drop any ice slab
     this.pathX = 0; this.pathY = 0; // clear gait state for the next pooled use
     this.setRotation(0).setAngle(0).setAlpha(1).setScale(this.baseScale);
     if (this.animated) { this.stop(); this.setOrigin(0.5, 0.78); }
@@ -294,6 +297,7 @@ export class Zombie extends Phaser.GameObjects.Sprite {
   playDeath(onDone?: () => void): void {
     if (this.dying || this.dead) { onDone?.(); return; }
     this.dying = true;
+    this.clearIceBlock(); // shatter any ice slab on death
     this.hpBarBg.setVisible(false);
     this.hpBar.setVisible(false);
 
@@ -417,9 +421,30 @@ export class Zombie extends Phaser.GameObjects.Sprite {
     if (this.dead || this.dying) return;
     this.frozenUntil = Math.max(this.frozenUntil, now + durationS * 1000);
     this.setTint(0x6cc6ff); // solid ice
+    this.drawIceBlock(); // a chunky ice slab encasing the feet
     this.scene.time.delayedCall(durationS * 1000, () => {
-      if (!this.dead && this.frozenUntil <= this.scene.time.now) this.clearTint();
+      if (!this.dead && this.frozenUntil <= this.scene.time.now) { this.clearTint(); this.clearIceBlock(); }
     });
+  }
+
+  /** Draw a pixel-style ice slab at the zombie's feet (so a frozen zombie reads as
+   *  encased in ice, not just tinted). Angular facets, not a smooth blob, to match the
+   *  game's pixel art. Sits just under the sprite. */
+  private drawIceBlock(): void {
+    this.clearIceBlock();
+    const x = this.pathX || this.x, y = (this.pathY || this.y) + this.displayHeight * 0.30;
+    const g = this.scene.add.graphics().setDepth(9); // under the zombie sprite (depth 10)
+    const w = 22, h = 13;
+    // base slab (translucent ice) + lighter top facet + a bright highlight chip
+    g.fillStyle(0x6cc6ff, 0.5).fillRect(x - w / 2, y - h / 2, w, h);
+    g.fillStyle(0x9fe8ff, 0.6).fillRect(x - w / 2, y - h / 2, w, 4);          // top facet
+    g.fillStyle(0xffffff, 0.7).fillRect(x - w / 2 + 3, y - h / 2 + 1, 4, 2);  // glint
+    g.lineStyle(1, 0x4aa6e6, 0.9).strokeRect(x - w / 2, y - h / 2, w, h);     // outline
+    this.iceBlock = g;
+  }
+  private clearIceBlock(): void {
+    this.iceBlock?.destroy();
+    this.iceBlock = undefined;
   }
 
   /** gnaw (Jibgor): add a vulnerability stack so the next bites bite harder. */
