@@ -24,6 +24,9 @@ export class Hero extends Phaser.GameObjects.Image {
   // (max 3). A boss hit consumes one shield tier (hero survives, loses that bonus).
   mergeTiers = 0;
   dragging = false; // true while being dragged for a merge
+  // ── ultimate (active skill) state — only meaningful when def.ultimate is set (HAKJ).
+  // Charges 0→100 over time + per team kill; at 100 the player can tap to fire it.
+  ultCharge = 0;
   private nextFireAt = 0;
   private turret: Phaser.GameObjects.Image | null = null; // none for now; heroes face forward
   private ring: Phaser.GameObjects.Arc;
@@ -99,6 +102,21 @@ export class Hero extends Phaser.GameObjects.Image {
   /** The hero's EFFECTIVE attack range = current tier range × merge range bonus.
    *  Use this everywhere a hero's reach is needed so merges actually extend it. */
   get range(): number { return this.stats.range * this.mergeRangeMult; }
+  /** True if this hero has a player-triggered ultimate (e.g. HAKJ's map freeze). */
+  get hasUltimate(): boolean { return !!this.def.ultimate; }
+  /** True once the ultimate is fully charged and can be fired. */
+  get ultReady(): boolean { return this.hasUltimate && this.ultCharge >= 100; }
+  /** Add charge (clamped 0..100). No-op for heroes without an ultimate. */
+  addUltCharge(pts: number): void {
+    if (!this.hasUltimate || this.ultCharge >= 100) return;
+    this.ultCharge = Math.min(100, this.ultCharge + pts);
+  }
+  /** Spend a full charge (call when the ultimate fires). Returns false if not ready. */
+  consumeUlt(): boolean {
+    if (!this.ultReady) return false;
+    this.ultCharge = 0;
+    return true;
+  }
   get hasShield(): boolean { return this.mergeTiers > 0; }
   /** True once the hero has merged the maximum 3 tiers — it can't merge further,
    *  so it shouldn't be drag-pickable anymore. */

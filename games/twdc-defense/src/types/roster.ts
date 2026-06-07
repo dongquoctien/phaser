@@ -56,6 +56,17 @@ export interface HeroTier {
   buffMul?: number;                // buffaura: damage multiplier for nearby heroes — scales per tier
 }
 
+// A player-triggered ULTIMATE (active skill). The hero charges over time + per kill;
+// when full the player taps the HUD button to fire it. Currently: HAKJ's map-wide freeze.
+export interface UltimateDef {
+  kind: 'freeze';        // effect kind (only freeze for now; room to grow)
+  chargeSeconds: number; // seconds of passive charge to go 0→full (faster at higher tier)
+  chargePerKill: number; // bonus charge (% points) added per team kill
+  freezeSec: number;     // how long every zombie is frozen (boss gets half)
+  brittleMul: number;    // damage multiplier vs a frozen zombie (applies to ALL heroes)
+  label: string;         // short name shown on the HUD button (e.g. 'FREEZE')
+}
+
 export interface HeroDef {
   id: HeroId;
   name: string;
@@ -105,6 +116,7 @@ export interface HeroDef {
   burnSpreadRadius?: number;     // burn: radius the flame jumps to neighbouring zombies
   quakeRadius?: number;          // quake: final radius the shockwave expands to
   stars?: number;                // optional fixed star rating (overrides the derived heroStars)
+  ultimate?: UltimateDef;        // optional ACTIVE ultimate (player-triggered), e.g. HAKJ freeze
   tint: string;
   blurb: string;
   lore: string; // short flavour bio shown in the hero-detail panel
@@ -300,10 +312,13 @@ export const HEROES: Record<HeroId, Full> = {
   },
   hakj: {
     id: 'hakj', name: 'HAKJ', tex: TextureKeys.HeroHakj, proj: TextureKeys.ProjFrost, projSpeed: 320,
-    attack: 'projectile', skill: 'bounce', splashRadius: 40, slowFactor: 0.6, slowDuration: 1.5, tint: '#41a6f6',
-    blurb: 'Water splash damages + slows a small cluster.',
-    lore: 'A little water spirit who washed up during the floods. Bubbly and round and weirdly happy, HAKJ launches splashes that drench whole clusters of undead.',
-    tiers: tiers({ range: 125, fireInterval: 850, damage: 18, cost: 115 }, { damage: 28, cost: 150, splashRadius: 46 } as Partial<HeroTier>, { damage: 44, cost: 250, splashRadius: 54 } as Partial<HeroTier>),
+    attack: 'projectile', skill: 'bounce', splashRadius: 40, slowFactor: 0.6, slowDuration: 1.5, stars: 5, tint: '#6cc6ff',
+    // ULTIMATE hero: normal attacks splash + chill; when the player charges + taps the
+    // FREEZE button it locks EVERY zombie on the map solid + makes them brittle.
+    ultimate: { kind: 'freeze', chargeSeconds: 45, chargePerKill: 4, freezeSec: 3.5, brittleMul: 1.5, label: 'FREEZE' },
+    blurb: 'Absolute Zero: icy splashes that slow — and an ULTIMATE that freezes the WHOLE map solid (frozen zombies take extra damage). Tap the FREEZE button when it charges.',
+    lore: 'A little frost spirit from the deepest glacier. Bubbly, round, and impossibly cold — when HAKJ truly lets go, the whole battlefield stops breathing and the undead shatter like glass.',
+    tiers: tiers({ range: 125, fireInterval: 850, damage: 18, cost: 999 }, { damage: 28, cost: 150, splashRadius: 46 } as Partial<HeroTier>, { damage: 44, cost: 250, splashRadius: 54 } as Partial<HeroTier>),
   },
   // ── image 4 (new sprites) ──
   chuotchu: {
