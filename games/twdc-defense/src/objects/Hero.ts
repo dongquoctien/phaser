@@ -45,6 +45,7 @@ export class Hero extends Phaser.GameObjects.Image {
   private mergePct?: Phaser.GameObjects.Text;     // "+x%" label below the hero
   private shieldIcons: Phaser.GameObjects.Graphics[] = []; // shield badges above the head
   private lvLabel?: Phaser.GameObjects.Text;      // persistent "Lv N" badge over the head
+  private nextBuffSparkAt = 0;                    // throttle for the "being buffed" spark
   // combo (xxKingxx): rising bonus damage while striking the SAME target
   private comboTarget: Zombie | null = null;
   comboCount = 0;
@@ -526,6 +527,26 @@ export class Hero extends Phaser.GameObjects.Image {
     };
     emit();
     this.auraPulseTimer = this.scene.time.addEvent({ delay: 1400, loop: true, callback: emit });
+  }
+
+  /** "Being buffed" feedback: a small gold chevron (▲, drawn pixel-style, no emoji)
+   *  rises off the hero and fades — a steady pulse while a buff-aura covers it. The
+   *  scene calls this every frame when buffAt > 1; we throttle so it stays a gentle
+   *  drip (~1 every 650ms), with a tiny x-jitter so repeats don't overlap. */
+  showBuffSpark(now: number): void {
+    if (now < this.nextBuffSparkAt) return;
+    this.nextBuffSparkAt = now + 650;
+    const jx = Phaser.Math.Between(-7, 7);
+    const x = this.x + jx, y = this.y - this.displayHeight * 0.45;
+    // a small upward chevron built from two short strokes (gold = damage buff)
+    const g = this.scene.add.graphics().setDepth(33);
+    g.lineStyle(2, 0xffd23f, 1);
+    g.beginPath(); g.moveTo(x - 4, y + 3); g.lineTo(x, y - 2); g.lineTo(x + 4, y + 3); g.strokePath();
+    g.setAlpha(0.95);
+    this.scene.tweens.add({
+      targets: g, y: '-=16', alpha: 0, duration: 620, ease: 'Quad.out',
+      onComplete: () => g.destroy(),
+    });
   }
 
   /** A floating "+x%" that rises and fades (juice on each merge / shield change). */

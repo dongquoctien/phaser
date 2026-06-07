@@ -685,6 +685,9 @@ export class GameScene extends Phaser.Scene {
     for (const h of this.heroes) {
       const intent = h.update(time, live);
       if (intent) this.resolveFire(h, intent, live, time);
+      // "being buffed" feedback: if a buff-aura covers this hero, it periodically
+      // emits a rising spark so the player can see it's empowered (throttled in-hero).
+      if (this.buffAt(h.x, h.y) > 1.0001) h.showBuffSpark(time);
     }
 
     // projectiles fly + resolve
