@@ -72,16 +72,16 @@ cell-by-cell in text. **Match the tool to the subject:**
 
 | Subject | Tool |
 |---|---|
-| **Characters, monsters, bosses, anything with frames/anim, rich scenes** | **PixelLab MCP** (if configured) — AI pixel-art generator: text→sprite, **image→sprite** (feed the user's reference!), 4/8-dir, animations, tilesets. Mystical/specific palettes, real frames. |
+| Characters / monsters / bosses, **when the user supplies a reference image or spritesheet** | crop the figure → `scripts/pixelate.mjs` for a still pose, or slice the spritesheet (`scripts/slice-spritesheet.mjs` for labeled green-screen sheets) for frames |
 | icons, single tiles, HUD, small FX, hub `game.json` thumb | `bakeSprite` char-grid (`src/pixel`) — offline, free, deterministic |
 | an existing high-res PNG the user supplies | `scripts/pixelate.mjs` (one static pose only — no frames) |
 
-**PixelLab MCP** is the configured, callable AI tool for this (tools appear as
-`mcp__pixellab__*` once added). When the user has a reference image, use the
-**image→sprite** path so the output matches what they showed. If PixelLab is **not**
-configured and the user wants pixel CHARACTERS, do NOT silently fall back to hand-typed
-grids — tell the user the sprites will be low quality and either (a) ask them to enable
-PixelLab (`claude mcp add --transport http --scope local pixellab https://api.pixellab.ai/mcp --header "Authorization: Bearer <KEY>"`, free key at pixellab.ai), or (b) ask them to supply a spritesheet to slice. Reserve hand-authored grids for the simple-shape row above.
+For a pixel CHARACTER with **no** supplied art, do NOT silently hand-type a char-grid —
+say plainly that hand-drawn character grids come out low quality, and ask the user to
+**supply a reference image / spritesheet** (then crop + pixelate or slice it). A
+free AI pixel-art generator (e.g. PixelLab) is an option the *user* can run to produce
+that reference; only use such a service through an MCP the user has already connected —
+never assume one is configured. Reserve hand-authored grids for the simple-shape row.
 
 **Hard rule (anti-pattern):** never hand-type a char-grid for a character/monster/boss.
 That is exactly what made `arcane-knight`'s first cast look "vẽ quá xấu / không huyền bí".
