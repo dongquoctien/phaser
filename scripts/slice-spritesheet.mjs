@@ -225,13 +225,42 @@ for (let x = 0; x < W; x++) { let bg = 0; for (let y = 0; y < H; y++) if (!mask[
 // ROW bands: gutter rows split the sheet into animation rows.
 let rowBands;
 if (ROWS_ARG) {
+  // --rows N: produce EXACTLY N rows, but DON'T split evenly — the rows have very
+  // different heights (UPGRADE/POWER are taller because of the aura) so an even split
+  // bleeds one row's art into the next (e.g. idle picking up the upgrade ring). Find
+  // the real inter-row gutters (horizontal background bands), keep the N-1 widest that
+  // lie between content, and cut there. Falls back to an even split only if fewer than
+  // N-1 gutters are detectable.
   let top = 0, bot = H - 1;
   while (top < H && rowBgFrac[top] >= GUTTER_FRAC) top++;
   while (bot > 0 && rowBgFrac[bot] >= GUTTER_FRAC) bot--;
   const n = +ROWS_ARG;
   if (n > bot - top + 1) die(`--rows ${n} exceeds the ${bot - top + 1}px of content height`);
-  const step = (bot - top + 1) / n;
-  rowBands = Array.from({ length: n }, (_, k) => [Math.round(top + k * step), Math.round(top + (k + 1) * step) - 1]);
+  // candidate gutter MIDPOINTS strictly inside [top,bot]. We do NOT pick the widest
+  // (a wide gap ABOVE/BELOW a sprite, or BETWEEN frames in a busy row, can beat the
+  // real inter-row gutter and shatter the layout — that caused rows to merge/shrink).
+  // Instead, the rows are an even grid, so for each of the N-1 ideal cut positions
+  // (top + k*pitch) we snap to the NEAREST detected gutter within a tolerance window;
+  // if none is close we fall back to the ideal position itself. This is robust to
+  // spurious intra-row gutters because they're far from the ideal k*pitch lines.
+  const guts = [];
+  { let s = -1; for (let y = top; y <= bot; y++) {
+      const g = rowBgFrac[y] >= GUTTER_FRAC;
+      if (g) { if (s < 0) s = y; } else if (s >= 0) { if (y - s >= 4) guts.push(Math.round((s + y - 1) / 2)); s = -1; } }
+    if (s >= 0 && bot - s + 1 >= 4) guts.push(Math.round((s + bot) / 2)); }
+  const pitch = (bot - top + 1) / n;
+  const tol = pitch * 0.35; // snap window: gutter must be within 35% of a row pitch
+  const cuts = [];
+  for (let k = 1; k < n; k++) {
+    const ideal = top + k * pitch;
+    let best = null, bestD = Infinity;
+    for (const g of guts) { const d = Math.abs(g - ideal); if (d < bestD && d <= tol) { bestD = d; best = g; } }
+    cuts.push(Math.round(best ?? ideal));
+  }
+  cuts.sort((a, b) => a - b);
+  const edges = [top - 1, ...cuts, bot];
+  rowBands = [];
+  for (let k = 0; k < n; k++) rowBands.push([edges[k] + 1, edges[k + 1]]);
 } else {
   rowBands = gutterSegments((y) => rowBgFrac[y] >= GUTTER_FRAC, H, MIN_GUTTER)
     .filter(([a, b]) => b - a + 1 >= 12); // drop hairline noise bands
@@ -281,7 +310,13 @@ function framesIn(y0, y1) {
     for (let k = 0; k < n; k++) {
       const cx0 = Math.round(left + k * step), cx1 = Math.round(left + (k + 1) * step) - 1;
       const t = tighten(cx0, cx1, y0, y1);
-      if (t && t.x1 - t.x0 + 1 >= MIN_FRAME) out.push(t);
+      // Remember the ORIGINAL grid cell box. In a clean regular grid every frame is
+      // already drawn consistently centred within its cell, so packing by the cell
+      // box (one shared scale, one shared anchor) keeps the character ROCK-STEADY
+      // across frames. Re-centring per trimmed bbox instead makes a frame whose pose
+      // is narrower/shorter jump + rescale — that's the "jitter". cellX0/cellX1 let
+      // the packer use grid coords when --cols is set (see GRID_PACK below).
+      if (t && t.x1 - t.x0 + 1 >= MIN_FRAME) { t.cellX0 = cx0; t.cellX1 = cx1; out.push(t); }
     }
     return out;
   }
@@ -356,6 +391,17 @@ else if (rows.length === CANON.length) rowNames = [...CANON];     // exact canon
 else rowNames = rows.map((_, k) => `row_${k}`);
 while (rowNames.length < rows.length) rowNames.push(`row_${rowNames.length}`);
 
+// GRID_PACK: when the sheet is a clean regular grid (--cols N), pack each frame
+// from its ORIGINAL grid cell with ONE shared scale and ONE shared anchor, instead
+// of trimming + re-centring + re-scaling per frame. Why: in these sheets every
+// frame is already drawn consistently positioned inside its cell, so the character
+// only MOVES because of its animation — re-fitting each trimmed bbox into the tile
+// makes a narrower/shorter pose jump sideways and grow, which reads as JITTER. By
+// sampling the fixed cell rect (cellX0..cellX1 × the row band) the body stays put.
+// Each ROW keeps its own cell box; the SCALE is shared across the whole sheet so
+// every animation renders at the same character size.
+const GRID_PACK = !!COLS_ARG;
+
 // ---- pack into atlas ------------------------------------------------------
 const cols = Math.max(...rows.map(r => r.frames.length));
 const atlasW = cols * TILE, atlasH = rows.length * TILE;
@@ -363,10 +409,83 @@ const out = new PNG({ width: atlasW, height: atlasH });
 const frames = {}; // name -> {frame:{x,y,w,h}, ...}
 const anims = [];
 
+// For grid packing we recompute the REGULAR GRID fresh here (not from the trimmed
+// framesIn boxes) so every cell is EXACTLY the same width — that's what keeps the
+// character from drifting. gridLeft..gridRight is the sheet's content X-span; each
+// of the N columns is a fixed-width slice of it. The cell HEIGHT is the row band.
+// One shared scale across the sheet so all animations render at the same size.
+let gridLeft = 0, gridRight = W - 1, gridStep = 0, gridScale = 1, gridCols = +COLS_ARG;
+if (GRID_PACK) {
+  // content X-span across the whole sheet (any row), ignoring background columns
+  while (gridLeft < W && colBgFrac[gridLeft] >= GUTTER_FRAC) gridLeft++;
+  while (gridRight > gridLeft && colBgFrac[gridRight] >= GUTTER_FRAC) gridRight--;
+  gridStep = (gridRight - gridLeft + 1) / gridCols;
+  const cellW = Math.round(gridStep);
+  let maxRowH = 0; for (const r of rows) maxRowH = Math.max(maxRowH, r.y1 - r.y0 + 1);
+  gridScale = Math.min(1, (TILE - 4) / Math.max(cellW, maxRowH));
+}
+
+// STABILIZE (default ON for grid packing; --no-stabilize to disable): even on a
+// clean grid the character can lean/step side-to-side between frames (and held props
+// swing), so cell-fixed packing still shows horizontal drift. We lock the BODY to the
+// tile centre by measuring each frame's weighted centroid-X over the LOWER HALF of
+// the cell (torso+legs — ignoring hair/weapons up top that swing the most) and
+// shifting the sampled column so that centroid lands at the cell's horizontal centre.
+// Result: feet/torso stay rock-steady; only extended limbs/props move, as intended.
+const STABILIZE = GRID_PACK && !has('no-stabilize');
+function centroidShift(sx0, cw, sy0, ch) {
+  // Lock the lower body (feet/legs/torso) to the cell centre by its MEAN centroid-X.
+  // The mean is the most stable single estimator across these sheets: a small held
+  // prop (oreo's book) is too few pixels to move it, and now that rows are cut on
+  // their true gutters the body sits consistently, so the residual drift is tiny.
+  // Measured over the lower ~55% of the cell (the part that should stay planted).
+  const yLo = sy0 + Math.floor(ch * 0.45);
+  let sum = 0, total = 0;
+  for (let y = yLo; y < sy0 + ch; y++) {
+    for (let x = 0; x < cw; x++) {
+      const gx = sx0 + x; if (gx >= W) continue;
+      if (mask[y * W + gx]) { sum += x; total++; }
+    }
+  }
+  if (!total) return 0;
+  return Math.round((cw - 1) / 2 - sum / total);
+}
+
 rows.forEach((r, ri) => {
   const key = rowNames[ri];
   const names = [];
   r.frames.forEach((f, fi) => {
+    if (GRID_PACK) {
+      // FIXED grid cell: same width for every frame, derived from the sheet grid (not
+      // the trimmed bbox), so the body sits at the SAME spot in every tile -> no jitter.
+      const sx0base = Math.round(gridLeft + fi * gridStep);
+      const cw = Math.round(gridStep), ch = r.y1 - r.y0 + 1, sy0 = r.y0;
+      // shift the sample window so the body centroid is centred (kills lateral drift)
+      const shift = STABILIZE ? centroidShift(sx0base, cw, sy0, ch) : 0;
+      const sx0 = sx0base - shift; // sampling from (x - shift) moves content RIGHT by shift
+      const dw = Math.max(1, Math.round(cw * gridScale)), dh = Math.max(1, Math.round(ch * gridScale));
+      const dx = fi * TILE + Math.floor((TILE - dw) / 2); // dw is constant -> dx constant per column
+      const dy = ri * TILE + (ANCHOR === 'bottom' ? (TILE - dh - 2) : Math.floor((TILE - dh) / 2));
+      for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) {
+        const sx = sx0 + Math.min(cw - 1, Math.floor(x / gridScale));
+        const sy = sy0 + Math.min(ch - 1, Math.floor(y / gridScale));
+        if (sx < 0 || sx >= W || sy >= H || !mask[sy * W + sx]) continue;
+        const si = at(sx, sy);
+        despill(si);
+        const oi = ((dy + y) * atlasW + (dx + x)) << 2;
+        out.data[oi] = D[si]; out.data[oi + 1] = D[si + 1]; out.data[oi + 2] = D[si + 2]; out.data[oi + 3] = 255;
+      }
+      const fname = `${key}_${fi}`;
+      frames[fname] = {
+        frame: { x: fi * TILE, y: ri * TILE, w: TILE, h: TILE },
+        rotated: false, trimmed: false,
+        spriteSourceSize: { x: 0, y: 0, w: TILE, h: TILE },
+        sourceSize: { w: TILE, h: TILE },
+        pivot: ANCHOR === 'bottom' ? { x: 0.5, y: (TILE - 2) / TILE } : { x: 0.5, y: 0.5 },
+      };
+      names.push(fname);
+      return;
+    }
     const cw = f.x1 - f.x0 + 1, ch = f.y1 - f.y0 + 1;
     // fit content within the tile (minus 2px pad each side); only ever DOWNSCALE,
     // never enlarge — let Phaser nearest-neighbor-upscale at render time so the art

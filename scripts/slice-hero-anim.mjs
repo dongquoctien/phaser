@@ -73,6 +73,10 @@ for (const f of sheets) {
   const crop = detectCropLeft(file);
   const out = join(OUT_ROOT, id);
   try {
+    // --rows 5 now cuts at the real inter-row GUTTERS (the slicer picks the 4 widest
+    // background bands), NOT an even split — an even split bled the idle row down into
+    // the upgrade row's golden ring because the rows have different heights. --cols 8
+    // fixes 8 frames per row; --crop-left removes the baked label margin first.
     const log = execFileSync('node', [
       join(HERE, 'slice-spritesheet.mjs'), file,
       '--name', id, '--rows', '5', '--cols', '8', '--crop-left', String(crop),
