@@ -32,7 +32,10 @@
     "preview:twdc-defense": "vite preview --config games/twdc-defense/vite.config.mjs games/twdc-defense",
     "dev:whack-a-mole": "vite --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
     "build:whack-a-mole": "vite build --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
-    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole"
+    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
+    "dev:arcane-knight": "vite --config games/arcane-knight/vite.config.mjs games/arcane-knight",
+    "build:arcane-knight": "vite build --config games/arcane-knight/vite.config.mjs games/arcane-knight",
+    "preview:arcane-knight": "vite preview --config games/arcane-knight/vite.config.mjs games/arcane-knight"
   },
   "devDependencies": {
     "phaser": "^4.1.0",

@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8" /><title>Arcane Knight — Art Preview</title>
+<style>
+  body { margin:0; background:#10131f; color:#f4f4f4; font-family:system-ui,sans-serif; }
+  header { padding:12px 16px; border-bottom:1px solid #333c57; font-size:14px; }
+  #grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:12px; padding:16px; }
+  .cell { background:#1a1c2c; border:1px solid #333c57; border-radius:8px; padding:8px; text-align:center; }
+  .cell canvas { image-rendering:pixelated; display:block; margin:0 auto; background:#2a2d44; border-radius:4px; }
+  .cell .name { font:600 11px/1.4 ui-monospace,monospace; color:#94b0c2; margin-top:6px; }
+</style></head><body>
+<header>Arcane Knight — pixel art preview · 32×32 side-view · Sweetie-16</header>
+<div id="grid"></div>
+<script type="module">
+  import Phaser from 'phaser';
+  import { bakeArt } from '/src/art.ts';
+  import { Tex } from '/src/types/keys.ts';
+  const SCALE = 5;
+  class Bake extends Phaser.Scene {
+    create() {
+      bakeArt(this, 1);
+      const grid = document.getElementById('grid');
+      for (const key of Object.values(Tex)) {
+        if (!this.textures.exists(key)) continue;
+        const cell = document.createElement('div'); cell.className='cell';
+        const holder = document.createElement('div'); cell.appendChild(holder);
+        const label = document.createElement('div'); label.className='name'; label.textContent=key; cell.appendChild(label);
+        grid.appendChild(cell);
+        const srcImg = this.textures.get(key).getSourceImage();
+        const c = document.createElement('canvas'); c.width=srcImg.width*SCALE; c.height=srcImg.height*SCALE;
+        holder.appendChild(c);
+        const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled=false;
+        ctx.drawImage(srcImg, 0, 0, c.width, c.height);
+      }
+    }
+  }
+  new Phaser.Game({ type:Phaser.AUTO, parent:document.createElement('div'), width:16, height:16,
+    pixelArt:true, scene:Bake, banner:false, audio:{noAudio:true} });
+</script></body></html>
