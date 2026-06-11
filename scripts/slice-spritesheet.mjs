@@ -118,6 +118,24 @@ const src = PNG.sync.read(readFileSync(input));
 const W = src.width, H = src.height, D = src.data;
 const at = (x, y) => (y * W + x) << 2;
 
+// --crop-left / --crop-right <px>: blank a vertical band on the left/right edge to
+// transparent BEFORE any segmentation. Some sheets bake the animation NAME into a
+// left margin column (e.g. "IDLE_BREATHING") that overlaps cell 0; the sparse text
+// usually trips rejectLabels, but with a clean regular grid (--cols N) label cells
+// aren't filtered, so the margin pollutes frame 0. Wiping the band makes --cols N
+// reliable. Pixels are set fully transparent so isBg() treats them as background.
+// crop bands accept 0 (= no crop), so parse as a non-negative int rather than numFlag
+// (which rejects 0). A negative value is a typo — clamp to 0.
+const cropFlag = (n) => { const r = flag(n, null); if (r === null) return 0; const v = +r; return Number.isFinite(v) && v > 0 ? Math.floor(v) : 0; };
+const CROP_L = cropFlag('crop-left');
+const CROP_R = cropFlag('crop-right');
+if (CROP_L > 0 || CROP_R > 0) {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < CROP_L && x < W; x++) D[at(x, y) + 3] = 0;
+    for (let x = Math.max(0, W - CROP_R); x < W; x++) D[at(x, y) + 3] = 0;
+  }
+}
+
 // ---- chroma key -----------------------------------------------------------
 // auto-sample the background colour from the four corners (median) unless given.
 function sampleBg() {

@@ -1,0 +1,77 @@
+[
+  {
+    "key": "idle",
+    "frames": [
+      "idle_0",
+      "idle_1",
+      "idle_2",
+      "idle_3",
+      "idle_4",
+      "idle_5",
+      "idle_6",
+      "idle_7"
+    ],
+    "frameRate": 10,
+    "repeat": -1
+  },
+  {
+    "key": "upgrade",
+    "frames": [
+      "upgrade_0",
+      "upgrade_1",
+      "upgrade_2",
+      "upgrade_3",
+      "upgrade_4",
+      "upgrade_5",
+      "upgrade_6",
+      "upgrade_7"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "power",
+    "frames": [
+      "power_0",
+      "power_1",
+      "power_2",
+      "power_3",
+      "power_4",
+      "power_5",
+      "power_6",
+      "power_7"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "attack_a",
+    "frames": [
+      "attack_a_0",
+      "attack_a_1",
+      "attack_a_2",
+      "attack_a_3",
+      "attack_a_4",
+      "attack_a_5",
+      "attack_a_6",
+      "attack_a_7"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  },
+  {
+    "key": "attack_b",
+    "frames": [
+      "attack_b_0",
+      "attack_b_1",
+      "attack_b_2",
+      "attack_b_3",
+      "attack_b_4",
+      "attack_b_5",
+      "attack_b_6",
+      "attack_b_7"
+    ],
+    "frameRate": 10,
+    "repeat": 0
+  }
+]
