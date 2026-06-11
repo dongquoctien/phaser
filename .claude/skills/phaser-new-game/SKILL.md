@@ -53,11 +53,38 @@ crisp at any resolution). Use **pixel-art ONLY when the user explicitly says
   largest on-screen size (`{ scale: window.devicePixelRatio }` for HiDPI); upscaling
   past the baked size at runtime blurs. Keep `antialias` on (default) for smooth vectors.
 - **Pixel mode** (only on request) → `pixelArt: true` + `render.roundPixels: true`
-  (Phaser 4 defaults roundPixels to false), draw via the `src/pixel/` helper.
-  **Before drawing, ASK the user the sprite resolution** (see "Pixel resolution"
-  below) — it sets the detail ceiling and the art budget.
+  (Phaser 4 defaults roundPixels to false). **Before drawing, ASK the user the sprite
+  resolution** (see "Pixel resolution" below) — it sets the detail ceiling and the art
+  budget. **HOW you produce the pixels matters — see §0b; do NOT hand-type a char-grid
+  for a character.**
 - **UI panels** that stretch → use the v4 `this.add.nineslice(...)` instead of a
   hand-rolled 9-patch.
+
+## 0b. Producing pixel sprites — the right tool for the subject
+
+The `src/pixel` `bakeSprite` helper renders a char-grid faithfully — it is **not** an
+art generator. It is excellent for **simple, blocky shapes** (icons, tiles, HUD bits,
+FX, hub thumbnails) where you can reason about every cell. It is the **WRONG** tool
+for a multi-frame **character / monster / boss**: hand-typing a 32×32 ASCII grid for a
+detailed creature produces flat, off-model, ugly sprites (a real, repeated failure) —
+not because the renderer is bad, but because nobody can author good character pixel art
+cell-by-cell in text. **Match the tool to the subject:**
+
+| Subject | Tool |
+|---|---|
+| **Characters, monsters, bosses, anything with frames/anim, rich scenes** | **PixelLab MCP** (if configured) — AI pixel-art generator: text→sprite, **image→sprite** (feed the user's reference!), 4/8-dir, animations, tilesets. Mystical/specific palettes, real frames. |
+| icons, single tiles, HUD, small FX, hub `game.json` thumb | `bakeSprite` char-grid (`src/pixel`) — offline, free, deterministic |
+| an existing high-res PNG the user supplies | `scripts/pixelate.mjs` (one static pose only — no frames) |
+
+**PixelLab MCP** is the configured, callable AI tool for this (tools appear as
+`mcp__pixellab__*` once added). When the user has a reference image, use the
+**image→sprite** path so the output matches what they showed. If PixelLab is **not**
+configured and the user wants pixel CHARACTERS, do NOT silently fall back to hand-typed
+grids — tell the user the sprites will be low quality and either (a) ask them to enable
+PixelLab (`claude mcp add --transport http --scope local pixellab https://api.pixellab.ai/mcp --header "Authorization: Bearer <KEY>"`, free key at pixellab.ai), or (b) ask them to supply a spritesheet to slice. Reserve hand-authored grids for the simple-shape row above.
+
+**Hard rule (anti-pattern):** never hand-type a char-grid for a character/monster/boss.
+That is exactly what made `arcane-knight`'s first cast look "vẽ quá xấu / không huyền bí".
 
 ### Pixel resolution — ASK before drawing pixel art (8 / 16 / 32 / 64)
 The **grid size** (how many cells the sprite is, e.g. 16×16) — NOT the bake `px`

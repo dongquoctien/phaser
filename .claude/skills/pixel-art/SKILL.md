@@ -92,8 +92,27 @@ is NOT the bake `px` (which only enlarges the source texture) nor the on-screen
    shape before shading.
 9. **No anti-aliasing / no soft gradients.** Hard pixels only.
 
-## Two techniques
-- **Char-grid → `bakeSprite`** (preferred for icons / thumbnails / decor):
+## Producing pixel sprites — pick by subject
+
+The bake helpers below render what you give them; they are NOT art generators. **The
+single biggest quality lever is choosing the right production method for the subject** —
+hand-typing a char-grid for a detailed CHARACTER produces flat, off-model, ugly sprites
+(a real, repeated miss). Decide first:
+
+- **Characters / monsters / bosses / multi-frame anim / rich scenes → PixelLab MCP**
+  (the configured AI pixel-art generator; tools appear as `mcp__pixellab__*` once added
+  via `claude mcp add --transport http --scope local pixellab https://api.pixellab.ai/mcp --header "Authorization: Bearer <KEY>"`, free key at pixellab.ai). It does text→sprite and
+  **image→sprite** (feed the user's reference image so the result matches), 4/8-direction
+  rotations, animations, and tilesets — with mystical/specific palettes and real frames.
+  If PixelLab isn't configured and the user wants pixel characters, say the hand-drawn
+  result will be low quality and ask them to enable it or supply a spritesheet to slice —
+  **do NOT silently hand-type character grids.**
+- **Icons / single tiles / HUD / small FX / hub thumbnail → `bakeSprite` char-grid**
+  (offline, free, deterministic; the techniques below).
+- **A high-res PNG the user supplies → `scripts/pixelate.mjs`** (one static pose, no frames).
+
+### Char-grid / parametric techniques (for the simple-shape row above)
+- **Char-grid → `bakeSprite`** (icons / thumbnails / decor):
   ```ts
   import { bakeSprite, SWEETIE16_HEX as H } from '../../src/pixel';
   const STAR = {
@@ -247,6 +266,10 @@ for vector sprites/icons/covers that read well, especially at small card/sprite 
   swap a few palette entries on a timer or re-tint.
 
 ## Anti-patterns to refuse
+- **Hand-typing a char-grid for a CHARACTER / monster / boss (or any detailed,
+  multi-frame sprite).** This is the #1 cause of "pixel vẽ quá xấu / off-model / not
+  mystical". Use PixelLab MCP (image→sprite from the reference) for characters; reserve
+  char-grids for icons/tiles/HUD/FX. See "Producing pixel sprites" above.
 - Fractional scale or non-integer sprite positions on a pixel canvas.
 - Re-baking a texture every frame (bake once, cache by key).
 - Flat-black pillow outlines / shading with no light direction.
