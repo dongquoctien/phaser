@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SceneKeys } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { bakeArt } from '../art';
+import { createAnims } from '../anims';
 
 // Bakes every hand-drawn pixel sprite into the texture cache (no external assets).
 export class PreloadScene extends Phaser.Scene {
@@ -15,6 +16,7 @@ export class PreloadScene extends Phaser.Scene {
 
   create(): void {
     bakeArt(this, 4); // 32px source ×4 → crisp at scale
+    createAnims(this);
     this.scene.start(SceneKeys.Menu);
   }
 
