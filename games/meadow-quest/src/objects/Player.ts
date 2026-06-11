@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
-import { CharKeys } from '../types/keys';
+import { PARTY } from '../types/keys';
 
 // The party leader (Rem) plus a trailing line of followers (Hollis, Moz) that
 // snake along the leader's recent path — the classic JRPG overworld "caterpillar".
 // Movement is 4/8-directional via arcade velocity; sprites flip to face heading.
-const SPEED = 110;
-const FOLLOW_GAP = 16; // px of path between each party member
+// Sprites are the baked 32×32 pixel art (×4 px = 128 tall), shown small on the field.
+const SPEED = 108;
+const LEAD_SCALE = 0.46;
+const FOLLOW_SCALE = 0.42;
+const FOLLOW_GAP = 15; // px of path between each party member
 const BOB_AMP = 1.5; // subtle walk bob for life
 
 export class Player {
@@ -16,15 +19,15 @@ export class Player {
   private moving = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
-    this.leader = scene.physics.add.sprite(x, y, CharKeys.Rem).setOrigin(0.5, 0.85);
-    this.leader.setScale(0.7).setDepth(10);
+    this.leader = scene.physics.add.sprite(x, y, PARTY[0]).setOrigin(0.5, 0.88);
+    this.leader.setScale(LEAD_SCALE).setDepth(10);
     const b = this.leader.body as Phaser.Physics.Arcade.Body;
-    b.setSize(this.leader.width * 0.5, this.leader.height * 0.35);
-    b.setOffset(this.leader.width * 0.25, this.leader.height * 0.6);
+    b.setSize(this.leader.width * 0.34, this.leader.height * 0.22);
+    b.setOffset(this.leader.width * 0.33, this.leader.height * 0.64);
     b.setCollideWorldBounds(true);
 
-    for (const key of [CharKeys.Hollis, CharKeys.Moz]) {
-      const f = scene.add.sprite(x, y, key).setOrigin(0.5, 0.85).setScale(0.62).setDepth(9);
+    for (const key of [PARTY[1], PARTY[2]]) {
+      const f = scene.add.sprite(x, y, key).setOrigin(0.5, 0.88).setScale(FOLLOW_SCALE).setDepth(9);
       this.followers.push(f);
     }
     this.pos.set(x, y);

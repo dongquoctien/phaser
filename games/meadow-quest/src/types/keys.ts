@@ -25,20 +25,31 @@ export const GRASS_VARIANTS = [
   TileKeys.Grass0, TileKeys.Grass1, TileKeys.Grass2, TileKeys.Grass3, TileKeys.Grass4,
 ] as const;
 
-// Characters.
+// Characters — hand-drawn 32×32 pixel sprites baked from src/art.ts (Sweetie-16).
+// Each has an idle frame + an attack frame. The overworld uses the idle frame;
+// the leader/mob walk-bob is a code tween, the battle uses idle↔attack.
 export const CharKeys = {
-  // party heroes (static single-frame pixel sprites — front-facing)
-  Rem: 'hero-rem',
-  Hollis: 'hero-hollis',
-  Moz: 'hero-moz',
-  // roaming mob spritesheet (6×6 grid of 118×141 frames; we use a few as a walk cycle)
-  MobWalker: 'mob-walker',
+  // party heroes
+  RemIdle: 'rem-idle', RemAttack: 'rem-attack',
+  HollisIdle: 'hollis-idle', HollisAttack: 'hollis-attack',
+  MozIdle: 'moz-idle', MozAttack: 'moz-attack',
+  // monsters
+  SnakeIdle: 'snake-idle', SnakeAttack: 'snake-attack',
+  BirdIdle: 'bird-idle', BirdAttack: 'bird-attack',
+  SlimeIdle: 'slime-idle', SlimeAttack: 'slime-attack',
+  BeetleIdle: 'beetle-idle', BeetleAttack: 'beetle-attack',
 } as const;
 export type CharKey = (typeof CharKeys)[keyof typeof CharKeys];
 
-export const AnimKeys = {
-  MobWalk: 'mob-walk',
-} as const;
+// party overworld sprites (idle frame used as the walking sprite)
+export const PARTY = [CharKeys.RemIdle, CharKeys.HollisIdle, CharKeys.MozIdle] as const;
+// monsters that can roam the overworld + appear in battle
+export const MONSTERS = [
+  { idle: CharKeys.SnakeIdle, attack: CharKeys.SnakeAttack, name: 'Snake' },
+  { idle: CharKeys.BirdIdle, attack: CharKeys.BirdAttack, name: 'Raven' },
+  { idle: CharKeys.SlimeIdle, attack: CharKeys.SlimeAttack, name: 'Slime' },
+  { idle: CharKeys.BeetleIdle, attack: CharKeys.BeetleAttack, name: 'Beetle' },
+] as const;
 
 export const AudioKeys = {
   // none yet — overworld is silent for the first pass (sound added in a later PR)

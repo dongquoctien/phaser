@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, TileKeys, CharKeys, AnimKeys, GRASS_VARIANTS } from '../types/keys';
+import { SceneKeys, TileKeys, GRASS_VARIANTS } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Player } from '../objects/Player';
 import { Mob } from '../objects/Mob';
@@ -40,16 +40,6 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#5fa84a');
 
     this.buildMeadow();
-
-    // mob walk animation from the sheet (a few frames make a believable shuffle)
-    if (!this.anims.exists(AnimKeys.MobWalk)) {
-      this.anims.create({
-        key: AnimKeys.MobWalk,
-        frames: this.anims.generateFrameNumbers(CharKeys.MobWalker, { frames: [6, 7, 8, 9] }),
-        frameRate: 6,
-        repeat: -1,
-      });
-    }
 
     // party
     this.player = new Player(this, WORLD_W / 2, WORLD_H / 2);
@@ -130,12 +120,12 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.flash(180, 255, 255, 255);
     this.cameras.main.shake(160, 0.006);
 
-    const mx = mob.x, my = mob.y;
+    const typeIndex = mob.typeIndex;
     this.time.delayedCall(420, () => {
       bang.destroy();
       mob.despawn();
-      // hand off to battle (stub scene). It wakes us back up via scene.resume.
-      this.scene.launch(SceneKeys.Battle, { mobX: mx, mobY: my });
+      // hand off to the turn-based battle; it wakes us back up via scene.resume.
+      this.scene.launch(SceneKeys.Battle, { typeIndex });
       this.scene.pause();
     });
 
