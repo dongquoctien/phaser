@@ -32,7 +32,10 @@
     "preview:twdc-defense": "vite preview --config games/twdc-defense/vite.config.mjs games/twdc-defense",
     "dev:whack-a-mole": "vite --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
     "build:whack-a-mole": "vite build --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
-    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole"
+    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
+    "dev:meadow-quest": "vite --config games/meadow-quest/vite.config.mjs games/meadow-quest",
+    "build:meadow-quest": "vite build --config games/meadow-quest/vite.config.mjs games/meadow-quest",
+    "preview:meadow-quest": "vite preview --config games/meadow-quest/vite.config.mjs games/meadow-quest"
   },
   "devDependencies": {
     "phaser": "^4.1.0",
