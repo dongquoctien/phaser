@@ -268,33 +268,23 @@ console.log('Slicing g1 sheets ->', OUT);
   console.log('   shuriken counts:', rows.map((r) => r.length).join(','), '(expect 4)');
 }
 
-// 4. COLLECTIBLES — star(6) coin(4) [spark(3) + heart full/empty]. We cherry-pick
-//    the best source PER ROW (eyeballed): STAR + COIN come out crisper/bigger from
-//    the original MAGENTA sheet (despeckle handles its sparkle), while SPARK + HEART
-//    look better from the user's TRANSPARENT re-cut (fuller burst, clean heart).
+// 4. COLLECTIBLES — star(6) coin(4) [spark(3) + heart full/empty], all from the
+//    user's TRANSPARENT re-cut (black + alpha). The latest re-cut has clean star +
+//    coin (coin segments to 4, no sparkle split), so the whole sheet comes from it.
 {
-  // star + coin from the magenta sheet
-  {
-    const png = load('Collectibles, FX & HUD.png');
-    const rows = sliceGrid(png, { minRowH: 60, minColW: 28, despeckle: true, dropWeak: true });
-    console.log('   collectibles[magenta] row counts:', rows.map((r) => r.length).join(','));
-    if (rows[0]) writeAtlas('star', rows[0].slice(0, 6), 16);
-    if (rows[1]) writeAtlas('coin', rows[1].slice(0, 4), 16);
-  }
-  // spark + heart from the transparent re-cut
-  {
-    ALPHA_ONLY = true; // keep true through writeAtlas (blitScaled keys off it too)
-    const png = load('Collectibles, FX & HUD - trans.png');
-    const rows = sliceGrid(png, { minRowH: 60, minColW: 28, despeckle: true, dropWeak: true });
-    console.log('   collectibles[trans] row counts:', rows.map((r) => r.length).join(','));
+  ALPHA_ONLY = true; // keep true through writeAtlas (blitScaled keys off it too)
+  const png = load('Collectibles, FX & HUD - trans.png');
+  const rows = sliceGrid(png, { minRowH: 60, minColW: 28, despeckle: true, dropWeak: true });
+  console.log('   collectibles[trans] row counts:', rows.map((r) => r.length).join(','), '(expect 6,4,5)');
+  if (rows[0]) writeAtlas('star', rows[0].slice(0, 6), 16);
+  if (rows[1]) writeAtlas('coin', rows[1].slice(0, 4), 16);
+  if (rows[2]) {
     const r = rows[2]; // row 3 = spark x3 then heart-full, heart-empty
-    if (r) {
-      writeAtlas('spark', r.slice(0, 3), 16);
-      if (r.length >= 5) writeAtlas('heart', r.slice(3, 5), 12);
-      else if (r.length >= 4) writeAtlas('heart', r.slice(3), 12);
-    }
-    ALPHA_ONLY = false;
+    writeAtlas('spark', r.slice(0, 3), 16);
+    if (r.length >= 5) writeAtlas('heart', r.slice(3, 5), 12);
+    else if (r.length >= 4) writeAtlas('heart', r.slice(3), 12);
   }
+  ALPHA_ONLY = false;
 }
 
 // 5. BLOCKS/DOOR/DECOR — block, used-block, door(big), crystal, mushroom.
