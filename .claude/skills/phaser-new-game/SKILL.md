@@ -171,9 +171,45 @@ on data arrays.
 You are a professional game developer: before writing gameplay, **decide what the game
 needs** — images, audio, and the loose narrative/theme — and **research the web** so the
 choices are genre-appropriate (see §0b research gate + the `game-design` skill for
-deconstructing a reference and naming the loop). Then write an **`ASSET-PLAN.md` in the
-game folder** so the work is explicit and the user can act on it. `games/arcane-knight/
-ASSET-PLAN.md` is the worked example — match its shape:
+deconstructing a reference and naming the loop).
+
+### First — PIN DOWN THE ART DIRECTION (do this before any report or prompt)
+
+Generation prompts are only as good as the direction behind them. Before writing the
+plan, decide (and confirm with the user if unclear) **each of these axes** — then weave
+ALL of them into every image prompt so the output is consistent and on-brief. Don't
+default to "32×32 side-view chibi" silently; that mismatch is why early refs felt wrong.
+
+- **Camera / perspective** (sets the whole pipeline): side-scroller · top-down · isometric
+  · 2.5D / HD-2D · beat-em-up · tactical-RPG angle · front battle-sprite · platform-fighter.
+- **Character archetype** (per hero/enemy): knight/paladin · assassin/rogue · archer/ranger
+  · necromancer · monk · viking · pirate · ninja · gunslinger · mecha pilot · angel/demon ·
+  beast hunter · alchemist · bard · dragon warrior · sci-fi soldier · robot/android · slime
+  hero · vampire hunter… (or a **mix** for a unique identity: cyber-samurai, ice-assassin,
+  desert-necromancer, viking-zombie, holy-knight, fire-demon).
+- **Art style**: cute chibi · anime pixel · dark fantasy · retro SNES · GBA · HD-2D ·
+  grimdark · cartoon · hand-painted pixel · neon cyberpunk · low-palette (4/8-colour) ·
+  Diablo-like · MapleStory-like · Metal-Slug.
+- **Pixel size**: 16 · 24 · 32 · 48 · 64 · 96 · 128 (bosses bigger than the cast). Keep the
+  whole cast on ONE tier (mixing reads as inconsistent) — see §0a resolution table.
+- **Theme / biome**: cave · forest · swamp · snow · volcano · desert · ruins · dungeon ·
+  haunted castle · space station · cyber city · underwater · heaven/hell · shrine · town.
+- **Animation set** (per character): idle · walk · run · dash · jump · double-jump ·
+  attack-combo · cast · hurt · die · roll · climb · swim · shoot · charge. List exactly the
+  ones the game uses (don't generate frames you'll never play).
+- **Asset types** to produce: character spritesheet · enemy pack · boss reference · tileset/
+  map · UI icons · skill VFX · weapon pack · NPC pack · mounts/pets · portrait sheet · emote
+  pack · parallax background · environment props.
+
+A strong prompt names them all, e.g.:
+> "Pixel Art **Necromancer** spritesheet, **dark fantasy**, **side-scroller**, **32×32**,
+> **idle/walk/cast/die**, purple-green magic VFX, **dungeon** theme, transparent background,
+> uniform grid, no text/labels."
+> "**Cyberpunk samurai**, **neon-blue palette**, **64×64**, **side view**, attack-combo
+> spritesheet, katana slash VFX, transparent background, uniform grid."
+
+Then write an **`ASSET-PLAN.md` in the game folder** so the work is explicit and the user
+can act on it. `games/arcane-knight/ASSET-PLAN.md` is the worked example — match its shape:
 
 1. **Image report** — a table of every sprite/tile/bg/FX/UI icon the game needs (heroes,
    each enemy, boss, every tile skin per level, hazards, props, parallax backgrounds,
@@ -184,14 +220,16 @@ ASSET-PLAN.md` is the worked example — match its shape:
    boss music), **with a NOTES column per sound** (length, tone, when it plays). Reuse
    the `phaser-audio` rules (dual-format `.m4a`+`.ogg`, throttle, iOS).
 3. **Image-generation prompts**, one per row, IN REPORT ORDER, ready to paste into
-   ChatGPT/DALL·E/Gemini. Every sprite-sheet prompt MUST force a *cuttable* output:
-   **uniform grid, equal transparent padding, transparent (or solid magenta `#FF00FF`)
-   background, NO text/labels/palette swatches, no baked drop-shadow**, fixed cell size
-   (e.g. 32×32), the bit-era (16-bit SNES), side/top view + facing, and one animation per
-   row. Tell the user to **generate the first hero, lock the style, then say "same style
-   as the previous sheet"** in later prompts for cohesion; prefer **one sheet per
-   animation** (easier to re-roll + cut). (Pretty "concept sheets" with title+palette+
-   turnaround are NOT cuttable — that's the trap that made the first refs unusable.)
+   ChatGPT/DALL·E/Gemini. **Every prompt must name the pinned art-direction axes**
+   (archetype + art-style + camera/perspective + pixel-size + theme/biome + the exact
+   animation set), AND force a *cuttable* output: **uniform grid, equal transparent
+   padding, transparent (or solid magenta `#FF00FF`) background, NO text/labels/palette
+   swatches, no baked drop-shadow**, fixed cell size, the bit-era, view + facing, one
+   animation per row. Tell the user to **generate the first hero, lock the style, then
+   say "same style as the previous sheet"** in later prompts for cohesion; prefer **one
+   sheet per animation** (easier to re-roll + cut). (Pretty "concept sheets" with
+   title+palette+turnaround are NOT cuttable — that's the trap that made the first refs
+   unusable.)
 4. **Audio-generation prompts**, one per row, in report order (for ElevenLabs SFX /
    Suno-Udio music) — and note these double as search terms for free CC0 audio
    (Kenney/freesound/OpenGameArt), which you should check FIRST before generating.
