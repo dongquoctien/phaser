@@ -180,8 +180,29 @@ plan, decide (and confirm with the user if unclear) **each of these axes** — t
 ALL of them into every image prompt so the output is consistent and on-brief. Don't
 default to "32×32 side-view chibi" silently; that mismatch is why early refs felt wrong.
 
-- **Camera / perspective** (sets the whole pipeline): side-scroller · top-down · isometric
-  · 2.5D / HD-2D · beat-em-up · tactical-RPG angle · front battle-sprite · platform-fighter.
+- **Camera / perspective** — the FIRST decision; it dictates pixel art, animation, map
+  design, gameplay and camera. The nine common views (with difficulty + a reference):
+  1. **Side-scroller** (side view) — move L/R + jump; easiest animation; *Celeste, Dead
+     Cells, Terraria*. **Easy, very common.**
+  2. **Top-down** — 4/8-dir move; easy big maps; *Stardew Valley, Hotline Miami*. **Easy,
+     very common.**
+  3. **Isometric** — faux-3D 45°; looks premium but ~2× the art (multi-dir tiles +
+     sprites); *Diablo II, Hades*. **Hard.**
+  4. **Front view** — character faces the player; classic JRPG battle screen; *Pokémon
+     R/B*. **Easy** (few frames).
+  5. **3/4 view** (three-quarter) — slight tilt, see face + sides; the JRPG-overworld
+     default, prettier than flat top-down. **Medium.**
+  6. **Beat-em-up** — side movement WITH depth (walk up/down a lane); *Streets of Rage 4*.
+     **Medium.**
+  7. **First-person** — through the character's eyes; FPS / dungeon-crawler; *DOOM*.
+     **Hard** (not a sprite pipeline).
+  8. **Over-the-shoulder / third-person** — camera behind; rare in 2D pixel. **Hard.**
+  9. **Tactical grid** — turn-based strategy on a square/iso grid; zoomed iso or top-down.
+     **Hard** (lots of tiles).
+  For an indie 32×32 pixel game prefer **side-scroller, top-down, or 3/4** — they save
+  animation, read clearly at small size, and have the easiest tilesets. Isometric /
+  tactical / third-person cost the most art. Confirm the view with the user before
+  drawing — it changes everything downstream.
 - **Character archetype** (per hero/enemy): knight/paladin · assassin/rogue · archer/ranger
   · necromancer · monk · viking · pirate · ninja · gunslinger · mecha pilot · angel/demon ·
   beast hunter · alchemist · bard · dragon warrior · sci-fi soldier · robot/android · slime
@@ -207,6 +228,43 @@ A strong prompt names them all, e.g.:
 > uniform grid, no text/labels."
 > "**Cyberpunk samurai**, **neon-blue palette**, **64×64**, **side view**, attack-combo
 > spritesheet, katana slash VFX, transparent background, uniform grid."
+
+### Map / environment — plan it as its own layered set (not one image)
+
+A map is NEVER one picture — it's a **layered set**, and the plan must break it out so the
+tiles actually compose in-engine:
+
+- **Layers:** parallax background (far mountains / clouds / moon / cave depth) → midground
+  → **terrain tileset** → props/decorations → interactive objects → hazards → environment
+  VFX → foreground/lighting overlay.
+- **Terrain tiles:** ground · cliff · wall · slope · bridge · platform (must tile
+  seamlessly; for a side-scroller demand a top/fill/left-edge/right-edge/platform set).
+- **Decorations:** tree · bush · crystal · torch · skull · bones · mushroom · lantern ·
+  banner. **Interactive:** door · lever · chest · checkpoint · elevator · trap · ladder.
+  **Hazards:** spike · lava · acid · falling rock · saw blade. **Env FX:** fog · rain ·
+  snow · dust · fire embers · magic particles.
+- **Biome** (pick + theme everything to it): fantasy/medieval (forest · dark forest ·
+  castle · dungeon · cave · village · graveyard · cathedral · ruins · throne room) ·
+  nature/survival (swamp · snow mountain · jungle · desert · volcano · river · beach ·
+  underwater · mushroom) · dark/horror (blood cave · haunted mansion · hell · toxic sewer ·
+  abandoned lab) · sci-fi/cyberpunk (neon city · space station · alien planet · factory ·
+  lab · mecha battlefield) · japanese/asian (samurai village · bamboo forest · shrine ·
+  yokai · dojo · castle) · platformer-specific (precision-jump · trap dungeon · lava ·
+  ice-slippery · moving-platform · minecart cave).
+- **Map style:** retro (NES/SNES/GBA) · modern pixel (HD-2D/Octopath · Dead-Cells ·
+  Blasphemous · Celeste · Terraria-inspired) · palette (4-colour GameBoy · limited · neon ·
+  dark-muted). **Tile size:** 8 (retro) · 16 (RPG) · 24 (mobile-light) · **32 (platformer
+  default)** · 48 (detailed) · 64 (HD) — keep it the same across the whole map.
+- For depth, consider **biome progression / boss biome / seasonal / metroidvania layout** —
+  plan tiles as **modular, reusable** pieces (one set, re-skinned per biome) so a few
+  generations cover many screens.
+
+A strong map prompt, e.g.:
+> "Pixel Art **Cave Tileset**, **32×32**, **side-scroller platformer**, animated torches,
+> crystals, ladders, platforms, **parallax background**, **dark fantasy**, seamless,
+> transparent background, uniform grid, no text."
+> "Pixel Art **Forest Map** assets, vibrant fantasy biome, **32×32 tileset**, trees, grass,
+> bridges, ruins, animated waterfall, **side-view platformer**, seamless, transparent bg."
 
 Then write an **`ASSET-PLAN.md` in the game folder** so the work is explicit and the user
 can act on it. `games/arcane-knight/ASSET-PLAN.md` is the worked example — match its shape:
