@@ -1,0 +1,2 @@
+# Drop texture atlases (sprites.png + sprites.json), audio, and tilemaps here.
+# One atlas per category. See the phaser-optimize-bundle skill for packing.
