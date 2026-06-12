@@ -25,10 +25,16 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
 
+    // The hero atlas frame is 48px but the cast/tiles read best ~1.5 tiles tall,
+    // so render at half size (24px on-screen).
+    this.setScale(0.5);
     this.setOrigin(0.5, 1); // anchor at the feet
-    // Hitbox a touch narrower than the art so the player squeezes past hazards.
-    this.body.setSize(8, 20);
-    this.body.setOffset(4, 4);
+    // Hitbox in UNSCALED texture pixels (Phaser scales the body with the sprite).
+    // The character fills the full 48px frame, so the body sits near the bottom:
+    // width 24 (narrower than art so it squeezes past hazards), height 44, with a
+    // 4px gap below so the feet rest exactly on the platform surface.
+    this.body.setSize(24, 44);
+    this.body.setOffset(12, 4);
     this.setCollideWorldBounds(true);
     this.play(Anim.HeroIdle);
   }

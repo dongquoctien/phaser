@@ -118,12 +118,15 @@ export class GameScene extends Phaser.Scene {
       coin.play(Anim.CoinSpin);
     }
 
-    // Robots — sit on a surface, gravity-bound, immovable horizontally.
+    // Robots — sit on a surface, gravity-bound, immovable horizontally. The
+    // 32px frame is rendered at 0.6 (~19px, ~1.2 tiles) to sit beside the hero.
     this.robots = this.physics.add.group();
     for (const r of level.robots) {
       const robot = this.robots.create(r.x, r.y, Tex.Robot) as Phaser.Physics.Arcade.Sprite;
+      robot.setScale(0.6);
       robot.setOrigin(0.5, 1);
-      (robot.body as Phaser.Physics.Arcade.Body).setSize(12, 13).setOffset(2, 3);
+      // body in unscaled texture px (the bot body fills most of the 32px frame).
+      (robot.body as Phaser.Physics.Arcade.Body).setSize(24, 28).setOffset(4, 3);
       robot.play(Anim.RobotIdle);
     }
 
@@ -134,9 +137,9 @@ export class GameScene extends Phaser.Scene {
       if (sh) sh.launch(s.x, s.y, s.range, s.speed);
     }
 
-    // Exit door.
+    // Exit door — 48px frame at 0.66 (~32px, 2 tiles): a clear goal, not huge.
     this.door = this.physics.add.staticImage(level.exit.x, level.exit.y, Tex.Door);
-    this.door.setOrigin(0.5, 1).refreshBody();
+    this.door.setScale(0.66).setOrigin(0.5, 1).refreshBody();
 
     // Hero.
     this.hero = new Hero(this, level.spawn.x, level.spawn.y);
@@ -218,9 +221,12 @@ export class GameScene extends Phaser.Scene {
   // -------------------------------------------------------------------------
   // Callbacks
   private onBlockHit(hero: Hero, block: Phaser.Physics.Arcade.Image): void {
-    // Only "hit" when rising into the block from below.
-    if (hero.body.velocity.y >= 0 || block.getData('used')) return;
-    if (hero.y - 12 < block.y) return; // hero head must be near the block bottom
+    // Only "hit" when the hero bonks the block from BELOW — i.e. the collision
+    // is on the hero's top edge while rising. Using the physics collision
+    // direction (not a y-offset guess) keeps this correct at any hero size.
+    if (block.getData('used')) return;
+    const fromBelow = hero.body.blocked.up || hero.body.touching.up;
+    if (!fromBelow || hero.body.velocity.y > 20) return;
     block.setData('used', true);
     block.setTexture(Tex.BlockUsed);
     this.cameras.main.shake(120, 0.004);
