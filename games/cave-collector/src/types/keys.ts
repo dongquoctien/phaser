@@ -21,6 +21,7 @@ export const Tex = {
   Bat: 'bat', // 32px flyer, 4-frame flap
   Beetle: 'beetle', // 32px spiked crawler (un-stompable), 4-frame
   Boss: 'boss', // 48px atlas: idle 0-3, windup 4-6, attack 7-9
+  BossShoot: 'boss-shoot', // full boss+laser beam image, shown for the attack frame
   Block: 'block', // 16px ? item block
   BlockUsed: 'block-used', // 16px emptied block
   Star: 'star', // 16px collectible, 6-frame spin

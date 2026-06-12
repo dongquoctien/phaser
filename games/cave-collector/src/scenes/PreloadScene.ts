@@ -34,6 +34,7 @@ export class PreloadScene extends Phaser.Scene {
       this.load.atlas(key, `assets/${key}.png`, `assets/${key}.json`);
     }
     this.load.image(Tex.Parallax, 'assets/parallax.png');
+    this.load.image(Tex.BossShoot, 'assets/boss-shoot.png'); // boss+laser attack image
     // UI icons (pixelarticons, baked 24px) — keyed so code never uses emoji glyphs.
     for (const [key, file] of Object.entries(ICON_FILES)) {
       this.load.image(key as IconKey, `assets/icons/${file}.png`);

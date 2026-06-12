@@ -4,20 +4,34 @@ import { Tex, Anim } from '../types/keys';
 // The brass GUARDIAN BOSS — a hovering turret that guards the Story finale's exit.
 // Cycle: idle → wind-up (telegraph, ~0.8s) → attack (a laser beam toward the hero) →
 // cooldown. It has HP; the hero damages it by STOMPING the top (each stomp = 1 hit,
-// HP default 4). On death it explodes and the path to the door opens. The laser is
-// a short-lived hurt-zone the GameScene overlaps with the hero.
+// HP default 4). On death it explodes and the path to the door opens.
+//
+// The attack shows a dedicated boss+laser IMAGE (Tex.BossShoot) for the beam: the
+// atlas boss hides, the shoot image is placed so its boss-head sits exactly over the
+// boss, and a hurt-zone body covers the image's beam strip (the GameScene overlaps it).
 const HP = 4;
 const CYCLE_MS = 2600;     // idle → telegraph → fire period
 const TELEGRAPH_MS = 800;  // wind-up before the beam
 const BEAM_MS = 350;       // how long the beam is live
-const LASER_LEN = 280;     // beam length in px (~17 tiles — reaches across the arena)
+
+// Geometry of the boss-shoot image (boss on the RIGHT, beam firing LEFT), in source px.
+// Measured from Guardian boss-trans-shoot.png (1913x287): boss bbox x≈1640..1906,
+// beam horizontal center at y≈171, beam reaches from x≈0 to the muzzle (~x1691).
+const SHOOT = {
+  imgW: 1913, imgH: 287,
+  bossCx: 1773, bossCy: 140, // boss-head center → image origin
+  bossW: 266,                // boss-head width in source px (for scale matching)
+  beamCenterY: 171,          // beam horizontal axis in source px
+  beamLeftX: 4, beamRightX: 1691, // beam strip extent in source px
+  beamHalfThick: 14,         // half the beam's vertical thickness in source px
+};
 
 export class Boss extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
   public hp = HP;
   public readonly stompable = true; // can be jumped on (that's how you damage it)
-  private beam?: Phaser.GameObjects.Rectangle & { body: Phaser.Physics.Arcade.Body };
-  private beamCore?: Phaser.GameObjects.Rectangle;
+  private shootImg?: Phaser.GameObjects.Image;          // boss+laser attack picture
+  private beam?: Phaser.GameObjects.Zone & { body: Phaser.Physics.Arcade.Body }; // hurt-zone
   private timer?: Phaser.Time.TimerEvent;
   private hitCooldown = 0;
 
@@ -39,20 +53,21 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp = HP;
     this.play(Anim.BossIdle, true);
 
-    // laser beam rectangle, reused; right edge anchored at the boss muzzle, grows left.
-    const beam = this.scene.add.rectangle(0, 0, 4, 4, 0xff4d4d, 0.9)
-      .setOrigin(1, 0.5).setDepth(45).setVisible(false);
-    this.scene.physics.add.existing(beam);
-    const beamBody = beam.body as Phaser.Physics.Arcade.Body;
-    beamBody.setAllowGravity(false);
-    beamBody.enable = false;
-    this.beam = beam as typeof this.beam;
+    // the boss+laser attack image — hidden until fired. Its origin is the boss-head
+    // center so positioning it at the boss puts the head exactly on top.
+    const img = this.scene.add.image(0, 0, Tex.BossShoot)
+      .setOrigin(SHOOT.bossCx / SHOOT.imgW, SHOOT.bossCy / SHOOT.imgH)
+      .setDepth(9) // just above the atlas boss
+      .setVisible(false);
+    this.shootImg = img;
 
-    // a brighter core line drawn over the beam so the laser reads as a hot bolt,
-    // not a flat red bar (same right-anchored origin so it tracks the beam exactly).
-    const core = this.scene.add.rectangle(0, 0, 4, 2, 0xffe0e0, 1)
-      .setOrigin(1, 0.5).setDepth(46).setVisible(false);
-    this.beamCore = core;
+    // invisible hurt-zone covering the beam strip; sized/placed when firing.
+    const zone = this.scene.add.zone(0, 0, 4, 4).setOrigin(1, 0.5);
+    this.scene.physics.add.existing(zone);
+    const zb = zone.body as Phaser.Physics.Arcade.Body;
+    zb.setAllowGravity(false);
+    zb.enable = false;
+    this.beam = zone as typeof this.beam;
 
     // attack loop
     this.timer = this.scene.time.addEvent({ delay: CYCLE_MS, loop: true, callback: () => this.beginAttack() });
@@ -65,7 +80,8 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp -= 1;
     this.scene.cameras.main.shake(120, 0.006);
     this.setTint(0xff8080);
-    this.scene.time.delayedCall(120, () => this.clearTint());
+    this.shootImg?.setTint(0xff8080);
+    this.scene.time.delayedCall(120, () => { this.clearTint(); this.shootImg?.clearTint(); });
     if (this.hp <= 0) { this.die(); return true; }
     return false;
   }
@@ -77,53 +93,54 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   }
 
   private fire(): void {
-    if (!this.active || !this.beam) return;
-    this.play(Anim.BossAttack, true);
+    if (!this.active || !this.shootImg || !this.beam) return;
     this.emit('fire'); // GameScene plays the laser SFX
-    // beam shoots LEFT (toward the level / hero) from the boss muzzle.
-    const muzzleX = this.x - this.displayWidth * 0.45; // right edge of the beam
-    // muzzle height measured from the attack frame's beam pixels (~0.65 up from the
-    // boss's feet) so the drawn beam lines up with the sprite's gun flash, not above it.
-    const eyeY = this.y - this.displayHeight * 0.65;
-    const len = LASER_LEN;
-    const thick = 10;
 
-    // glow body: right edge pinned at the muzzle (origin 1,0.5), so it stretches left.
-    this.beam.setPosition(muzzleX, eyeY).setSize(len, thick).setVisible(true);
-    this.beamCore?.setPosition(muzzleX, eyeY).setSize(len, 4).setVisible(true);
+    // scale the shoot image so its boss-head matches the atlas boss width, then place
+    // it so the head sits over the real boss. The atlas boss hides (the image has one).
+    const scale = this.displayWidth / SHOOT.bossW;
+    const headCenterY = this.y - this.displayHeight * 0.5; // atlas boss vertical center
+    this.shootImg.setScale(scale).setPosition(this.x, headCenterY).setVisible(true);
+    this.setVisible(false);
 
-    // sync the physics body to the (origin 1,0.5) rectangle's visual bounds. Setting
-    // body size + offset (NOT body.reset, which would yank the GameObject) keeps the
-    // hurt-zone exactly under the drawn beam: left = muzzle-len, top = eyeY-thick/2.
+    // hurt-zone over the beam strip. Map source-px beam extent → world via the image
+    // transform: world = imgPos + (srcPx - origin) * scale.
+    const ox = SHOOT.bossCx, oy = SHOOT.bossCy; // origin in source px
+    const beamRightWorld = this.x + (SHOOT.beamRightX - ox) * scale;
+    const beamLeftWorld = this.x + (SHOOT.beamLeftX - ox) * scale;
+    const beamCenterWorldY = headCenterY + (SHOOT.beamCenterY - oy) * scale;
+    const len = beamRightWorld - beamLeftWorld;
+    const thick = SHOOT.beamHalfThick * 2 * scale;
+
+    this.beam.setPosition(beamRightWorld, beamCenterWorldY).setSize(len, thick);
     const body = this.beam.body as Phaser.Physics.Arcade.Body;
     body.enable = true;
     body.setSize(len, thick);
-    body.setOffset(0, 0); // origin (1,0.5): display top-left is already (x-width, y-h/2)
     body.updateFromGameObject();
 
     this.scene.time.delayedCall(BEAM_MS, () => {
-      if (this.beam) { this.beam.setVisible(false); this.beam.body.enable = false; }
-      this.beamCore?.setVisible(false);
-      if (this.active) this.play(Anim.BossIdle, true);
+      this.shootImg?.setVisible(false);
+      if (this.beam) this.beam.body.enable = false;
+      if (this.active) { this.setVisible(true); this.play(Anim.BossIdle, true); }
     });
   }
 
-  /** The active beam rectangle (for the GameScene overlap), or null when idle. */
-  get beamZone(): Phaser.GameObjects.Rectangle | undefined {
-    return this.beam && this.beam.visible ? this.beam : undefined;
+  /** The active beam hurt-zone (for the GameScene overlap), or null when idle. */
+  get beamZone(): Phaser.GameObjects.Zone | undefined {
+    return this.beam && this.beam.body.enable ? this.beam : undefined;
   }
 
   private die(): void {
     this.emit('died', this.x, this.y);
-    this.destroy(); // destroy() removes the timer + beam
+    this.destroy(); // destroy() removes the timer + beam + image
   }
 
   destroy(fromScene?: boolean): void {
     this.timer?.remove();
     this.beam?.destroy();
-    this.beamCore?.destroy();
+    this.shootImg?.destroy();
     this.beam = undefined;
-    this.beamCore = undefined;
+    this.shootImg = undefined;
     super.destroy(fromScene);
   }
 }
