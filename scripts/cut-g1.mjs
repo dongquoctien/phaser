@@ -1,16 +1,17 @@
 #!/usr/bin/env node
-// cut-g1.mjs — slice the magenta-background, white-bordered AI sprite sheets in
-// 0assets/gif/g1 into clean, Phaser-ready pixel textures for cave-collector.
+// cut-g1.mjs — slice the g1 AI sprite sheets into clean, Phaser-ready pixel
+// textures for cave-collector.
 //
-// These sheets differ from the green-screen ones slice-spritesheet.mjs handles:
-//   - background is MAGENTA (#FF00FF-ish), not green
-//   - each frame sits inside a thin WHITE BORDER box (no baked text labels)
-//   - rows/cols are roughly gridded but frames vary in width
-// Strategy: chroma-key magenta -> transparent, segment rows then columns by
-// magenta gutters, KEEP ONLY wide bands (the thin white-border lines read as
-// narrow bands and are discarded), trim each frame to content, recenter into a
-// uniform tile, downscale to a real pixel grid (pixelArt), and emit one packed
-// PNG + atlas JSON per sheet. Per-sheet layout is declared below (rows/expected).
+// Two source flavours are handled (see isBg / ALPHA_ONLY):
+//   - original: MAGENTA (#FF00FF-ish) background + a thin WHITE BORDER box per
+//     frame (no baked text labels) — chroma-keyed + border-stripped + despeckled.
+//   - "<name> - trans.png": a real TRANSPARENT background (black + alpha=0), no
+//     magenta/border — keyed off alpha only (much cleaner). The collectibles sheet
+//     uses this flavour.
+// Strategy: segment rows then columns by background gutters, KEEP ONLY wide bands
+// (thin border lines / sparkle clusters read narrow and are dropped), trim each
+// frame to content, recenter into a uniform tile, downscale to a real pixel grid
+// (pixelArt), and emit one packed PNG + atlas JSON per sheet.
 //
 //   node scripts/cut-g1.mjs
 //
@@ -27,22 +28,30 @@ const OUT = 'games/cave-collector/public/assets';
 mkdirSync(OUT, { recursive: true });
 
 // ---- pixel helpers --------------------------------------------------------
-// Magenta background: high R, high B, low G — and crucially the AA ring where
-// magenta bleeds into the sprite (R and B both clearly above G). A wider net
-// here removes the pink halo left around frames.
+// Two source flavours exist in g1: the original magenta-bg + white-bordered AI
+// sheets, and newer "<name> - trans.png" exports with a real transparent
+// background (alpha=0) and NO magenta/border. ALPHA_ONLY switches the keying:
+// when true, background = transparent pixels only (much cleaner — no chroma key,
+// no border strip, no sparkle despill needed).
+let ALPHA_ONLY = false;
+
+// Magenta background: high R, high B, low G — and the AA ring where magenta bleeds
+// into the sprite. Wider net removes the pink halo around frames.
 const isMagenta = (d, i) => {
   const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
   if (a < 20) return true;
   if (r > 175 && b > 135 && g < 125) return true; // core magenta
-  // AA ring: pinkish (R & B notably exceed G), still fairly saturated
-  return r > 120 && b > 90 && r - g > 55 && b - g > 25;
+  return r > 120 && b > 90 && r - g > 55 && b - g > 25; // AA ring
 };
 const isWhiteBorder = (d, i) => {
   const r = d[i], g = d[i + 1], b = d[i + 2], a = d[i + 3];
   return a > 40 && r > 200 && g > 200 && b > 200; // near-white frame line
 };
-// A pixel is "foreground" (real sprite) if it's neither background nor border.
-const isFg = (d, i) => !(isMagenta(d, i) || isWhiteBorder(d, i) || d[i + 3] < 40);
+// "Background" for the current source. Alpha sources: just the transparent pixels.
+const isBg = (d, i) =>
+  ALPHA_ONLY ? d[i + 3] < 40 : (isMagenta(d, i) || isWhiteBorder(d, i));
+// A pixel is "foreground" (real sprite) if it's not background and has alpha.
+const isFg = (d, i) => !isBg(d, i) && d[i + 3] >= 40;
 
 function load(file) {
   return PNG.sync.read(readFileSync(join(SRC, file)));
@@ -68,7 +77,7 @@ function rowProfile(png, x0, x1) {
   const prof = [];
   for (let y = 0; y < png.height; y++) {
     let c = 0, n = 0;
-    for (let x = x0; x <= x1; x++) { n++; const i = (y * W + x) * 4; if (isMagenta(data, i)) c++; }
+    for (let x = x0; x <= x1; x++) { n++; const i = (y * W + x) * 4; if (isBg(data, i)) c++; }
     prof.push(c / n);
   }
   return prof;
@@ -78,7 +87,7 @@ function colProfile(png, y0, y1) {
   const prof = [];
   for (let x = 0; x < W; x++) {
     let c = 0, n = 0;
-    for (let y = y0; y <= y1; y++) { n++; const i = (y * W + x) * 4; if (isMagenta(data, i)) c++; }
+    for (let y = y0; y <= y1; y++) { n++; const i = (y * W + x) * 4; if (isBg(data, i)) c++; }
     prof.push(c / n);
   }
   return prof;
@@ -262,7 +271,10 @@ console.log('Slicing g1 sheets ->', OUT);
 // 4. COLLECTIBLES — star(6) coin(4) [spark(3) + heart full/empty]. Slice all,
 //    split into separate atlases by row so anims are clean.
 {
-  const png = load('Collectibles, FX & HUD.png');
+  // The user re-cut this sheet with a real transparent background (black + alpha)
+  // instead of magenta + white borders — key off alpha only, much cleaner.
+  ALPHA_ONLY = true; // keep true through writeAtlas (blitScaled keys off it too)
+  const png = load('Collectibles, FX & HUD - trans.png');
   const rows = sliceGrid(png, { minRowH: 60, minColW: 28, despeckle: true, dropWeak: true });
   console.log('   collectibles row counts:', rows.map((r) => r.length).join(','), '(expect 6,4,5)');
   if (rows[0]) writeAtlas('star', rows[0].slice(0, 6), 16);
@@ -274,6 +286,7 @@ console.log('Slicing g1 sheets ->', OUT);
     if (r.length >= 5) writeAtlas('heart', r.slice(3, 5), 12);
     else if (r.length >= 4) writeAtlas('heart', r.slice(3), 12);
   }
+  ALPHA_ONLY = false;
 }
 
 // 5. BLOCKS/DOOR/DECOR — block, used-block, door(big), crystal, mushroom.
