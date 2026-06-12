@@ -24,8 +24,12 @@ export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void
   const closeBtn = scene.add.image(GAME_WIDTH - 14, 16, Icon.Close).setDisplaySize(16, 16).setTint(0xff7db0)
     .setInteractive({ useHandCursor: true });
   closeBtn.on('pointerup', close);
-  // tapping the dim backdrop closes too
-  dim.on('pointerup', close);
+  // Tap the dim backdrop to close — but only on a gesture that BOTH started AND
+  // ended on the dim. Otherwise the pointerUP from the very click that OPENED this
+  // panel (open-on-down) lands on the freshly-created dim and closes it instantly.
+  let armed = false;
+  dim.on('pointerdown', () => { armed = true; });
+  dim.on('pointerup', () => { if (armed) close(); });
   root.add(closeBtn);
 
   const listTop = 50;

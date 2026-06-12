@@ -146,5 +146,12 @@ export function showNicknamePrompt(scene: Phaser.Scene, opts: NicknameOpts = {})
 
   okBtn.on('pointerup', commit);
   cancelBtn.on('pointerup', cancel);
-  if (!opts.force) dim.on('pointerup', cancel);
+  // Tap-outside-to-dismiss — only on a gesture that BOTH started and ended on the
+  // dim, so the pointerUP from the click that OPENED this prompt (open-on-down)
+  // doesn't immediately cancel it.
+  if (!opts.force) {
+    let armed = false;
+    dim.on('pointerdown', () => { armed = true; });
+    dim.on('pointerup', () => { if (armed) cancel(); });
+  }
 }
