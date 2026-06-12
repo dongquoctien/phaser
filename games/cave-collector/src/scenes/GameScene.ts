@@ -22,7 +22,8 @@ export class GameScene extends Phaser.Scene {
   private robots!: Phaser.Physics.Arcade.Group;
   private shurikens!: Phaser.Physics.Arcade.Group;
   private door!: Phaser.Physics.Arcade.Image;
-  private emitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private emitter!: Phaser.GameObjects.Particles.ParticleEmitter; // spark burst (frame 0)
+  private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter; // smoke puff (frame 2)
   private audio!: AudioSystem;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -210,7 +211,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private setupParticles(): void {
+    // Spark burst (gold, frame 0) — block-hit / collect / stomp feedback.
     this.emitter = this.add.particles(0, 0, Tex.Spark, {
+      frame: 0,
       lifespan: 380,
       speed: { min: 30, max: 90 },
       scale: { start: 1, end: 0 },
@@ -218,10 +221,25 @@ export class GameScene extends Phaser.Scene {
       emitting: false,
     });
     this.emitter.setDepth(50);
+
+    // Foot dust (smoke cloud, frame 2) — jump + landing puff. Drifts up/out and
+    // fades, no gravity, so it reads as kicked-up dust rather than a gold spark.
+    this.dustEmitter = this.add.particles(0, 0, Tex.Spark, {
+      frame: 2,
+      lifespan: 320,
+      speed: { min: 12, max: 40 },
+      angle: { min: 200, max: 340 }, // up-and-outward
+      scale: { start: 0.5, end: 0 },
+      alpha: { start: 0.8, end: 0 },
+      gravityY: 0,
+      emitting: false,
+    });
+    this.dustEmitter.setDepth(49);
   }
 
   private dust(x: number, y: number): void {
-    this.emitter.emitParticleAt(x, y, 4);
+    // Puff at the FEET (hero origin is its feet, so y is already the ground point).
+    this.dustEmitter.emitParticleAt(x, y, 3);
   }
 
   // -------------------------------------------------------------------------
