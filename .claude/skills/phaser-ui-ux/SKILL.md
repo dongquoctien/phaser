@@ -1,6 +1,6 @@
 ---
 name: phaser-ui-ux
-description: Build correct, bug-free UI/UX in a Phaser game — modal overlays that actually block input underneath, scrollable lists (radius vs scale, header occlusion, scroll-arrows, drag-vs-tap), predictable pre-selection (not random), ground-plane perspective FX, text-entry fields (DOM input), depth/draw-order, and drawing icons as pixel-art (NO emoji/SVG). Use when adding or fixing any in-game UI — popups, pickers, menus, leaderboards, tutorials, dialogs, HUD overlays, icons/badges — or when a UI "lets clicks through", "scrolls wrong", "header disappears", "input doesn't type", "effect looks tilted/wrong", "picks random", or uses an emoji as an icon. The hard-won UI counterpart to game-design (feel) and phaser-review (code).
+description: Build correct, bug-free UI/UX in a Phaser game — modal overlays that actually block input underneath, scrollable lists (radius vs scale, header occlusion, scroll-arrows, drag-vs-tap), predictable pre-selection (not random), ground-plane perspective FX, text-entry fields (DOM input), depth/draw-order, and icons (pixel-icon LIBRARY first — pixelarticons MIT, baked to PNG — draw only the gaps; NO emoji/runtime-SVG). Use when adding or fixing any in-game UI — popups, pickers, menus, leaderboards, tutorials, dialogs, HUD overlays, icons/badges — or when a UI "lets clicks through", "scrolls wrong", "header disappears", "input doesn't type", "effect looks tilted/wrong", "picks random", or uses an emoji as an icon. The hard-won UI counterpart to game-design (feel) and phaser-review (code).
 ---
 
 # Phaser UI/UX (this monorepo)
@@ -53,7 +53,8 @@ motion + nice FX) · dark-fantasy (ornate frames, muted palette). **A UI asset p
 typically needs:** buttons · panels/frames · bars · icons; (RPG) inventory slot · skill
 icon · quest window; (combat) damage font · combo UI · boss HP bar; (FX) cursor glow ·
 hover · screen transition. **Pixel font** must be readable, correctly spaced, and never
-blurred (integer scale, nearest-neighbor) — draw icons as pixel-art per §8, never emoji.
+blurred (integer scale, nearest-neighbor) — icons from a pixel-icon library per §8 (draw
+only the gaps), never emoji.
 
 **Build order:** (1) wireframe menu/HUD/inventory → (2) pixel UI assets (panel/button/
 icon) → (3) UI animation (hover/popup/transition) → (4) UX polish (sound/feedback/juice/
@@ -189,14 +190,37 @@ cleans up any DOM/listeners — not a method tangled into a scene. Callers set t
 on open and clear it in `onClose`. This is how NicknamePrompt / LeaderboardPanel stay
 testable and leak-free.
 
-## 8. Icons: NO color emoji — draw pixel-art (these are pixel games)
-Never use a color emoji (🏆 👑 🔒 👆 ✨ 🟦 …) as an in-game icon. Emoji render
-differently per OS/font, break the pixel aesthetic, and can't be themed. Don't reach for
-SVG either — in a pixel-art game it looks off-tone (smooth vs. blocky). Draw icons as
-**pixel-art via Graphics**: author a bitmap as a char-grid + palette and render each pixel
-as a `fillRect` square cell.
+## 8. Icons: NO color emoji — use a PIXEL ICON LIBRARY first, draw only the gaps
+Never use a color emoji (🏆 👑 🔒 👆 ✨ 🟦 ♪ ☰ ✎ …) as an in-game icon. Emoji render
+differently per OS/font (a mono glyph like `♪`/`☰` becomes a colour emoji on iOS/Android),
+break the pixel aesthetic, and can't be themed.
+
+**DEFAULT: pull icons from a pixel-icon LIBRARY for consistency — don't hand-draw what
+already exists.** Hand-drawn char-grids are uneven and slow; a curated set is cohesive and
+free. Use **pixelarticons** (https://pixelarticons.com · https://github.com/halfmage/pixelarticons)
+— **MIT**, ~800 free icons on a **24×24 pixel grid** (menu, edit/pen, trophy, close, volume/
+volume-3, arrow-/chevron-*, heart, lock, …). (Alternative surveyed: Pixel Icon Library —
+also free.) **Verify the license** (MIT/CC0) and **vendor the subset you use** + its LICENSE
+under `games/<game>/assets-src/<lib>/` so the dependency is pinned and attributed.
+
+**Integrate by BAKING the SVGs to PNG offline at the native 24px grid — NOT `this.load.svg`
+at runtime.** Under `pixelArt:true` at a small internal res, a runtime-rasterized SVG goes
+blurry; these icons are authored on a pixel grid, so baking each at exactly 24px (nearest
+kernel) yields a true pixel sprite the engine then nearest-neighbor scales cleanly. A repo
+script does it (see `scripts/bake-icons.mjs` in cave-collector):
+```js
+// node scripts/bake-icons.mjs — sharp rasterize vendored SVGs → public/assets/icons/<key>.png
+const svg = readFileSync(file,'utf8').replace(/currentColor/g, '#ffffff'); // white; tint per use
+await sharp(Buffer.from(svg), { density: 384 }).resize(24, 24, { kernel: 'nearest' }).png().toFile(out);
+```
+Then load each as a normal texture in PreloadScene and place it as an `Image`, tinting per
+use (`.setTint(0xffe14d)`) and sizing with `setDisplaySize(11,11)` next to a text label.
+Add an `Icon` key block + an `ICON_FILES` map in `types/keys.ts` (never raw strings).
+
+**FALLBACK — draw a pixel-art icon via Graphics ONLY when the library lacks it.** Author a
+bitmap as a char-grid + palette and render each pixel as a `fillRect` cell:
 ```ts
-// systems/Icons.ts — reusable across scenes
+// systems/Icons.ts — for the rare icon no library has
 function drawPixels(scene, x, y, rows: string[], palette: Record<string, number>, cell: number) {
   const c = scene.add.container(x, y); const g = scene.add.graphics();
   const w = Math.max(...rows.map(r => r.length)), ox = -(w*cell)/2, oy = -(rows.length*cell)/2;
@@ -205,15 +229,16 @@ function drawPixels(scene, x, y, rows: string[], palette: Record<string, number>
   }));
   return c.add(g);
 }
-// drawCrown/drawTrophy/drawLock each = a *_ROWS bitmap + palette → returns a centred Container
 ```
-Returning a Container lets callers `setScale`, place it beside a text label (offset by the
-text's measured width), or add a pulse/glow tween. Plain single-colour **text** glyphs
-(★ ✕ ▸ → ✓ ⚔) are fine — they're font characters, crisp, not emoji.
+Returning a Container lets callers `setScale`, place it beside a label, or add a pulse tween.
+**Don't mix sources for the same UI** — if the set is library icons, draw the one missing
+glyph in a matching weight, don't leave it as a different style. Plain single-colour **text**
+glyphs (★ ✕ ▸ → ✓ ⚔) are fine — font characters, crisp, not emoji.
 
 ## Verify (Playwright MCP)
 - No color emoji in `src/` (scan unicode emoji ranges; allow text glyphs ★✕▸→✓). Icons
-  render as drawn Graphics — screenshot Menu/MapSelect/overlays to confirm.
+  render as library/baked pixel textures (or drawn Graphics for the gaps) — screenshot
+  Menu/overlays/touch-HUD to confirm, and that baked icons load (`textures.exists('ic-…')`).
 - Open a modal → tap a gameplay pad/button underneath → assert **nothing happens** (no
   placement, no scene change). Type while a text modal is up → assert the game didn't start.
 - Scroll a list to the bottom → assert the last row is fully on-screen, the header still
@@ -232,7 +257,10 @@ text's measured width), or add a pulse/glow tween. Plain single-colour **text** 
   mobile soft keyboard won't open (iOS needs a real, visible input focused *synchronously in a
   tap*). Double-counting keystrokes from input-event + keydown both firing.
 - Hard-coding a list's row count into its scroll bounds (breaks when the list grows).
-- Using a color emoji (or an SVG) as an in-game icon — draw pixel-art via Graphics instead.
+- Using a color emoji (or a mono glyph like ♪/☰/✎ that becomes one on mobile) as an icon —
+  use a pixel-icon library (pixelarticons, MIT) baked to PNG; draw via Graphics only the gaps.
+- `this.load.svg` for icons under `pixelArt:true` (blurry) — bake the SVG to a 24px PNG offline.
+- Hand-drawing every icon when a free pixel library already has it (inconsistent + slow).
 
 See also: **game-design** (how UI should *feel* — juice, readability), **phaser-review**
 (scene-lifecycle cleanup, key constants), **phaser-smoketest** (the verify harness).
