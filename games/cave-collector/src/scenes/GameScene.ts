@@ -4,6 +4,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { LEVELS, TILE, type LevelData } from '../levels';
 import { Hero } from '../objects/Hero';
 import { Shuriken } from '../objects/Shuriken';
+import { Robot } from '../objects/Robot';
 import { buildBackground } from '../systems/background';
 import { AudioSystem } from '../systems/Audio';
 import { Api } from '../systems/Api';
@@ -124,16 +125,12 @@ export class GameScene extends Phaser.Scene {
       coin.play(Anim.CoinSpin);
     }
 
-    // Robots — sit on a surface, gravity-bound, immovable horizontally. The
-    // 32px frame is rendered at 0.6 (~19px, ~1.2 tiles) to sit beside the hero.
-    this.robots = this.physics.add.group();
+    // Robots — patrolling sentry-bots that walk their platform and turn at walls
+    // / edges (Robot.ts). Rendered at 0.6 (~19px, ~1.2 tiles) to sit beside the hero.
+    this.robots = this.physics.add.group({ classType: Robot, runChildUpdate: true });
     for (const r of level.robots) {
-      const robot = this.robots.create(r.x, r.y, Tex.Robot) as Phaser.Physics.Arcade.Sprite;
-      robot.setScale(0.6);
-      robot.setOrigin(0.5, 1);
-      // body in unscaled texture px (the bot body fills most of the 32px frame).
-      (robot.body as Phaser.Physics.Arcade.Body).setSize(24, 28).setOffset(4, 3);
-      robot.play(Anim.RobotIdle);
+      const robot = this.robots.get(r.x, r.y) as Robot;
+      if (robot) robot.spawn(r.x, r.y, this.platforms);
     }
 
     // Shuriken hazards (pooled group).
