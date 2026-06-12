@@ -307,6 +307,60 @@ Do this BEFORE building gameplay for any non-trivial game, or at minimum when th
 asks "what assets does this need" / "make prompts to generate art". The plan is also what
 keeps art cohesive and prevents the "vẽ quá xấu / mismatched" outcome.
 
+## 0e. Full game-systems checklist — what a complete game has (and which skill owns it)
+
+A modern indie/pixel game is ~40 systems across 12 areas. You don't build them all for
+every game — **scope to the genre + core loop** — but run this checklist when planning so
+nothing important is missed, and so you know which sibling skill carries each piece. Mark
+each row in-scope / later / N-A for the game at hand.
+
+- **I. Foundation** — genre · core gameplay loop · perspective/camera · art direction.
+  → `game-design` §1 (loop/pacing) + §0d above (perspective + art direction).
+- **II. Character** — main-char design (silhouette/hitbox/hurtbox/anchor) · animation set
+  (idle/walk/run/jump/fall/attack/hurt/die + dash/roll/climb/combo/cast) · combat (melee
+  combo/hitstun/cancel/knockback · ranged projectile/charge/spread · magic cast/mana/AoE/
+  buff) · skill system (active/passive/ultimate/tree) · progression (EXP/level/stat-growth/
+  unlocks). → `game-design` §2 (anim) + §3/§4 (combat feel/telegraph); pool projectiles
+  (`Pool`); progression/skill-tree = your own `systems/` modules (data-driven).
+- **III. Enemy** — archetypes (melee/archer/flying/tank/summoner/assassin/mage) · AI
+  (patrol/chase/range/dodge/retreat as a small **state machine**) · boss (intro/multi-
+  phase/arena mechanic/weak-point/enrage). → `game-design` §4 (readability/telegraph);
+  AI = a simple per-enemy state enum in `update()`, boss phases = HP-threshold switches.
+- **IV. Map/world** — tileset · biome · level design (spacing/secrets/enemy placement/
+  checkpoint) · world structure (linear / metroidvania semi-open / roguelike procedural).
+  → §0c (data-array levels; Tiled only if map-heavy) + §0d map plan.
+- **V. VFX/feel** — visual effects (slash/fire/ice/smoke/dust/blood/explosion) · **juice**
+  (shake/hit-stop/flash/recoil/slow-mo/zoom) · lighting (glow/bloom/day-night). → `game-
+  design` §3 juice table + §9 VFX anatomy; lighting in Phaser = additive-blend overlays /
+  `Light2D` pipeline (use sparingly on pixel games — a dark overlay + glow sprites is
+  cheaper and reads better than a full light system).
+- **VI. Audio** — BGM · SFX · ambient · voice/grunts · dynamic music. → `phaser-audio` §0.
+- **VII. UI/UX** — HUD · menu · inventory · skill UI · dialogue · shop · pause; the 4 UX
+  pillars. → `phaser-ui-ux` §0 (plan) + §1+ (bug-free build).
+- **VIII. Story/content** — narrative (dialogue/lore/quest/cutscene) · NPC (shop/quest-
+  giver/companion). → `game-design` §7; dialogue UI = `phaser-ui-ux`.
+- **IX. Tech** — physics (gravity/collision/friction/velocity = Arcade) · save (slot/
+  checkpoint/autosave) · camera (smooth-follow/deadzone/shake/zoom) · input (keyboard/
+  controller/rebind/touch) · optimization (atlas/pooling/culling/chunking). → Arcade
+  physics (template); **save = localStorage mirror of the registry** (`phaser-review`
+  gameplay-data section — registry is RAM-only); camera = `cameras.main.startFollow` +
+  `setDeadzone` + `shake`; input/touch = `phaser-perf-audit` §6a; optimization =
+  `phaser-optimize-bundle` + `phaser-perf-audit`.
+- **X. Production** — asset pipeline (concept→sprite→animate→export→integrate) · file
+  organization (the `games/<name>/src/{scenes,objects,systems,types}` convention) · source
+  control (git; branch → PR → wait for the user's OK to merge). → §0 conventions + §0d
+  pipeline.
+- **XI. Release** — QA (collision/softlock/FPS/UI bugs) · marketing (out of scope) ·
+  deploy (the static hub auto-builds; GitHub Pages). → `phaser-smoketest` (QA gate) + §2b
+  hub + Steps.
+- **XII. Live (optional)** — online (co-op/PvP/ranking) · analytics. → only if asked;
+  twdc-defense's leaderboard (Cloudflare Worker + KV, `phaser-review`) is the reference.
+
+**The strong modern indie combo** (recommend when the user is open): side-scroller ·
+32–48px · roguelike+metroidvania structure · fast responsive combat · modern pixel art +
+light touches · minimal clean UI · layered SFX · juice (hit-stop + particles + shake) ·
+bosses + secrets + progression. Scope DOWN from this to fit the actual request.
+
 ## 1. Steps
 
 1. **Ask the game name** (kebab-case) if not given. Path becomes `games/<name>/`.
