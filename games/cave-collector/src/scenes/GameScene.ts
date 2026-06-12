@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { SceneKeys, Tex, Anim, Reg, Ev } from '../types/keys';
+import { SceneKeys, Tex, Anim, Reg, Ev, Audio as AK } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { LEVELS, TILE, type LevelData } from '../levels';
 import { Hero } from '../objects/Hero';
 import { Shuriken } from '../objects/Shuriken';
 import { buildBackground } from '../systems/background';
+import { AudioSystem } from '../systems/Audio';
 
 const STAR_POINTS = 100;
 const COIN_POINTS = 25;
@@ -20,6 +21,7 @@ export class GameScene extends Phaser.Scene {
   private shurikens!: Phaser.Physics.Arcade.Group;
   private door!: Phaser.Physics.Arcade.Image;
   private emitter!: Phaser.GameObjects.Particles.ParticleEmitter;
+  private audio!: AudioSystem;
 
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
   private keyJump!: Phaser.Input.Keyboard.Key;
@@ -62,10 +64,12 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, worldW, worldH);
     this.deathLine = worldH + 8;
 
+    this.audio = new AudioSystem(this);
     buildBackground(this, worldW, worldH);
     this.buildLevel(level);
     this.setupInput();
     this.setupParticles();
+    this.audio.playMusic(AK.BgmGame);
 
     // HUD overlay runs in parallel.
     this.scene.launch(SceneKeys.Hud);
@@ -87,7 +91,7 @@ export class GameScene extends Phaser.Scene {
         const img = this.platforms.create(
           (tx + i) * TILE + TILE / 2,
           ty * TILE + TILE / 2,
-          Tex.TileGround,
+          Tex.TileTop,
         ) as Phaser.Physics.Arcade.Image;
         img.refreshBody();
       }
@@ -136,8 +140,9 @@ export class GameScene extends Phaser.Scene {
 
     // Hero.
     this.hero = new Hero(this, level.spawn.x, level.spawn.y);
-    this.hero.on('landed', () => this.dust(this.hero.x, this.hero.y));
-    this.hero.on('jumped', () => this.dust(this.hero.x, this.hero.y));
+    this.hero.on('landed', () => { this.dust(this.hero.x, this.hero.y); this.audio.play(AK.Land); });
+    this.hero.on('jumped', () => { this.dust(this.hero.x, this.hero.y); this.audio.playPitched(AK.Jump); });
+    this.hero.on('step', () => this.audio.play(AK.Footstep));
 
     // Colliders.
     this.physics.add.collider(this.hero, this.platforms);
@@ -219,6 +224,7 @@ export class GameScene extends Phaser.Scene {
     block.setData('used', true);
     block.setTexture(Tex.BlockUsed);
     this.cameras.main.shake(120, 0.004);
+    this.audio.play(AK.BlockPay);
     this.emitter.emitParticleAt(block.x, block.y - 8, 8);
 
     // Pop a star out the top.
@@ -237,6 +243,7 @@ export class GameScene extends Phaser.Scene {
     star.destroy();
     this.registry.inc(Reg.Score, STAR_POINTS);
     this.registry.inc(Reg.Stars, 1);
+    this.audio.play(AK.Star);
     this.cameras.main.flash(80, 80, 60, 20);
     this.emitter.emitParticleAt(star.x, star.y, 6);
     this.popText(star.x, star.y, `+${STAR_POINTS}`, '#ffd23f');
@@ -246,6 +253,7 @@ export class GameScene extends Phaser.Scene {
   private collectCoin(_hero: Hero, coin: Phaser.Physics.Arcade.Sprite): void {
     coin.destroy();
     this.registry.inc(Reg.Score, COIN_POINTS);
+    this.audio.playPitched(AK.Coin);
     this.emitter.emitParticleAt(coin.x, coin.y, 3);
     this.emitHud();
   }
@@ -256,6 +264,7 @@ export class GameScene extends Phaser.Scene {
     if (stomping) {
       robot.destroy();
       hero.bounce();
+      this.audio.play(AK.BotHit);
       this.registry.inc(Reg.Score, COIN_POINTS * 2);
       this.cameras.main.shake(100, 0.005);
       this.emitter.emitParticleAt(robot.x, robot.y - 6, 10);
@@ -274,6 +283,7 @@ export class GameScene extends Phaser.Scene {
   private damageHero(fromX: number): void {
     const hero = this.hero;
     hero.hurtFrom(fromX);
+    this.audio.play(AK.Hurt);
     this.cameras.main.shake(180, 0.01);
     this.cameras.main.flash(120, 120, 20, 40);
     const lives = (this.registry.get(Reg.Lives) as number) - 1;
@@ -300,6 +310,8 @@ export class GameScene extends Phaser.Scene {
     this.hero.setVelocity(0, 0);
     this.physics.pause();
     this.cameras.main.flash(200, 255, 255, 255);
+    this.audio.stopMusic();
+    this.audio.play(AK.LevelClear);
 
     const isLast = this.levelIndex >= LEVELS.length - 1;
     this.saveBest();
@@ -319,6 +331,8 @@ export class GameScene extends Phaser.Scene {
     this.hero.die();
     this.physics.world.gravity.y = 900;
     this.saveBest();
+    this.audio.stopMusic();
+    this.audio.play(AK.GameOver);
     this.cameras.main.shake(300, 0.012);
     this.time.delayedCall(1100, () => {
       this.scene.stop(SceneKeys.Hud);

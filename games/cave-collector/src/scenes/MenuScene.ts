@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { SceneKeys, Tex, Anim, Reg } from '../types/keys';
+import { SceneKeys, Tex, Anim, Reg, Audio as AK } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { buildBackground } from '../systems/background';
+import { AudioSystem } from '../systems/Audio';
 
 interface MenuData {
   won?: boolean;
@@ -17,6 +18,9 @@ export class MenuScene extends Phaser.Scene {
   create(data: MenuData): void {
     buildBackground(this, GAME_WIDTH, GAME_HEIGHT);
     const cx = GAME_WIDTH / 2;
+    const audio = new AudioSystem(this);
+    audio.playMusic(AK.BgmMenu);
+    this.addMuteButton(audio);
 
     // Mascot — the hero, idling, with a couple of floating stars.
     const hero = this.add.sprite(cx, GAME_HEIGHT / 2 - 18, Tex.Hero, 0).setScale(2);
@@ -59,10 +63,32 @@ export class MenuScene extends Phaser.Scene {
       .setOrigin(0.5);
     this.tweens.add({ targets: prompt, alpha: 0.3, duration: 600, yoyo: true, repeat: -1 });
 
+    let started = false;
     const start = () => {
+      if (started) return;
+      started = true;
+      audio.play(AK.Select);
+      audio.stopMusic();
       this.scene.start(SceneKeys.Game, { level: 0, resetProgress: true });
     };
-    this.input.once('pointerdown', start);
     this.input.keyboard?.once('keydown', start);
+    // pointerdown on the scene starts — but not when the mute button was tapped
+    // (that handler stops propagation via its own zone).
+    this.input.on('pointerdown', start);
+  }
+
+  private addMuteButton(audio: AudioSystem): void {
+    const label = () => (audio.muted ? '♪ off' : '♪ on');
+    const txt = this.add
+      .text(GAME_WIDTH - 6, 6, label(), { fontFamily: 'monospace', fontSize: '9px', color: '#9fe3ff' })
+      .setOrigin(1, 0)
+      .setDepth(100)
+      .setInteractive({ useHandCursor: true });
+    txt.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
+      e.stopPropagation();
+      audio.toggleMute();
+      if (!audio.muted) audio.playMusic(AK.BgmMenu);
+      txt.setText(label());
+    });
   }
 }

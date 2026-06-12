@@ -16,6 +16,7 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
   private coyote = 0;
   private buffer = 0;
   private wasOnFloor = false;
+  private stepTimer = 0;
   public invuln = 0; // ms of post-hit invulnerability
   public dead = false;
 
@@ -79,8 +80,12 @@ export class Hero extends Phaser.Physics.Arcade.Sprite {
       this.play(Anim.HeroJump, true);
     } else if (this.body.velocity.x !== 0) {
       this.play(Anim.HeroRun, true);
+      // footstep cadence while running on the ground
+      this.stepTimer -= dt;
+      if (this.stepTimer <= 0) { this.stepTimer = 260; this.emit('step'); }
     } else {
       this.play(Anim.HeroIdle, true);
+      this.stepTimer = 0;
     }
 
     // blink while invulnerable
