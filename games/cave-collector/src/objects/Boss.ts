@@ -21,7 +21,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
 
   constructor(scene: Phaser.Scene) {
     super(scene, 0, 0, Tex.Boss, 0);
+    scene.add.existing(this);     // display list — WITHOUT this the boss never renders
     scene.physics.add.existing(this);
+    this.setDepth(8);
     this.setActive(false).setVisible(false);
   }
 
@@ -69,6 +71,7 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   private fire(): void {
     if (!this.active || !this.beam) return;
     this.play(Anim.BossAttack, true);
+    this.emit('fire'); // GameScene plays the laser SFX
     // beam shoots left (toward the level / hero) from the boss's eye height
     const eyeY = this.y - this.displayHeight * 0.55;
     const len = 220;

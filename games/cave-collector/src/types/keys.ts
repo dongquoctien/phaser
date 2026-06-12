@@ -99,6 +99,7 @@ export const Audio = {
   Hurt: 'hurt',
   BotHit: 'bot-hit',
   SlimeHit: 'slime-hit',
+  BossLaser: 'boss-laser',
   LevelClear: 'level-clear',
   GameOver: 'game-over',
   Select: 'select',

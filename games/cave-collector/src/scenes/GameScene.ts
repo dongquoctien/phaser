@@ -33,6 +33,7 @@ export class GameScene extends Phaser.Scene {
   private bats!: Phaser.Physics.Arcade.Group;
   private shurikens!: Phaser.Physics.Arcade.Group;
   private boss?: Boss;
+  private lockHintAt = 0;
   private door!: Phaser.Physics.Arcade.Image;
   private emitter!: Phaser.GameObjects.Particles.ParticleEmitter; // spark burst (frame 0)
   private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter; // smoke puff (frame 2)
@@ -181,17 +182,22 @@ export class GameScene extends Phaser.Scene {
     this.door = this.physics.add.staticImage(level.exit.x, level.exit.y, Tex.Door);
     this.door.setScale(0.66).setOrigin(0.5, 1).refreshBody();
 
-    // BOSS — guards the Story finale's exit (last campaign level only). It hovers a
-    // few tiles before the door; stomp it down, then the door is yours.
+    // BOSS — guards the Story finale's exit (last campaign level only). It hovers in
+    // an arena a good stretch before the door, and the door stays LOCKED until the
+    // boss is down so the fight can't be skipped.
     const isFinale = this.mode === 'story' && this.levelIndex === STORY_LEVELS.length - 1;
     if (isFinale) {
       this.boss = new Boss(this);
-      this.boss.spawn(level.exit.x - 6 * TILE, level.exit.y - TILE);
+      // arena: ~10 tiles before the door (room to fight, hover a bit above the floor)
+      this.boss.spawn(level.exit.x - 10 * TILE, level.exit.y - 2 * TILE);
+      this.door.setTint(0x556677); // dimmed = locked
+      this.boss.on('fire', () => this.audio.play(AK.BossLaser));
       this.boss.once('died', (bx: number, by: number) => {
         this.emitter.emitParticleAt(bx, by - 20, 24);
         this.cameras.main.shake(300, 0.012);
         this.registry.inc(Reg.Score, COIN_POINTS * 20);
         this.popText(bx, by - 30, 'BOSS DOWN!', '#ffd23f');
+        this.door.clearTint(); // unlock
         this.emitHud();
       });
     }
@@ -414,6 +420,14 @@ export class GameScene extends Phaser.Scene {
 
   private reachExit(): void {
     if (this.cleared) return;
+    // Door is locked while the finale boss is still alive — beat it first.
+    if (this.boss && this.boss.active) {
+      if (this.time.now > this.lockHintAt) {
+        this.lockHintAt = this.time.now + 1500;
+        this.popText(this.door.x, this.door.y - 40, 'DEFEAT THE BOSS!', '#ff7db0');
+      }
+      return;
+    }
     this.cleared = true;
     this.hero.setVelocity(0, 0);
     this.physics.pause();

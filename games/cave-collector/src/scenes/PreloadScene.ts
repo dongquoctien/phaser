@@ -19,7 +19,7 @@ const AUDIO: Array<[string, string]> = [
   [Audio.Punch, 'punch'], [Audio.BlockPay, 'block-pay'],
   [Audio.Star, 'star'], [Audio.Coin, 'coin'], [Audio.Hurt, 'hurt'],
   [Audio.BotHit, 'bot-hit'], [Audio.SlimeHit, 'slime-hit'],
-  [Audio.LevelClear, 'level-clear'],
+  [Audio.BossLaser, 'boss-laser'], [Audio.LevelClear, 'level-clear'],
   [Audio.GameOver, 'game-over'], [Audio.Select, 'select'],
 ];
 
