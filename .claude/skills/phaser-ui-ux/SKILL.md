@@ -87,6 +87,26 @@ keystroke meant for a text field, or a stray drag, must not leak into gameplay.
 The interactive `dim` is still worth adding (it eats taps on objects *below it in the same
 container's draw order*), but the **scene-level handler guard is the real fix**.
 
+### 1b. The overlay closes the instant it opens (open-on-down vs close-on-up)
+A modal opened on **pointerDOWN** whose backdrop `dim` closes on **pointerUP** dismisses
+itself on the SAME click: the button's pointerdown builds the full-screen dim, then the
+pointerUP that ends that very click lands on the freshly-created dim → close. It looks like
+"the popup flashes and vanishes". (Only reproduces with a realistic click that holds down a
+frame — long enough for the dim to register its listener; an instant synthetic down→up can
+miss it, so test with a held click.)
+
+**Fix — the dim only closes on a gesture that BOTH starts AND ends on it.** Arm it on its
+own pointerdown; act on pointerup only if armed (so the leftover up from the opening click
+is ignored):
+```ts
+let armed = false;
+dim.on('pointerdown', () => { armed = true; });
+dim.on('pointerup', () => { if (armed) close(); });
+```
+(Alternatively, open the menu button on pointerUP too — but arming the dim is robust even
+when the opener is pointerdown.) Buttons inside the card use their own `pointerup` at a
+different location, so they're unaffected.
+
 ---
 
 ## 2. Scrollable lists — four traps
@@ -241,6 +261,9 @@ glyphs (★ ✕ ▸ → ✓ ⚔) are fine — font characters, crisp, not emoji.
   Menu/overlays/touch-HUD to confirm, and that baked icons load (`textures.exists('ic-…')`).
 - Open a modal → tap a gameplay pad/button underneath → assert **nothing happens** (no
   placement, no scene change). Type while a text modal is up → assert the game didn't start.
+- Open a modal with a **realistic held click** (down → wait a frame → up) → assert it
+  STAYS open (not dismissed by its own opening click's pointerup); then a fresh backdrop
+  click closes it. (§1b — instant synthetic down→up won't catch this.)
 - Scroll a list to the bottom → assert the last row is fully on-screen, the header still
   shows, and ▲/▼ toggle correctly. Drag-scroll → assert it did NOT select an item.
 - Reopen a picker → assert it pre-selects the last pick; start a new game → assert it reset.
@@ -248,6 +271,8 @@ glyphs (★ ✕ ▸ → ✓ ⚔) are fine — font characters, crisp, not emoji.
 
 ## Anti-patterns to refuse
 - Relying on an interactive `dim` alone to block input — add the scene-handler modal guard.
+- A modal opened on pointerDOWN whose dim closes on pointerUP — it dismisses on the opening
+  click. Arm the dim (close only on a down+up that both happen on it). See §1b.
 - Tweening `scale` on a stroked ring/shape that should grow (stroke balloons) — tween radius.
 - Adding a header/close-button BEFORE the scrolling content (it gets covered) — add it after.
 - Pre-selecting a **random** item; forgetting to reset per-run state in `create()`.
