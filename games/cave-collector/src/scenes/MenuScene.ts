@@ -1,8 +1,12 @@
 import Phaser from 'phaser';
-import { SceneKeys, Tex, Anim, Reg, Audio as AK } from '../types/keys';
+import { SceneKeys, Tex, Anim, Audio as AK } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { buildBackground } from '../systems/background';
 import { AudioSystem } from '../systems/Audio';
+import { Api } from '../systems/Api';
+import { Storage } from '../systems/Storage';
+import { showLeaderboard } from '../systems/LeaderboardPanel';
+import { showNicknamePrompt } from '../systems/NicknamePrompt';
 
 interface MenuData {
   won?: boolean;
@@ -38,7 +42,7 @@ export class MenuScene extends Phaser.Scene {
     panel.lineStyle(1, 0x7df0a8, 0.5).strokeRoundedRect(px + 2, py + 2, panelW - 4, panelH - 4, 7);
 
     // ----- Title (chunky pixel outline + glow, themed to the state) -----
-    let title = 'CAVE\nCOLLECTOR';
+    let title = 'EXPLORER\nOREO';
     let titleColor = '#8bf6b0';
     let glow = 0x2f8f5a;
     if (data.won) { title = 'YOU\nESCAPED!'; titleColor = '#ffe14d'; glow = 0xe08a1e; }
@@ -72,7 +76,7 @@ export class MenuScene extends Phaser.Scene {
 
     // ----- Subtitle / score line -----
     if (data.won || data.gameOver) {
-      const best = Number(localStorage.getItem(Reg.Best) || 0);
+      const best = Storage.getBest();
       this.add
         .text(cx, py + panelH - 26, `SCORE  ${data.score ?? 0}     BEST  ${best}`, {
           fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#ffe14d',
@@ -122,8 +126,36 @@ export class MenuScene extends Phaser.Scene {
       audio.stopMusic();
       this.scene.start(SceneKeys.Game, { level: 0, resetProgress: true });
     };
+
+    // Corner buttons (must stopPropagation so they don't also fire `start`).
+    this.addCornerButton(8, 8, 0, 0, '☰ RANKING', '#ffe14d', () => {
+      audio.play(AK.Select);
+      showLeaderboard(this);
+    });
+    this.addCornerButton(8, 24, 0, 0, '✎ ' + Storage.getNickname(), '#9fe3ff', () => {
+      audio.play(AK.Select);
+      showNicknamePrompt(this, { onDone: () => this.scene.restart(data) });
+    });
+
     this.input.keyboard?.once('keydown', start);
     this.input.on('pointerdown', start);
+
+    // First-ever launch: ask for a name once (non-blocking; cancel = random).
+    if (!Storage.hasNickname() && Api.enabled && !data.won && !data.gameOver) {
+      this.time.delayedCall(200, () => showNicknamePrompt(this, { force: true, onDone: () => this.scene.restart(data) }));
+    }
+  }
+
+  /** A small left-aligned text button that won't trigger the scene's tap-to-start. */
+  private addCornerButton(x: number, y: number, _w: number, _h: number, text: string, color: string, onTap: () => void): void {
+    const t = this.add
+      .text(x, y, text, { fontFamily: 'monospace', fontSize: '9px', fontStyle: 'bold', color })
+      .setOrigin(0, 0).setDepth(100).setShadow(1, 1, '#000', 2)
+      .setInteractive({ useHandCursor: true });
+    t.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, e: Phaser.Types.Input.EventData) => {
+      e.stopPropagation();
+      onTap();
+    });
   }
 
   private addMuteButton(audio: AudioSystem): void {

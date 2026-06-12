@@ -50,7 +50,7 @@ export class PreloadScene extends Phaser.Scene {
     const x = (width - barW) / 2;
     const y = (height - barH) / 2;
 
-    this.add.text(width / 2, y - 18, 'CAVE COLLECTOR', {
+    this.add.text(width / 2, y - 18, 'EXPLORER OREO', {
       fontFamily: 'monospace', fontSize: '14px', color: '#7df0a8',
     }).setOrigin(0.5);
 

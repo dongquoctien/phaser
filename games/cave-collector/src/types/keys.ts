@@ -72,6 +72,7 @@ export const Reg = {
   Lives: 'lives',
   Best: 'cc-best', // localStorage key for high score
   Muted: 'cc-muted', // localStorage key for mute pref
+  RunStart: 'run-start', // ms epoch when the current run began (for the leaderboard)
 } as const;
 
 // Game events emitted on the GameScene's event emitter for the HUD to read.

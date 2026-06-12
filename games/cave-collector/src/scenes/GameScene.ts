@@ -6,6 +6,8 @@ import { Hero } from '../objects/Hero';
 import { Shuriken } from '../objects/Shuriken';
 import { buildBackground } from '../systems/background';
 import { AudioSystem } from '../systems/Audio';
+import { Api } from '../systems/Api';
+import { Storage } from '../systems/Storage';
 
 const STAR_POINTS = 100;
 const COIN_POINTS = 25;
@@ -50,6 +52,9 @@ export class GameScene extends Phaser.Scene {
       this.registry.set(Reg.Score, 0);
       this.registry.set(Reg.Stars, 0);
       this.registry.set(Reg.Lives, START_LIVES);
+      this.registry.set(Reg.RunStart, Date.now());
+      // Open a fresh leaderboard session for this run (no-op if no backend).
+      void Api.startSession();
     }
   }
 
@@ -321,6 +326,7 @@ export class GameScene extends Phaser.Scene {
 
     const isLast = this.levelIndex >= LEVELS.length - 1;
     this.saveBest();
+    if (isLast) this.submitRun('win', LEVELS.length);
     this.time.delayedCall(700, () => {
       if (isLast) {
         this.scene.stop(SceneKeys.Hud);
@@ -337,6 +343,7 @@ export class GameScene extends Phaser.Scene {
     this.hero.die();
     this.physics.world.gravity.y = 900;
     this.saveBest();
+    this.submitRun('gameover', this.levelIndex);
     this.audio.stopMusic();
     this.audio.play(AK.GameOver);
     this.cameras.main.shake(300, 0.012);
@@ -348,8 +355,19 @@ export class GameScene extends Phaser.Scene {
 
   private saveBest(): void {
     const score = this.registry.get(Reg.Score) as number;
-    const best = Number(localStorage.getItem(Reg.Best) || 0);
-    if (score > best) localStorage.setItem(Reg.Best, String(score));
+    Storage.setBest(score);
+  }
+
+  /** Submit the finished run to the leaderboard backend (once; no-op offline). */
+  private submitRun(outcome: 'win' | 'gameover', levels: number): void {
+    void Api.submitRun({
+      score: (this.registry.get(Reg.Score) as number) ?? 0,
+      stars: (this.registry.get(Reg.Stars) as number) ?? 0,
+      levels,
+      outcome,
+      startedAt: (this.registry.get(Reg.RunStart) as number) ?? Date.now(),
+      endedAt: Date.now(),
+    });
   }
 
   private popText(x: number, y: number, msg: string, color: string): void {
