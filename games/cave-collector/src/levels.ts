@@ -29,7 +29,9 @@ export interface LevelData {
 // Screen is 400x240 => 25 tiles wide visible, 15 tiles tall.
 const H = 15;
 
-export const LEVELS: LevelData[] = [
+// The two hand-authored opening levels. The full Story campaign appends 8 more
+// procedurally-seeded levels (see systems/levelGen.ts STORY_LEVELS) → 10 total.
+export const HAND_LEVELS: LevelData[] = [
   {
     name: 'Toxic Hollow',
     widthTiles: 56,

@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { SceneKeys, Tex, Anim, Reg, Ev, Audio as AK, Icon } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
-import { LEVELS, TILE, type LevelData } from '../levels';
+import { TILE, type LevelData } from '../levels';
+import { STORY_LEVELS, genEndlessLevel } from '../systems/levelGen';
 import { Hero } from '../objects/Hero';
 import { Shuriken } from '../objects/Shuriken';
 import { Robot } from '../objects/Robot';
@@ -9,6 +10,8 @@ import { buildBackground } from '../systems/background';
 import { AudioSystem } from '../systems/Audio';
 import { Api } from '../systems/Api';
 import { Storage } from '../systems/Storage';
+
+export type GameMode = 'story' | 'endless';
 
 const STAR_POINTS = 100;
 const COIN_POINTS = 25;
@@ -41,13 +44,16 @@ export class GameScene extends Phaser.Scene {
   private cleared = false;
   private dead = false;
   private deathLine = 9999;
+  private mode: GameMode = 'story';
+  private level!: LevelData; // the active level (story slice or generated endless)
 
   constructor() {
     super(SceneKeys.Game);
   }
 
-  init(data: { level?: number; resetProgress?: boolean }): void {
+  init(data: { level?: number; resetProgress?: boolean; mode?: GameMode }): void {
     this.levelIndex = data.level ?? 0;
+    this.mode = data.mode ?? this.mode ?? 'story';
     this.cleared = false;
     this.dead = false;
     if (data.resetProgress || this.registry.get(Reg.Lives) == null) {
@@ -58,10 +64,14 @@ export class GameScene extends Phaser.Scene {
       // Open a fresh leaderboard session for this run (no-op if no backend).
       void Api.startSession();
     }
+    // Resolve the active level: a Story slice, or a freshly-generated endless one.
+    this.level = this.mode === 'endless'
+      ? genEndlessLevel(this.levelIndex, (Math.random() * 1e9) | 0)
+      : STORY_LEVELS[Math.min(this.levelIndex, STORY_LEVELS.length - 1)];
   }
 
   create(): void {
-    const level = LEVELS[this.levelIndex];
+    const level = this.level;
     const worldW = level.widthTiles * TILE;
     const worldH = level.heightTiles * TILE;
 
@@ -327,7 +337,7 @@ export class GameScene extends Phaser.Scene {
     if ((this.registry.get(Reg.Lives) as number) <= 0) {
       this.gameOver();
     } else {
-      this.scene.restart({ level: this.levelIndex });
+      this.scene.restart({ level: this.levelIndex, mode: this.mode });
     }
   }
 
@@ -339,16 +349,18 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.flash(200, 255, 255, 255);
     this.audio.stopMusic();
     this.audio.play(AK.LevelClear);
-
-    const isLast = this.levelIndex >= LEVELS.length - 1;
     this.saveBest();
-    if (isLast) this.submitRun('win', LEVELS.length);
+
+    // Endless never "wins" — clearing a stage just rolls into a harder one. Story
+    // ends with a win screen after the last campaign level.
+    const isLast = this.mode === 'story' && this.levelIndex >= STORY_LEVELS.length - 1;
+    if (isLast) this.submitRun('win', STORY_LEVELS.length);
     this.time.delayedCall(700, () => {
       if (isLast) {
         this.scene.stop(SceneKeys.Hud);
         this.scene.start(SceneKeys.Menu, { won: true, score: this.registry.get(Reg.Score) });
       } else {
-        this.scene.restart({ level: this.levelIndex + 1 });
+        this.scene.restart({ level: this.levelIndex + 1, mode: this.mode });
       }
     });
   }

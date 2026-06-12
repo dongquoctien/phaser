@@ -89,35 +89,30 @@ export class MenuScene extends Phaser.Scene {
       this.tweens.add({ targets: s, y: s.y - 5, duration: 900 + i * 220, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     });
 
-    // ----- Start button (framed, pulsing) -----
-    const btnY = GAME_HEIGHT - 14;
-    const btnTxt = data.won || data.gameOver ? 'TAP TO PLAY AGAIN' : 'TAP / PRESS TO START';
-    const label = this.add
-      .text(cx, btnY, btnTxt, { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#05140c' })
-      .setOrigin(0.5).setDepth(6);
-    const bw = label.width + 24;
-    const bh = 20;
-    const btn = this.add.graphics().setDepth(5);
-    btn.fillStyle(0x7df0a8, 1).fillRoundedRect(cx - bw / 2, btnY - bh / 2, bw, bh, 5);
-    btn.lineStyle(2, 0x2f8f5a, 1).strokeRoundedRect(cx - bw / 2, btnY - bh / 2, bw, bh, 5);
-    label.setDepth(6); // keep label above the button fill
-    this.tweens.add({ targets: [btn, label], alpha: 0.55, duration: 650, yoyo: true, repeat: -1 });
-
-    this.addMuteButton(audio);
-
-    // ----- input -----
+    // ----- mode buttons: STORY + ENDLESS (each its own framed, pulsing button) -----
     let started = false;
-    const start = () => {
-      if (started || this.overlayOpen) return; // ← swallow taps/keys while a modal is up
+    const launch = (mode: 'story' | 'endless') => {
+      if (started || this.overlayOpen) return;
       started = true;
       audio.play(AK.Select);
       audio.stopMusic();
-      this.scene.start(SceneKeys.Game, { level: 0, resetProgress: true });
+      this.scene.start(SceneKeys.Game, { level: 0, resetProgress: true, mode });
     };
+    const btnY = GAME_HEIGHT - 14;
+    const again = data.won || data.gameOver;
+    this.addModeButton(cx - 78, btnY, again ? 'STORY AGAIN' : 'STORY', 0x7df0a8, () => launch('story'));
+    this.addModeButton(cx + 78, btnY, 'ENDLESS', 0xffd23f, () => launch('endless'));
+    // Desktop shortcuts: Space/Enter = Story, E = Endless.
+    this.input.keyboard?.on('keydown', (ev: KeyboardEvent) => {
+      if (this.overlayOpen) return;
+      if (ev.key === 'e' || ev.key === 'E') launch('endless');
+      else if (ev.key === ' ' || ev.key === 'Enter') launch('story');
+    });
 
-    // Corner buttons. They flip overlayOpen so the scene-level `start` can't fire
-    // for taps that land on the open modal (stopPropagation alone won't do it).
-    // Pixel-art icon textures (pixelarticons, NOT emoji glyphs — §8) left of each label.
+    this.addMuteButton(audio);
+
+    // Corner buttons. They flip overlayOpen so a tap on the open modal can't fire
+    // the mode buttons. Pixel-art icon textures (pixelarticons — §8) left of each.
     this.addCornerButton(8, 9, Icon.Trophy, 'RANKING', '#ffe14d', 0xffe14d, () => {
       audio.play(AK.Select);
       this.overlayOpen = true;
@@ -129,14 +124,28 @@ export class MenuScene extends Phaser.Scene {
       showNicknamePrompt(this, { onDone: () => this.scene.restart(data) });
     });
 
-    this.input.keyboard?.on('keydown', start);
-    this.input.on('pointerdown', start);
-
     // First-ever launch: ask for a name once (non-blocking; cancel = random).
     if (!Storage.hasNickname() && Api.enabled && !data.won && !data.gameOver) {
       this.overlayOpen = true;
       this.time.delayedCall(200, () => showNicknamePrompt(this, { force: true, onDone: () => this.scene.restart(data) }));
     }
+  }
+
+  /** A framed, pulsing mode button (its own hit-zone with stopPropagation). */
+  private addModeButton(cx: number, cy: number, text: string, color: number, onTap: () => void): void {
+    const label = this.add
+      .text(cx, cy, text, { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#05140c' })
+      .setOrigin(0.5).setDepth(6);
+    const bw = label.width + 22, bh = 20;
+    const btn = this.add.graphics().setDepth(5);
+    btn.fillStyle(color, 1).fillRoundedRect(cx - bw / 2, cy - bh / 2, bw, bh, 5);
+    btn.lineStyle(2, 0x2f8f5a, 1).strokeRoundedRect(cx - bw / 2, cy - bh / 2, bw, bh, 5);
+    this.tweens.add({ targets: [btn, label], alpha: 0.6, duration: 700, yoyo: true, repeat: -1 });
+    const zone = this.add.zone(cx, cy, bw, bh + 8).setOrigin(0.5).setDepth(6).setInteractive({ useHandCursor: true });
+    zone.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
+      e.stopPropagation();
+      onTap();
+    });
   }
 
   /** Build a chunky beveled two-line logo: pulsing glow → 3D extrude → thick
