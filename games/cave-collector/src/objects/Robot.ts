@@ -29,7 +29,7 @@ export class Robot extends Phaser.Physics.Arcade.Sprite {
     this.platforms = platforms;
     this.dir = -1;
     this.setVelocityX(SPEED * this.dir);
-    this.setFlipX(this.dir < 0);
+    this.setFlipX(this.dir > 0); // sprite faces LEFT by default → flip when moving right
     this.play(Anim.RobotIdle, true);
   }
 
@@ -46,7 +46,7 @@ export class Robot extends Phaser.Physics.Arcade.Sprite {
     else if (onGround && !this.groundAhead()) this.dir = -this.dir;
 
     this.setVelocityX(SPEED * this.dir);
-    this.setFlipX(this.dir < 0);
+    this.setFlipX(this.dir > 0); // sprite faces LEFT by default → flip when moving right
   }
 
   /** Is there a platform tile under the point just ahead of the front foot? */

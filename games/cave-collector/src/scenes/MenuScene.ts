@@ -50,45 +50,24 @@ export class MenuScene extends Phaser.Scene {
     panel.lineStyle(2, 0x2f8f5a, 0.9).strokeRoundedRect(px, py, panelW, panelH, 8);
     panel.lineStyle(1, 0x7df0a8, 0.5).strokeRoundedRect(px + 2, py + 2, panelW - 4, panelH - 4, 7);
 
-    // ----- Title (chunky pixel outline + glow, themed to the state) -----
-    let title = 'EXPLORER\nOREO';
-    let titleColor = '#8bf6b0';
-    let glow = 0x2f8f5a;
-    if (data.won) { title = 'YOU\nESCAPED!'; titleColor = '#ffe14d'; glow = 0xe08a1e; }
-    if (data.gameOver) { title = 'GAME\nOVER'; titleColor = '#ff7db0'; glow = 0xb21f8a; }
-
-    const titleY = py + 40;
-    // soft glow: a blurred-ish duplicate drawn larger + tinted, behind
-    const glowText = this.add
-      .text(cx, titleY, title, {
-        fontFamily: 'monospace', fontSize: '30px', fontStyle: 'bold',
-        color: '#000000', align: 'center', lineSpacing: -4,
-      })
-      .setOrigin(0.5).setDepth(3).setTint(glow).setAlpha(0.5).setScale(1.06);
-    this.tweens.add({ targets: glowText, alpha: 0.25, scale: 1.1, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-
-    // hard outline: 8 black copies offset 1px around, then the colored top.
-    const mkTitle = (color: string, ox: number, oy: number, depth: number) =>
-      this.add
-        .text(cx + ox, titleY + oy, title, {
-          fontFamily: 'monospace', fontSize: '30px', fontStyle: 'bold',
-          color, align: 'center', lineSpacing: -4,
-        })
-        .setOrigin(0.5).setDepth(depth);
-    for (let oy = -2; oy <= 2; oy++) {
-      for (let ox = -2; ox <= 2; ox++) {
-        if (ox === 0 && oy === 0) continue;
-        mkTitle('#05140c', ox, oy, 4);
-      }
+    // ----- Title — a chunky beveled pixel "logo" (research: extrude + thick
+    //   outline + gold→green gradient fill + glow; restrained era palette). Built
+    //   by stacking layered text copies since we use the bitmap monospace font.
+    const titleY = py + 42;
+    if (data.won) {
+      this.buildLogo(cx, titleY, 'YOU\nESCAPED!', '#fff3b0', '#ffb43f', 0xe08a1e);
+    } else if (data.gameOver) {
+      this.buildLogo(cx, titleY, 'GAME\nOVER', '#ffd0e6', '#ff6aa8', 0xb21f8a);
+    } else {
+      this.buildLogo(cx, titleY, 'EXPLORER\nOREO', '#ffe98a', '#7df0a8', 0x2f8f5a);
     }
-    mkTitle(titleColor, 0, 0, 5).setShadow(0, 2, '#0a3a22', 0, false, true);
 
     // ----- Subtitle / score line -----
     if (data.won || data.gameOver) {
       const best = Storage.getBest();
       this.add
         .text(cx, py + panelH - 26, `SCORE  ${data.score ?? 0}     BEST  ${best}`, {
-          fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#ffe14d',
+          fontFamily: '"Pixelify Sans", monospace', fontSize: '15px', fontStyle: 'bold', color: '#ffe14d',
         })
         .setOrigin(0.5).setDepth(5).setShadow(1, 1, '#000', 2);
     } else {
@@ -114,7 +93,7 @@ export class MenuScene extends Phaser.Scene {
     const btnY = GAME_HEIGHT - 14;
     const btnTxt = data.won || data.gameOver ? 'TAP TO PLAY AGAIN' : 'TAP / PRESS TO START';
     const label = this.add
-      .text(cx, btnY, btnTxt, { fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold', color: '#05140c' })
+      .text(cx, btnY, btnTxt, { fontFamily: '"Pixelify Sans", monospace', fontSize: '13px', fontStyle: 'bold', color: '#05140c' })
       .setOrigin(0.5).setDepth(6);
     const bw = label.width + 24;
     const bh = 20;
@@ -158,6 +137,43 @@ export class MenuScene extends Phaser.Scene {
       this.overlayOpen = true;
       this.time.delayedCall(200, () => showNicknamePrompt(this, { force: true, onDone: () => this.scene.restart(data) }));
     }
+  }
+
+  /** Build a chunky beveled two-line logo: pulsing glow → 3D extrude → thick
+   *  outline → a two-tone gold/green fill (line 1 = top colour, line 2 = bottom).
+   *  Pops in on open. (phaser-ui-ux: visual hierarchy; research: extrude+outline.) */
+  private buildLogo(cx: number, cy: number, text: string, topColor: string, botColor: string, glow: number): void {
+    const [l1, l2] = text.split('\n');
+    const SIZE = 34, GAP = 30; // px between the two stacked lines
+    const y1 = cy - GAP / 2, y2 = cy + GAP / 2;
+    const style = (color: string) => ({ fontFamily: '"Pixelify Sans", monospace', fontSize: `${SIZE}px`, fontStyle: 'bold', color });
+    const mk = (txt: string, x: number, y: number, color: string, depth: number) =>
+      this.add.text(x, y, txt, style(color)).setOrigin(0.5).setDepth(depth);
+
+    // soft pulsing glow behind both lines
+    [[l1, y1], [l2, y2]].forEach(([t, y]) => {
+      const g = mk(t as string, cx, y as number, '#000', 3).setTint(glow).setAlpha(0.45).setScale(1.08);
+      this.tweens.add({ targets: g, alpha: 0.2, scale: 1.13, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    });
+
+    const all: Phaser.GameObjects.Text[] = [];
+    const drawLine = (txt: string, y: number, fill: string) => {
+      // 3D extrude: dark copies stepping down-right behind the face
+      for (let d = 4; d >= 1; d--) all.push(mk(txt, cx + d, y + d, '#06140c', 4));
+      // thick black outline ring (offsets ±2)
+      for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) {
+        if (ox === 0 && oy === 0) continue;
+        all.push(mk(txt, cx + ox, y + oy, '#04100a', 5));
+      }
+      // bright face
+      all.push(mk(txt, cx, y, fill, 6).setShadow(0, 1, '#0a3a22', 0, false, true) as Phaser.GameObjects.Text);
+    };
+    drawLine(l1, y1, topColor);
+    drawLine(l2, y2, botColor);
+
+    // pop-in
+    all.forEach((t) => t.setScale(0.7));
+    this.tweens.add({ targets: all, scale: 1, duration: 260, ease: 'Back.out' });
   }
 
   /** A small left-aligned button: pixel-icon texture + label; won't trigger tap-to-start. */
