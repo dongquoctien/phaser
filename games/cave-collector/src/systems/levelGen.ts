@@ -83,17 +83,27 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
     const surfaceY = s.y * TILE; // top of the platform
     const roll = r();
 
-    // a ? block floating above some segments
+    // A ? block — placed ~3 tiles above the segment, i.e. within the hero's jump
+    // reach so it can be punched from the surface. (Higher than that = unreachable.)
     if (roll < 0.35 + diff * 0.1) {
-      blocks.push({ x: cxTile * TILE + 8, y: (s.y - 5) * TILE + 8 });
-      stars.push({ x: cxTile * TILE + 8, y: (s.y - 7) * TILE });
+      blocks.push({ x: cxTile * TILE + 8, y: (s.y - 3) * TILE + 8 });
+      // the star it pops is spawned at runtime, ~1 tile above the block.
     }
     // a robot patrolling a wide-enough segment
     if (s.len >= 4 && r() < 0.3 + diff * 0.4) {
       robots.push({ x: cxTile * TILE + 8, y: s.y * TILE });
     }
-    // a floating star to grab
-    if (r() < 0.5) stars.push({ x: cxTile * TILE + 8, y: (s.y - 2) * TILE });
+    // A floating star to grab. A low one (~2 tiles up) is reachable straight off the
+    // segment; a HIGH one (~5 tiles) is paired with a small step-platform below it
+    // so the hero can hop up to reach it (no un-collectable floaters).
+    const sr = r();
+    if (sr < 0.35) {
+      stars.push({ x: cxTile * TILE + 8, y: (s.y - 2) * TILE });
+    } else if (sr < 0.6) {
+      const stepY = s.y - 3; // a jump-reachable step under the high star
+      platforms.push([cxTile - 1, stepY, 2]);
+      stars.push({ x: cxTile * TILE + 8, y: (stepY - 2) * TILE });
+    }
     // a little coin trail on the surface
     if (r() < 0.5) {
       for (let k = 0; k < 3; k++) coins.push({ x: (s.x + 1 + k) * TILE, y: surfaceY - 8 });

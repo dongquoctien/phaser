@@ -264,14 +264,18 @@ export class GameScene extends Phaser.Scene {
     this.audio.play(AK.BlockPay);
     this.emitter.emitParticleAt(block.x, block.y - 8, 8);
 
-    // Pop a star out the top.
+    // Pop a star out the top — it rises a SHORT hop and settles ~1 tile above the
+    // block, well within the hero's jump reach (a high float was un-collectable).
     const star = this.stars.create(block.x, block.y - 16, Tex.Star) as Phaser.Physics.Arcade.Sprite;
     star.play(Anim.StarSpin);
-    (star.body as Phaser.Physics.Arcade.Body).setAllowGravity(true);
-    star.setVelocityY(-180);
-    this.time.delayedCall(120, () => {
-      (star.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+    const body = star.body as Phaser.Physics.Arcade.Body;
+    body.setAllowGravity(true);
+    star.setVelocityY(-80); // small pop, not a launch
+    this.time.delayedCall(140, () => {
+      body.setAllowGravity(false);
       star.setVelocity(0, 0);
+      star.y = block.y - 12; // settle just above the block top — collectable on the
+                             // same jump that punched it (the hero is right there).
       this.bobble(star);
     });
   }
