@@ -267,7 +267,9 @@ A strong map prompt, e.g.:
 > bridges, ruins, animated waterfall, **side-view platformer**, seamless, transparent bg."
 
 Then write an **`ASSET-PLAN.md` in the game folder** so the work is explicit and the user
-can act on it. `games/arcane-knight/ASSET-PLAN.md` is the worked example — match its shape:
+can act on it. **Copy `templates/ASSET-PLAN-TEMPLATE.md`** (next to this skill) as the
+starting point — it's the worked example with copy-paste ChatGPT/Gemini prompts already
+written; fill its placeholders. Its shape:
 
 1. **Image report** — a table of every sprite/tile/bg/FX/UI icon the game needs (heroes,
    each enemy, boss, every tile skin per level, hazards, props, parallax backgrounds,
