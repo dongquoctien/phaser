@@ -168,6 +168,17 @@ on data arrays.
 
 ## 0d. Asset plan — a pro plans ALL art + audio up front
 
+> ## 🛑 HARD GATE — write the ASSET-PLAN before you scaffold or write ANY gameplay code
+> For any non-trivial game (anything beyond a one-screen toy), the **FIRST deliverable
+> is `ASSET-PLAN.md`**, not code. Do NOT create scenes, objects, or systems until it
+> exists. The visible receipt: copy `templates/ASSET-PLAN-TEMPLATE.md` → fill it →
+> **post the image report + map report + audio report + UI/UX report (the tables) and
+> the copy-paste generation prompts to the user**, then PAUSE for the user to review/
+> generate assets. If you find yourself writing `class GameScene` / editing `config.ts`
+> and there is no ASSET-PLAN.md in the game folder, you skipped the gate — stop, back
+> up, and write the plan first. "I'll plan the art later" is exactly the shortcut this
+> gate forbids (it's why a `/new-game` run jumped straight to code with no asset list).
+
 You are a professional game developer: before writing gameplay, **decide what the game
 needs** — images, audio, and the loose narrative/theme — and **research the web** so the
 choices are genre-appropriate (see §0b research gate + the `game-design` skill for
@@ -365,20 +376,28 @@ bosses + secrets + progression. Scope DOWN from this to fit the actual request.
 
 ## 1. Steps
 
-1. **Ask the game name** (kebab-case) if not given. Path becomes `games/<name>/`.
-2. **Ensure root tooling exists.** If `games/` or root `package.json` is missing, create the shared root from `templates/root/` (see below) first — this is a one-time bootstrap.
-3. **Copy `templates/game/`** into `games/<name>/`, substituting:
+1. **Ask the game name** (kebab-case) if not given. Path becomes `games/<name>/`. Also
+   pin the **art direction** (§0d: perspective + archetype + style + pixel size + biome)
+   and name the **core loop** (one sentence) — confirm with the user if unclear.
+2. **🛑 PLAN THE ASSETS FIRST — write `ASSET-PLAN.md` and PAUSE (the §0d hard gate).** For
+   any non-trivial game this comes BEFORE scaffolding. Copy `templates/ASSET-PLAN-
+   TEMPLATE.md` → `games/<name>/ASSET-PLAN.md`, fill it (research the genre per §0b), and
+   **post to the user**: the image report, the map report, the audio report (5 systems),
+   the UI/UX report, and the copy-paste ChatGPT/Gemini generation prompts. Wait for the
+   user to review / generate art before writing gameplay code. Do NOT proceed to step 3
+   until the plan exists and the user has seen it.
+3. **Ensure root tooling exists.** If `games/` or root `package.json` is missing, create the shared root from `templates/root/` (see below) first — this is a one-time bootstrap.
+4. **Copy `templates/game/`** into `games/<name>/`, substituting:
    - `__GAME_NAME__` → the kebab name,
    - `__GAME_TITLE__` → a Title Case version (in `index.html` `<title>` **and** `game.json`),
    - `__DEV_PORT__` / `__PREVIEW_PORT__` → a unique port pair not used by another game (start at 5180/4180 and increment per game). Each game gets a **fixed `strictPort`** so dev servers in the monorepo never collide.
    - In `game.json`, optionally fill `description` and `tags` — the hub shows them on the game's card. Both are optional; an empty description/tags falls back to a title-only card.
-4. **Wire the workspace**: add `games/<name>` to the root `package.json` `workspaces` array (if using npm workspaces) and add `dev:<name>` / `build:<name>` / `preview:<name>` scripts. No hub edit needed — `scripts/build-all.mjs` auto-discovers every `games/*` with a `vite.config.mjs` and regenerates the hub (`dist/index.html`) + deploys it, so a new game appears on the landing page automatically.
-5. **Plan the assets (non-trivial games): write `ASSET-PLAN.md`** — research the genre,
-   then report every image + every sound needed (with a notes column each) and the
-   copy-paste generation prompts, per **§0d**. Do this before/alongside building gameplay
-   so art stays cohesive and the user can generate what's missing.
-6. **Install** (`npm install` at root) only if deps changed.
-7. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
+5. **Wire the workspace**: add `games/<name>` to the root `package.json` `workspaces` array (if using npm workspaces) and add `dev:<name>` / `build:<name>` / `preview:<name>` scripts. No hub edit needed — `scripts/build-all.mjs` auto-discovers every `games/*` with a `vite.config.mjs` and regenerates the hub (`dist/index.html`) + deploys it, so a new game appears on the landing page automatically.
+6. **Build the gameplay** — scenes/objects/systems per the core loop, using the planned
+   assets (placeholder art is fine until the user's generated art lands; wire real art in
+   when it arrives). Reference §0e for which systems the game needs.
+7. **Install** (`npm install` at root) only if deps changed.
+8. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
    **`phaser-smoketest`** skill against the new game and report its full pass/fail
    table. A green run REQUIRES all of:
    - boots + canvas renders + console clean + FPS ≥ 55, **and**
