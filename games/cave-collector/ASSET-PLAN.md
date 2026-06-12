@@ -11,7 +11,7 @@
 | Axis | Choice |
 |------|--------|
 | **Camera / perspective** | Side-scroller (platformer) |
-| **Character archetype** | Cute explorer girl (flower in hair) · sentry-bot enemy · shuriken hazard |
+| **Character archetype** | Cute explorer girl (flower in hair) · sentry-bot · shuriken · slime · bat · spike beetle · brass guardian boss |
 | **Art style** | Modern-indie pixel, glowing toxic-cave (Hollow-Knight/Celeste-ish readability) |
 | **Pixel size** | 32×32 cast · 16×16 tiles · bigger for the door |
 | **Theme / biome** | Toxic / glowing cave (sickly greens + cyan glow + dark rock) |
@@ -34,6 +34,10 @@
 |---|-------|--------|-------|
 | 6 | Sentry-bot (robot) | 4 | hovering/patrolling bot, single red eye; faces left |
 | 7 | Shuriken | 4 | spinning metal star hazard (rotation loop) |
+| 8 | Cave slime (blob) | 4 | toxic-green hopping blob, basic ground enemy (squash/stretch) |
+| 9 | Cave bat | 4 | purple flying bat, wing-flap loop; sine-wave flight |
+| 10 | Spike beetle | 4 | spiky un-stompable crawler, scuttle loop |
+| 11 | Guardian boss (64×64) | idle 4 · windup 3 · attack 3 | big brass boss bot for the Story finale (optional) |
 
 ### 1C. Tiles & props (16×16, toxic-cave biome)
 | # | Asset | Notes |
@@ -123,6 +127,48 @@ frame 24x24, uniform grid, equal padding, no text/labels/shadow. Crisp, no anti-
 top-left light.
 ```
 
+> **NEW enemies (added for the 10-level Story + Endless mode).** Draw the SLIME first to
+> lock the style, then say "same style as the previous sheet" for the others so the cast
+> stays cohesive. Export on a **TRANSPARENT black background with real alpha** (like the
+> `Collectibles - trans.png` re-cut) — the slicer (`scripts/cut-g1.mjs`) keys off alpha
+> for those. One animation per row, uniform grid, no text/labels/baked shadow.
+
+### Prompt 03b — Cave slime (basic ground enemy)
+```
+Pixel art enemy sprite sheet, side-scroller, 32x32 per frame, TRANSPARENT background,
+uniform grid, no text, SAME style + top-left lighting as the sentry-bot sheet. Subject:
+a small toxic-green CAVE SLIME blob with a glossy highlight and two simple eyes. One row:
+4-frame hop loop with squash-and-stretch (idle squish → compress → leap → land). Faces
+left. Crisp hard pixels, no anti-aliasing, sickly-green palette to match a glowing toxic
+cave.
+```
+
+### Prompt 03c — Cave bat (flying enemy)
+```
+Pixel art enemy sprite sheet, side-scroller, 32x32 per frame, TRANSPARENT background,
+uniform grid, no text, SAME style as the previous sheets. Subject: a small purple CAVE BAT
+with glowing pink eyes. One row: 4-frame wing-flap loop (wings up → mid → down → mid).
+Faces left. Crisp pixels, no anti-aliasing, top-left light, dark-purple + magenta palette.
+```
+
+### Prompt 03d — Spike beetle (un-stompable crawler)
+```
+Pixel art enemy sprite sheet, side-scroller, 32x32 per frame, TRANSPARENT background,
+uniform grid, no text, SAME style as the previous sheets. Subject: a round CAVE BEETLE
+covered in sharp spikes on top (so it can't be stomped), small legs scuttling, one angry
+eye. One row: 4-frame walk-scuttle loop. Faces left. Crisp pixels, no anti-aliasing,
+top-left light, dark-iron + ember-orange palette.
+```
+
+### Prompt 03e — Guardian boss (optional, Story finale)
+```
+Pixel art BOSS sprite sheet, side-scroller, 64x64 per frame, TRANSPARENT background,
+uniform grid, no text, SAME style as the sentry-bot sheet. Subject: a large armored BRASS
+GUARDIAN BOT (a giant version of the sentry-bot) with one huge red eye, heavy plating,
+twin thrusters. Rows: row 1 IDLE (4), row 2 WIND-UP/telegraph (3), row 3 ATTACK (3). Crisp
+pixels, no anti-aliasing, top-left light, brass + red palette.
+```
+
 ### Prompt 04 — Toxic-cave tileset
 ```
 Pixel art seamless platformer TILESET, modern indie 16-bit, side view, 16x16 tiles.
@@ -192,8 +238,13 @@ A1 Cave ambient — low looping bed: water drips + faint hum, ~15-30s seamless.
 - **Free-asset-first:** the cave tilesets on OpenGameArt / itch.io "free" (e.g. "Cute Caves
   Platformer Tileset", various CC0 cave packs) may drop in directly — check before generating.
 - **Lock the style:** generate the HERO first, then "same style as the previous sheet" for
-  the bot/shuriken/tiles so the cast is cohesive.
+  the bot/shuriken/slime/bat/beetle/boss/tiles so the whole cast stays cohesive.
 - **One shared palette** (dark rock + toxic green + cyan glow + warm skin) across all sheets.
-- **Drop finished PNGs** in `D:/Github/0assets/cave-collector/` → slice
-  (`scripts/slice-spritesheet.mjs`) + pixelate (`scripts/pixelate.mjs`) → replace the
-  current hand-baked char-grid textures in `src/systems/textures.ts`.
+- **Drop finished PNGs** in `D:/Github/0assets/gif/g1/` (transparent-black or magenta bg) →
+  the project slicer **`node scripts/cut-g1.mjs`** cuts them into atlases under
+  `public/assets/` (it auto-handles both a magenta/white-bordered sheet and a `"<name> -
+  trans.png"` alpha sheet). Then register the new animations in `src/systems/textures.ts`
+  and wire each enemy's AI in `src/objects/` (slime = slow ground hopper, bat = sine-wave
+  flier, spike beetle = patroller that **can't** be stomped, boss = HP + telegraph→attack).
+- **The 4 new enemies are for variety across the 10 Story levels + Endless** — give the
+  generator (`systems/levelGen.ts`) a chance to place each, weighted by difficulty.
