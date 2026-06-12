@@ -20,6 +20,11 @@ export class Shuriken extends Phaser.Physics.Arcade.Sprite {
   launch(x: number, y: number, range: number, speed: number): void {
     this.setActive(true).setVisible(true);
     this.body.enable = true;
+    // Re-assert no-gravity AFTER enabling the body — spawning through a physics
+    // group re-creates/re-enables the body and drops the constructor's setting,
+    // so without this the shuriken falls below the screen (never seen).
+    this.body.setAllowGravity(false);
+    this.body.setVelocity(0, 0);
     this.setPosition(x, y);
     this.minX = x - range;
     this.maxX = x + range;
