@@ -273,10 +273,13 @@ can act on it. `games/arcane-knight/ASSET-PLAN.md` is the worked example — mat
    each enemy, boss, every tile skin per level, hazards, props, parallax backgrounds,
    projectiles, HUD icons, logo), **with a NOTES column per asset** (frame count, facing,
    size, colour/mood, animation states).
-2. **Audio report** — a table of every SFX + music track (footstep, jump, each attack,
-   hit, hurt, death, pickup, level-clear, boss roar/defeat, menu blips; exploration +
-   boss music), **with a NOTES column per sound** (length, tone, when it plays). Reuse
-   the `phaser-audio` rules (dual-format `.m4a`+`.ogg`, throttle, iOS).
+2. **Audio report** — plan the **5 audio systems** (BGM, SFX, ambient, voice/grunts,
+   dynamic music — see `phaser-audio` §0), as a table of every track/clip **with a NOTES
+   column per sound** (length, tone, when it plays): music per context (menu/gameplay/
+   boss) in a style matching the era; SFX grouped character/combat/environment/UI/enemy
+   (footstep, jump, each attack, hit, hurt, death, pickup, level-clear, boss roar/defeat,
+   menu blips); an ambient bed; optional grunts. Reuse the `phaser-audio` rules
+   (dual-format `.m4a`+`.ogg`, throttle, ±10% pitch, mixing/headroom, iOS).
 2b. **UI/UX report** — list the screens the game needs (HUD, menu, inventory, skill,
    dialogue, shop, pause) + the UI asset pack (buttons/panels/bars/icons/damage-font/
    boss-bar) + a note on the 4 UX pillars (combat feedback, input feel, visual hierarchy,
