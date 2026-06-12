@@ -15,11 +15,19 @@ interface MenuData {
 }
 
 export class MenuScene extends Phaser.Scene {
+  // True while ANY modal (nickname prompt / leaderboard) is open. The scene-level
+  // tap/key "start" handler checks this FIRST — Phaser fires scene input for every
+  // pointer regardless of overlays on top, and stopPropagation on a child object
+  // does NOT reach a scene-level handler. This flag is the real click-through fix
+  // (phaser-ui-ux §1).
+  private overlayOpen = false;
+
   constructor() {
     super(SceneKeys.Menu);
   }
 
   create(data: MenuData): void {
+    this.overlayOpen = false;
     buildBackground(this, GAME_WIDTH, GAME_HEIGHT);
     const cx = GAME_WIDTH / 2;
     const audio = new AudioSystem(this);
@@ -120,34 +128,38 @@ export class MenuScene extends Phaser.Scene {
     // ----- input -----
     let started = false;
     const start = () => {
-      if (started) return;
+      if (started || this.overlayOpen) return; // ← swallow taps/keys while a modal is up
       started = true;
       audio.play(AK.Select);
       audio.stopMusic();
       this.scene.start(SceneKeys.Game, { level: 0, resetProgress: true });
     };
 
-    // Corner buttons (must stopPropagation so they don't also fire `start`).
-    this.addCornerButton(8, 8, 0, 0, '☰ RANKING', '#ffe14d', () => {
+    // Corner buttons. They flip overlayOpen so the scene-level `start` can't fire
+    // for taps that land on the open modal (stopPropagation alone won't do it).
+    this.addCornerButton(8, 8, '☰ RANKING', '#ffe14d', () => {
       audio.play(AK.Select);
-      showLeaderboard(this);
+      this.overlayOpen = true;
+      showLeaderboard(this, () => { this.overlayOpen = false; });
     });
-    this.addCornerButton(8, 24, 0, 0, '✎ ' + Storage.getNickname(), '#9fe3ff', () => {
+    this.addCornerButton(8, 24, '✎ ' + Storage.getNickname(), '#9fe3ff', () => {
       audio.play(AK.Select);
+      this.overlayOpen = true;
       showNicknamePrompt(this, { onDone: () => this.scene.restart(data) });
     });
 
-    this.input.keyboard?.once('keydown', start);
+    this.input.keyboard?.on('keydown', start);
     this.input.on('pointerdown', start);
 
     // First-ever launch: ask for a name once (non-blocking; cancel = random).
     if (!Storage.hasNickname() && Api.enabled && !data.won && !data.gameOver) {
+      this.overlayOpen = true;
       this.time.delayedCall(200, () => showNicknamePrompt(this, { force: true, onDone: () => this.scene.restart(data) }));
     }
   }
 
   /** A small left-aligned text button that won't trigger the scene's tap-to-start. */
-  private addCornerButton(x: number, y: number, _w: number, _h: number, text: string, color: string, onTap: () => void): void {
+  private addCornerButton(x: number, y: number, text: string, color: string, onTap: () => void): void {
     const t = this.add
       .text(x, y, text, { fontFamily: 'monospace', fontSize: '9px', fontStyle: 'bold', color })
       .setOrigin(0, 0).setDepth(100).setShadow(1, 1, '#000', 2)
