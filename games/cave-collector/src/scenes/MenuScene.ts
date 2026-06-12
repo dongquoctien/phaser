@@ -20,49 +20,100 @@ export class MenuScene extends Phaser.Scene {
     const cx = GAME_WIDTH / 2;
     const audio = new AudioSystem(this);
     audio.playMusic(AK.BgmMenu);
-    this.addMuteButton(audio);
 
-    // Mascot — the hero, idling, with a couple of floating stars.
-    const hero = this.add.sprite(cx, GAME_HEIGHT / 2 - 18, Tex.Hero, 0).setScale(2);
-    hero.play(Anim.HeroIdle);
-    this.tweens.add({ targets: hero, y: hero.y - 6, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    [cx - 60, cx + 60].forEach((x, i) => {
-      const s = this.add.sprite(x, GAME_HEIGHT / 2 - 30 + i * 8, Tex.Star).setScale(1.4);
-      s.play(Anim.StarSpin);
-      this.tweens.add({ targets: s, y: s.y - 5, duration: 800 + i * 200, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
-    });
+    // Dark vignette at the edges so the centre reads clearly over the busy cave.
+    const vig = this.add.graphics().setDepth(1);
+    vig.fillStyle(0x05090b, 0.45);
+    vig.fillRect(0, 0, GAME_WIDTH, 26);
+    vig.fillRect(0, GAME_HEIGHT - 30, GAME_WIDTH, 30);
 
-    let title = 'CAVE COLLECTOR';
-    let titleColor = '#7df0a8';
-    if (data.won) { title = 'YOU ESCAPED!'; titleColor = '#ffd23f'; }
-    if (data.gameOver) { title = 'GAME OVER'; titleColor = '#ff5d9e'; }
+    // Centre panel behind the text block (semi-transparent, rounded, glowing edge).
+    const panelW = 300;
+    const panelH = 128;
+    const px = cx - panelW / 2;
+    const py = 20;
+    const panel = this.add.graphics().setDepth(2);
+    panel.fillStyle(0x0a1820, 0.62).fillRoundedRect(px, py, panelW, panelH, 8);
+    panel.lineStyle(2, 0x2f8f5a, 0.9).strokeRoundedRect(px, py, panelW, panelH, 8);
+    panel.lineStyle(1, 0x7df0a8, 0.5).strokeRoundedRect(px + 2, py + 2, panelW - 4, panelH - 4, 7);
 
-    this.add
-      .text(cx, 40, title, { fontFamily: 'monospace', fontSize: '22px', color: titleColor, fontStyle: 'bold' })
-      .setOrigin(0.5)
-      .setShadow(2, 2, '#000000', 3);
+    // ----- Title (chunky pixel outline + glow, themed to the state) -----
+    let title = 'CAVE\nCOLLECTOR';
+    let titleColor = '#8bf6b0';
+    let glow = 0x2f8f5a;
+    if (data.won) { title = 'YOU\nESCAPED!'; titleColor = '#ffe14d'; glow = 0xe08a1e; }
+    if (data.gameOver) { title = 'GAME\nOVER'; titleColor = '#ff7db0'; glow = 0xb21f8a; }
 
-    // Score / best lines for end states.
+    const titleY = py + 40;
+    // soft glow: a blurred-ish duplicate drawn larger + tinted, behind
+    const glowText = this.add
+      .text(cx, titleY, title, {
+        fontFamily: 'monospace', fontSize: '30px', fontStyle: 'bold',
+        color: '#000000', align: 'center', lineSpacing: -4,
+      })
+      .setOrigin(0.5).setDepth(3).setTint(glow).setAlpha(0.5).setScale(1.06);
+    this.tweens.add({ targets: glowText, alpha: 0.25, scale: 1.1, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+
+    // hard outline: 8 black copies offset 1px around, then the colored top.
+    const mkTitle = (color: string, ox: number, oy: number, depth: number) =>
+      this.add
+        .text(cx + ox, titleY + oy, title, {
+          fontFamily: 'monospace', fontSize: '30px', fontStyle: 'bold',
+          color, align: 'center', lineSpacing: -4,
+        })
+        .setOrigin(0.5).setDepth(depth);
+    for (let oy = -2; oy <= 2; oy++) {
+      for (let ox = -2; ox <= 2; ox++) {
+        if (ox === 0 && oy === 0) continue;
+        mkTitle('#05140c', ox, oy, 4);
+      }
+    }
+    mkTitle(titleColor, 0, 0, 5).setShadow(0, 2, '#0a3a22', 0, false, true);
+
+    // ----- Subtitle / score line -----
     if (data.won || data.gameOver) {
       const best = Number(localStorage.getItem(Reg.Best) || 0);
       this.add
-        .text(cx, 66, `SCORE  ${data.score ?? 0}    BEST  ${best}`, { fontFamily: 'monospace', fontSize: '11px', color: '#eef6f7' })
-        .setOrigin(0.5);
+        .text(cx, py + panelH - 26, `SCORE  ${data.score ?? 0}     BEST  ${best}`, {
+          fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#ffe14d',
+        })
+        .setOrigin(0.5).setDepth(5).setShadow(1, 1, '#000', 2);
     } else {
       this.add
-        .text(cx, 66, 'Grab the stars · dodge the bots · reach the door', { fontFamily: 'monospace', fontSize: '9px', color: '#9fe3ff' })
-        .setOrigin(0.5);
+        .text(cx, py + panelH - 24, '★ Grab stars   ✦ Dodge bots   ▸ Reach the door', {
+          fontFamily: 'monospace', fontSize: '9px', color: '#9fe3ff',
+        })
+        .setOrigin(0.5).setDepth(5).setShadow(1, 1, '#000', 2);
     }
 
-    const prompt = this.add
-      .text(cx, GAME_HEIGHT - 36, data.won || data.gameOver ? 'PRESS / TAP TO PLAY AGAIN' : 'PRESS / TAP TO START', {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: '#ffffff',
-      })
-      .setOrigin(0.5);
-    this.tweens.add({ targets: prompt, alpha: 0.3, duration: 600, yoyo: true, repeat: -1 });
+    // ----- Hero mascot + orbiting stars (in the gap below the panel) -----
+    const mascotY = GAME_HEIGHT - 34; // feet just above the Start button
+    const hero = this.add.sprite(cx, mascotY, Tex.Hero, 0).setDepth(5).setScale(1.3).setOrigin(0.5, 1);
+    hero.play(Anim.HeroIdle);
+    this.tweens.add({ targets: hero, y: mascotY - 4, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    [[-42, -14, 1.1], [42, -18, 0.95]].forEach(([dx, dy, sc], i) => {
+      const s = this.add.sprite(cx + dx, mascotY + dy, Tex.Star).setDepth(4).setScale(sc as number);
+      s.play(Anim.StarSpin);
+      this.tweens.add({ targets: s, y: s.y - 5, duration: 900 + i * 220, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    });
 
+    // ----- Start button (framed, pulsing) -----
+    const btnY = GAME_HEIGHT - 14;
+    const btnTxt = data.won || data.gameOver ? 'TAP TO PLAY AGAIN' : 'TAP / PRESS TO START';
+    const label = this.add
+      .text(cx, btnY, btnTxt, { fontFamily: 'monospace', fontSize: '11px', fontStyle: 'bold', color: '#05140c' })
+      .setOrigin(0.5).setDepth(6);
+    const bw = label.width + 24;
+    const bh = 20;
+    const btn = this.add.graphics().setDepth(5);
+    btn.fillStyle(0x7df0a8, 1).fillRoundedRect(cx - bw / 2, btnY - bh / 2, bw, bh, 5);
+    btn.lineStyle(2, 0x2f8f5a, 1).strokeRoundedRect(cx - bw / 2, btnY - bh / 2, bw, bh, 5);
+    label.setDepth(6); // keep label above the button fill
+    this.tweens.add({ targets: [btn, label], alpha: 0.55, duration: 650, yoyo: true, repeat: -1 });
+
+    this.addMuteButton(audio);
+
+    // ----- input -----
     let started = false;
     const start = () => {
       if (started) return;
@@ -72,17 +123,16 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start(SceneKeys.Game, { level: 0, resetProgress: true });
     };
     this.input.keyboard?.once('keydown', start);
-    // pointerdown on the scene starts — but not when the mute button was tapped
-    // (that handler stops propagation via its own zone).
     this.input.on('pointerdown', start);
   }
 
   private addMuteButton(audio: AudioSystem): void {
-    const label = () => (audio.muted ? '♪ off' : '♪ on');
+    const label = () => (audio.muted ? '♪✕' : '♪');
     const txt = this.add
-      .text(GAME_WIDTH - 6, 6, label(), { fontFamily: 'monospace', fontSize: '9px', color: '#9fe3ff' })
+      .text(GAME_WIDTH - 8, 8, label(), { fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#9fe3ff' })
       .setOrigin(1, 0)
       .setDepth(100)
+      .setShadow(1, 1, '#000', 2)
       .setInteractive({ useHandCursor: true });
     txt.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
       e.stopPropagation();
