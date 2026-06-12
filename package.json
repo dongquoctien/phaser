@@ -32,7 +32,10 @@
     "preview:twdc-defense": "vite preview --config games/twdc-defense/vite.config.mjs games/twdc-defense",
     "dev:whack-a-mole": "vite --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
     "build:whack-a-mole": "vite build --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
-    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole"
+    "preview:whack-a-mole": "vite preview --config games/whack-a-mole/vite.config.mjs games/whack-a-mole",
+    "dev:cave-collector": "vite --config games/cave-collector/vite.config.mjs games/cave-collector",
+    "build:cave-collector": "vite build --config games/cave-collector/vite.config.mjs games/cave-collector",
+    "preview:cave-collector": "vite preview --config games/cave-collector/vite.config.mjs games/cave-collector"
   },
   "devDependencies": {
     "phaser": "^4.1.0",

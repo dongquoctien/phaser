@@ -309,6 +309,18 @@ written; fill its placeholders. Its shape:
    sheet per animation** (easier to re-roll + cut). (Pretty "concept sheets" with
    title+palette+turnaround are NOT cuttable — that's the trap that made the first refs
    unusable.)
+3b. **Self-check the prompts for a CONSISTENT perspective before handing them over.** The
+   single most common incoherence is **mismatched camera/view across sheets** — e.g. the
+   ship prompt says "top-down" but the asteroid/star/FX prompts omit it (the AI then draws
+   some sprites side-on, some from above, and they clash in-game). Re-read EVERY image
+   prompt and confirm: (a) each one states the SAME perspective as the art-direction
+   (`top-down` / `side view` / `3/4` …) explicitly in its body; (b) the **lighting phrase
+   matches** — `top-down lighting` for top-down, `top-left light` for side/3-4 (a
+   "top-left light" line in a top-down prompt is a tell that it drifted to side-view);
+   (c) view-specific cues are present and consistent (top-down ship = "nose up", top-down
+   scroller bg = "seamless VERTICALLY"; side-scroller = "facing right", "seamless
+   horizontally"). Fix any prompt that omits or contradicts the view. This is a quick
+   grep-and-eyeball, but skipping it ships a cast that doesn't share one camera.
 4. **Audio-generation prompts**, one per row, in report order (for ElevenLabs SFX /
    Suno-Udio music) — and note these double as search terms for free CC0 audio
    (Kenney/freesound/OpenGameArt), which you should check FIRST before generating.
