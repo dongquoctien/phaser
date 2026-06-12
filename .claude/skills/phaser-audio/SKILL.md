@@ -29,6 +29,38 @@ Mirror the art rule: don't grab random audio.
 3. **Pick a SMALL set** (5–8 clips, ~50KB total) — don't ship a 200-file pack. Rename to
    clear names (`shoot`, `hit`, `pickup`, `levelup`, `hurt`, `click`).
 
+## 0. Plan the audio — 5 systems, not just "background music"
+
+For a pixel/indie game audio carries the **combat feel, weight, immersion, and gameplay
+feedback** the simple graphics can't. When scaffolding (pairs with `phaser-new-game` §0d
+audio report), plan these **five systems** and list each clip with a note (when it plays):
+
+1. **BGM (music)** — looping tracks per context: menu · gameplay/stage · boss · town ·
+   dungeon · victory. **Style** should match the era/theme: 8-bit chiptune (NES) ·
+   16-bit SNES-RPG (stronger melody, emotional) · fantasy orchestral (dungeon/boss/
+   adventure) · ambient (cave/horror) · cyberpunk synthwave · lo-fi/cozy (farming/casual).
+2. **SFX (the gameplay-critical layer)** — group them:
+   - **Character:** footstep · jump · land · dash · roll · climb.
+   - **Combat:** sword hit · punch · arrow shoot · magic cast · explosion · critical hit.
+   - **Environment:** water splash · wind · fire · lava bubble · rain.
+   - **UI:** button click · inventory open · quest complete · notification.
+   - **Enemy:** roar · attack · hurt · death.
+3. **Ambient** — a low, looping environment bed under the music (cave drips · forest
+   birds · wind · thunder · machine hum · city crowd) for atmosphere. (See twdc-defense's
+   storm bed = a 2nd low loop under the track.)
+4. **Voice / vocal** — not full VO; short grunts work great: attack shout, hurt "ugh!",
+   NPC gibberish, boss scream. Cheap, big immersion payoff.
+5. **Dynamic music** — music reacts to state: enemy spotted → combat track; boss HP low →
+   phase-2 track; enter cave → ambience swap. Crossfade, don't hard-cut.
+
+**Minimum for a side-scroller:** BGM (menu / gameplay / boss) + SFX (jump / attack / hit /
+enemy-die / UI click) + one ambient bed (wind / cave / rain). **Format:** WAV/short clips
+→ SFX, OGG (+ M4A, see below) → BGM; avoid MP3 for realtime. **Mixing matters:** set
+per-clip volume, keep headroom, layer low/mid/high for impact, throttle spam (see helper),
+±10% pitch (`rate`) so repeats don't fatigue. Free-first (Kenney/freesound/OpenGameArt);
+the `phaser-new-game` §0d audio prompts double as search terms, or generate via an SFX/
+music AI only for what you can't find.
+
 ### ⚠️ SHIP TWO FORMATS — `.ogg` + `.m4a` (NON-NEGOTIABLE for iOS)
 **iOS Safari (iPhone/iPad) CANNOT decode Ogg Vorbis.** An `.ogg`-only game is **silent on
 every Apple device** — and you won't catch it on desktop/Android (they play Ogg fine). This

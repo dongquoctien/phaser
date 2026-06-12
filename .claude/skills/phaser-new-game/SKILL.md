@@ -53,11 +53,38 @@ crisp at any resolution). Use **pixel-art ONLY when the user explicitly says
   largest on-screen size (`{ scale: window.devicePixelRatio }` for HiDPI); upscaling
   past the baked size at runtime blurs. Keep `antialias` on (default) for smooth vectors.
 - **Pixel mode** (only on request) → `pixelArt: true` + `render.roundPixels: true`
-  (Phaser 4 defaults roundPixels to false), draw via the `src/pixel/` helper.
-  **Before drawing, ASK the user the sprite resolution** (see "Pixel resolution"
-  below) — it sets the detail ceiling and the art budget.
+  (Phaser 4 defaults roundPixels to false). **Before drawing, ASK the user the sprite
+  resolution** (see "Pixel resolution" below) — it sets the detail ceiling and the art
+  budget. **HOW you produce the pixels matters — see §0b; do NOT hand-type a char-grid
+  for a character.**
 - **UI panels** that stretch → use the v4 `this.add.nineslice(...)` instead of a
   hand-rolled 9-patch.
+
+## 0b. Producing pixel sprites — the right tool for the subject
+
+The `src/pixel` `bakeSprite` helper renders a char-grid faithfully — it is **not** an
+art generator. It is excellent for **simple, blocky shapes** (icons, tiles, HUD bits,
+FX, hub thumbnails) where you can reason about every cell. It is the **WRONG** tool
+for a multi-frame **character / monster / boss**: hand-typing a 32×32 ASCII grid for a
+detailed creature produces flat, off-model, ugly sprites (a real, repeated failure) —
+not because the renderer is bad, but because nobody can author good character pixel art
+cell-by-cell in text. **Match the tool to the subject:**
+
+| Subject | Tool |
+|---|---|
+| Characters / monsters / bosses, **when the user supplies a reference image or spritesheet** | crop the figure → `scripts/pixelate.mjs` for a still pose, or slice the spritesheet (`scripts/slice-spritesheet.mjs` for labeled green-screen sheets) for frames |
+| icons, single tiles, HUD, small FX, hub `game.json` thumb | `bakeSprite` char-grid (`src/pixel`) — offline, free, deterministic |
+| an existing high-res PNG the user supplies | `scripts/pixelate.mjs` (one static pose only — no frames) |
+
+For a pixel CHARACTER with **no** supplied art, do NOT silently hand-type a char-grid —
+say plainly that hand-drawn character grids come out low quality, and ask the user to
+**supply a reference image / spritesheet** (then crop + pixelate or slice it). A
+free AI pixel-art generator (e.g. PixelLab) is an option the *user* can run to produce
+that reference; only use such a service through an MCP the user has already connected —
+never assume one is configured. Reserve hand-authored grids for the simple-shape row.
+
+**Hard rule (anti-pattern):** never hand-type a char-grid for a character/monster/boss.
+That is exactly what made `arcane-knight`'s first cast look "vẽ quá xấu / không huyền bí".
 
 ### Pixel resolution — ASK before drawing pixel art (8 / 16 / 32 / 64)
 The **grid size** (how many cells the sprite is, e.g. 16×16) — NOT the bake `px`
@@ -122,6 +149,220 @@ Research has two purposes (do both):
 > style, draw, then Playwright-verify on a real card. See `pixel-art` §0 and
 > "Adding a game cover / thumbnail".
 
+## 0c. Level / map authoring — data arrays by default
+
+The **default** way to author a level in this monorepo is a **plain data array in
+code** (e.g. `games/arcane-knight/src/levels.ts`: platforms, enemy spawns, hazards,
+exit). It's offline, diffable, has zero external dependencies, and is easy to verify —
+right for almost every game here.
+
+**Tiled is an OPTIONAL upgrade, only for map-heavy games** (large multi-screen worlds,
+many hand-painted layers — metroidvania, big RPG overworld) where a visual editor
+genuinely beats a data array. If a game is that, you MAY load Tiled `.tmj`/`.tsj` maps
+(`this.load.tilemapTiledJSON` → `this.make.tilemap`), and the **Tiled MCP** (free, open
+source) lets you read/place/fill tiles in those maps programmatically — but only when
+the user has **already connected it**; never assume it's configured, and never convert
+a simple game to Tiled just because the MCP exists. Tiled only *places* tiles — it does
+not draw them, so you still need a real tileset first (see §0b). Keep small/medium games
+on data arrays.
+
+## 0d. Asset plan — a pro plans ALL art + audio up front
+
+You are a professional game developer: before writing gameplay, **decide what the game
+needs** — images, audio, and the loose narrative/theme — and **research the web** so the
+choices are genre-appropriate (see §0b research gate + the `game-design` skill for
+deconstructing a reference and naming the loop).
+
+### First — PIN DOWN THE ART DIRECTION (do this before any report or prompt)
+
+Generation prompts are only as good as the direction behind them. Before writing the
+plan, decide (and confirm with the user if unclear) **each of these axes** — then weave
+ALL of them into every image prompt so the output is consistent and on-brief. Don't
+default to "32×32 side-view chibi" silently; that mismatch is why early refs felt wrong.
+
+- **Camera / perspective** — the FIRST decision; it dictates pixel art, animation, map
+  design, gameplay and camera. The nine common views (with difficulty + a reference):
+  1. **Side-scroller** (side view) — move L/R + jump; easiest animation; *Celeste, Dead
+     Cells, Terraria*. **Easy, very common.**
+  2. **Top-down** — 4/8-dir move; easy big maps; *Stardew Valley, Hotline Miami*. **Easy,
+     very common.**
+  3. **Isometric** — faux-3D 45°; looks premium but ~2× the art (multi-dir tiles +
+     sprites); *Diablo II, Hades*. **Hard.**
+  4. **Front view** — character faces the player; classic JRPG battle screen; *Pokémon
+     R/B*. **Easy** (few frames).
+  5. **3/4 view** (three-quarter) — slight tilt, see face + sides; the JRPG-overworld
+     default, prettier than flat top-down. **Medium.**
+  6. **Beat-em-up** — side movement WITH depth (walk up/down a lane); *Streets of Rage 4*.
+     **Medium.**
+  7. **First-person** — through the character's eyes; FPS / dungeon-crawler; *DOOM*.
+     **Hard** (not a sprite pipeline).
+  8. **Over-the-shoulder / third-person** — camera behind; rare in 2D pixel. **Hard.**
+  9. **Tactical grid** — turn-based strategy on a square/iso grid; zoomed iso or top-down.
+     **Hard** (lots of tiles).
+  For an indie 32×32 pixel game prefer **side-scroller, top-down, or 3/4** — they save
+  animation, read clearly at small size, and have the easiest tilesets. Isometric /
+  tactical / third-person cost the most art. Confirm the view with the user before
+  drawing — it changes everything downstream.
+- **Character archetype** (per hero/enemy): knight/paladin · assassin/rogue · archer/ranger
+  · necromancer · monk · viking · pirate · ninja · gunslinger · mecha pilot · angel/demon ·
+  beast hunter · alchemist · bard · dragon warrior · sci-fi soldier · robot/android · slime
+  hero · vampire hunter… (or a **mix** for a unique identity: cyber-samurai, ice-assassin,
+  desert-necromancer, viking-zombie, holy-knight, fire-demon).
+- **Art style**: cute chibi · anime pixel · dark fantasy · retro SNES · GBA · HD-2D ·
+  grimdark · cartoon · hand-painted pixel · neon cyberpunk · low-palette (4/8-colour) ·
+  Diablo-like · MapleStory-like · Metal-Slug.
+- **Pixel size**: 16 · 24 · 32 · 48 · 64 · 96 · 128 (bosses bigger than the cast). Keep the
+  whole cast on ONE tier (mixing reads as inconsistent) — see §0a resolution table.
+- **Theme / biome**: cave · forest · swamp · snow · volcano · desert · ruins · dungeon ·
+  haunted castle · space station · cyber city · underwater · heaven/hell · shrine · town.
+- **Animation set** (per character): idle · walk · run · dash · jump · double-jump ·
+  attack-combo · cast · hurt · die · roll · climb · swim · shoot · charge. List exactly the
+  ones the game uses (don't generate frames you'll never play).
+- **Asset types** to produce: character spritesheet · enemy pack · boss reference · tileset/
+  map · UI icons · skill VFX · weapon pack · NPC pack · mounts/pets · portrait sheet · emote
+  pack · parallax background · environment props.
+
+A strong prompt names them all, e.g.:
+> "Pixel Art **Necromancer** spritesheet, **dark fantasy**, **side-scroller**, **32×32**,
+> **idle/walk/cast/die**, purple-green magic VFX, **dungeon** theme, transparent background,
+> uniform grid, no text/labels."
+> "**Cyberpunk samurai**, **neon-blue palette**, **64×64**, **side view**, attack-combo
+> spritesheet, katana slash VFX, transparent background, uniform grid."
+
+### Map / environment — plan it as its own layered set (not one image)
+
+A map is NEVER one picture — it's a **layered set**, and the plan must break it out so the
+tiles actually compose in-engine:
+
+- **Layers:** parallax background (far mountains / clouds / moon / cave depth) → midground
+  → **terrain tileset** → props/decorations → interactive objects → hazards → environment
+  VFX → foreground/lighting overlay.
+- **Terrain tiles:** ground · cliff · wall · slope · bridge · platform (must tile
+  seamlessly; for a side-scroller demand a top/fill/left-edge/right-edge/platform set).
+- **Decorations:** tree · bush · crystal · torch · skull · bones · mushroom · lantern ·
+  banner. **Interactive:** door · lever · chest · checkpoint · elevator · trap · ladder.
+  **Hazards:** spike · lava · acid · falling rock · saw blade. **Env FX:** fog · rain ·
+  snow · dust · fire embers · magic particles.
+- **Biome** (pick + theme everything to it): fantasy/medieval (forest · dark forest ·
+  castle · dungeon · cave · village · graveyard · cathedral · ruins · throne room) ·
+  nature/survival (swamp · snow mountain · jungle · desert · volcano · river · beach ·
+  underwater · mushroom) · dark/horror (blood cave · haunted mansion · hell · toxic sewer ·
+  abandoned lab) · sci-fi/cyberpunk (neon city · space station · alien planet · factory ·
+  lab · mecha battlefield) · japanese/asian (samurai village · bamboo forest · shrine ·
+  yokai · dojo · castle) · platformer-specific (precision-jump · trap dungeon · lava ·
+  ice-slippery · moving-platform · minecart cave).
+- **Map style:** retro (NES/SNES/GBA) · modern pixel (HD-2D/Octopath · Dead-Cells ·
+  Blasphemous · Celeste · Terraria-inspired) · palette (4-colour GameBoy · limited · neon ·
+  dark-muted). **Tile size:** 8 (retro) · 16 (RPG) · 24 (mobile-light) · **32 (platformer
+  default)** · 48 (detailed) · 64 (HD) — keep it the same across the whole map.
+- For depth, consider **biome progression / boss biome / seasonal / metroidvania layout** —
+  plan tiles as **modular, reusable** pieces (one set, re-skinned per biome) so a few
+  generations cover many screens.
+
+A strong map prompt, e.g.:
+> "Pixel Art **Cave Tileset**, **32×32**, **side-scroller platformer**, animated torches,
+> crystals, ladders, platforms, **parallax background**, **dark fantasy**, seamless,
+> transparent background, uniform grid, no text."
+> "Pixel Art **Forest Map** assets, vibrant fantasy biome, **32×32 tileset**, trees, grass,
+> bridges, ruins, animated waterfall, **side-view platformer**, seamless, transparent bg."
+
+Then write an **`ASSET-PLAN.md` in the game folder** so the work is explicit and the user
+can act on it. **Copy `templates/ASSET-PLAN-TEMPLATE.md`** (next to this skill) as the
+starting point — it's the worked example with copy-paste ChatGPT/Gemini prompts already
+written; fill its placeholders. Its shape:
+
+1. **Image report** — a table of every sprite/tile/bg/FX/UI icon the game needs (heroes,
+   each enemy, boss, every tile skin per level, hazards, props, parallax backgrounds,
+   projectiles, HUD icons, logo), **with a NOTES column per asset** (frame count, facing,
+   size, colour/mood, animation states).
+2. **Audio report** — plan the **5 audio systems** (BGM, SFX, ambient, voice/grunts,
+   dynamic music — see `phaser-audio` §0), as a table of every track/clip **with a NOTES
+   column per sound** (length, tone, when it plays): music per context (menu/gameplay/
+   boss) in a style matching the era; SFX grouped character/combat/environment/UI/enemy
+   (footstep, jump, each attack, hit, hurt, death, pickup, level-clear, boss roar/defeat,
+   menu blips); an ambient bed; optional grunts. Reuse the `phaser-audio` rules
+   (dual-format `.m4a`+`.ogg`, throttle, ±10% pitch, mixing/headroom, iOS).
+2b. **UI/UX report** — list the screens the game needs (HUD, menu, inventory, skill,
+   dialogue, shop, pause) + the UI asset pack (buttons/panels/bars/icons/damage-font/
+   boss-bar) + a note on the 4 UX pillars (combat feedback, input feel, visual hierarchy,
+   readability). Pick a UI style matching the era/theme. Full guidance: **`phaser-ui-ux`
+   §0** — plan the UI here, then build it bug-free per that skill's §1+.
+3. **Image-generation prompts**, one per row, IN REPORT ORDER, ready to paste into
+   ChatGPT/DALL·E/Gemini. **Every prompt must name the pinned art-direction axes**
+   (archetype + art-style + camera/perspective + pixel-size + theme/biome + the exact
+   animation set), AND force a *cuttable* output: **uniform grid, equal transparent
+   padding, transparent (or solid magenta `#FF00FF`) background, NO text/labels/palette
+   swatches, no baked drop-shadow**, fixed cell size, the bit-era, view + facing, one
+   animation per row. Tell the user to **generate the first hero, lock the style, then
+   say "same style as the previous sheet"** in later prompts for cohesion; prefer **one
+   sheet per animation** (easier to re-roll + cut). (Pretty "concept sheets" with
+   title+palette+turnaround are NOT cuttable — that's the trap that made the first refs
+   unusable.)
+4. **Audio-generation prompts**, one per row, in report order (for ElevenLabs SFX /
+   Suno-Udio music) — and note these double as search terms for free CC0 audio
+   (Kenney/freesound/OpenGameArt), which you should check FIRST before generating.
+5. **Extra recommendations** — free-asset-first, one shared palette across the cast,
+   where to drop the finished PNGs (`D:/Github/0assets/<game>/`) so they can be sliced
+   (`slice-spritesheet.mjs`) + pixelated (`pixelate.mjs`) and wired in.
+
+Do this BEFORE building gameplay for any non-trivial game, or at minimum when the user
+asks "what assets does this need" / "make prompts to generate art". The plan is also what
+keeps art cohesive and prevents the "vẽ quá xấu / mismatched" outcome.
+
+## 0e. Full game-systems checklist — what a complete game has (and which skill owns it)
+
+A modern indie/pixel game is ~40 systems across 12 areas. You don't build them all for
+every game — **scope to the genre + core loop** — but run this checklist when planning so
+nothing important is missed, and so you know which sibling skill carries each piece. Mark
+each row in-scope / later / N-A for the game at hand.
+
+- **I. Foundation** — genre · core gameplay loop · perspective/camera · art direction.
+  → `game-design` §1 (loop/pacing) + §0d above (perspective + art direction).
+- **II. Character** — main-char design (silhouette/hitbox/hurtbox/anchor) · animation set
+  (idle/walk/run/jump/fall/attack/hurt/die + dash/roll/climb/combo/cast) · combat (melee
+  combo/hitstun/cancel/knockback · ranged projectile/charge/spread · magic cast/mana/AoE/
+  buff) · skill system (active/passive/ultimate/tree) · progression (EXP/level/stat-growth/
+  unlocks). → `game-design` §2 (anim) + §3/§4 (combat feel/telegraph); pool projectiles
+  (`Pool`); progression/skill-tree = your own `systems/` modules (data-driven).
+- **III. Enemy** — archetypes (melee/archer/flying/tank/summoner/assassin/mage) · AI
+  (patrol/chase/range/dodge/retreat as a small **state machine**) · boss (intro/multi-
+  phase/arena mechanic/weak-point/enrage). → `game-design` §4 (readability/telegraph);
+  AI = a simple per-enemy state enum in `update()`, boss phases = HP-threshold switches.
+- **IV. Map/world** — tileset · biome · level design (spacing/secrets/enemy placement/
+  checkpoint) · world structure (linear / metroidvania semi-open / roguelike procedural).
+  → §0c (data-array levels; Tiled only if map-heavy) + §0d map plan.
+- **V. VFX/feel** — visual effects (slash/fire/ice/smoke/dust/blood/explosion) · **juice**
+  (shake/hit-stop/flash/recoil/slow-mo/zoom) · lighting (glow/bloom/day-night). → `game-
+  design` §3 juice table + §9 VFX anatomy; lighting in Phaser = additive-blend overlays /
+  `Light2D` pipeline (use sparingly on pixel games — a dark overlay + glow sprites is
+  cheaper and reads better than a full light system).
+- **VI. Audio** — BGM · SFX · ambient · voice/grunts · dynamic music. → `phaser-audio` §0.
+- **VII. UI/UX** — HUD · menu · inventory · skill UI · dialogue · shop · pause; the 4 UX
+  pillars. → `phaser-ui-ux` §0 (plan) + §1+ (bug-free build).
+- **VIII. Story/content** — narrative (dialogue/lore/quest/cutscene) · NPC (shop/quest-
+  giver/companion). → `game-design` §7; dialogue UI = `phaser-ui-ux`.
+- **IX. Tech** — physics (gravity/collision/friction/velocity = Arcade) · save (slot/
+  checkpoint/autosave) · camera (smooth-follow/deadzone/shake/zoom) · input (keyboard/
+  controller/rebind/touch) · optimization (atlas/pooling/culling/chunking). → Arcade
+  physics (template); **save = localStorage mirror of the registry** (`phaser-review`
+  gameplay-data section — registry is RAM-only); camera = `cameras.main.startFollow` +
+  `setDeadzone` + `shake`; input/touch = `phaser-perf-audit` §6a; optimization =
+  `phaser-optimize-bundle` + `phaser-perf-audit`.
+- **X. Production** — asset pipeline (concept→sprite→animate→export→integrate) · file
+  organization (the `games/<name>/src/{scenes,objects,systems,types}` convention) · source
+  control (git; branch → PR → wait for the user's OK to merge). → §0 conventions + §0d
+  pipeline.
+- **XI. Release** — QA (collision/softlock/FPS/UI bugs) · marketing (out of scope) ·
+  deploy (the static hub auto-builds; GitHub Pages). → `phaser-smoketest` (QA gate) + §2b
+  hub + Steps.
+- **XII. Live (optional)** — online (co-op/PvP/ranking) · analytics. → only if asked;
+  twdc-defense's leaderboard (Cloudflare Worker + KV, `phaser-review`) is the reference.
+
+**The strong modern indie combo** (recommend when the user is open): side-scroller ·
+32–48px · roguelike+metroidvania structure · fast responsive combat · modern pixel art +
+light touches · minimal clean UI · layered SFX · juice (hit-stop + particles + shake) ·
+bosses + secrets + progression. Scope DOWN from this to fit the actual request.
+
 ## 1. Steps
 
 1. **Ask the game name** (kebab-case) if not given. Path becomes `games/<name>/`.
@@ -132,8 +373,12 @@ Research has two purposes (do both):
    - `__DEV_PORT__` / `__PREVIEW_PORT__` → a unique port pair not used by another game (start at 5180/4180 and increment per game). Each game gets a **fixed `strictPort`** so dev servers in the monorepo never collide.
    - In `game.json`, optionally fill `description` and `tags` — the hub shows them on the game's card. Both are optional; an empty description/tags falls back to a title-only card.
 4. **Wire the workspace**: add `games/<name>` to the root `package.json` `workspaces` array (if using npm workspaces) and add `dev:<name>` / `build:<name>` / `preview:<name>` scripts. No hub edit needed — `scripts/build-all.mjs` auto-discovers every `games/*` with a `vite.config.mjs` and regenerates the hub (`dist/index.html`) + deploys it, so a new game appears on the landing page automatically.
-5. **Install** (`npm install` at root) only if deps changed.
-6. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
+5. **Plan the assets (non-trivial games): write `ASSET-PLAN.md`** — research the genre,
+   then report every image + every sound needed (with a notes column each) and the
+   copy-paste generation prompts, per **§0d**. Do this before/alongside building gameplay
+   so art stays cohesive and the user can generate what's missing.
+6. **Install** (`npm install` at root) only if deps changed.
+7. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
    **`phaser-smoketest`** skill against the new game and report its full pass/fail
    table. A green run REQUIRES all of:
    - boots + canvas renders + console clean + FPS ≥ 55, **and**
