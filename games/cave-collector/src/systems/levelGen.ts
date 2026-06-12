@@ -98,8 +98,12 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
     if (r() < 0.5) {
       for (let k = 0; k < 3; k++) coins.push({ x: (s.x + 1 + k) * TILE, y: surfaceY - 8 });
     }
-    // a sweeping shuriken over the gap before this segment
-    if (r() < 0.3 + diff * 0.4) {
+    // A sweeping shuriken over the gap before this segment. Shuriken are flying
+    // hazards (hard to dodge), so keep them sparser than the stompable robots:
+    // 20%→45% with difficulty, AND a hard cap of ~1 per 4 tiles of width so a wide
+    // late level never turns into a wall of blades.
+    const shCap = Math.ceil(widthTiles / 18) + 1;
+    if (shurikens.length < shCap && r() < 0.2 + diff * 0.25) {
       shurikens.push({
         x: (s.x - 2) * TILE,
         y: (s.y - pick(r, 1, 3)) * TILE,
