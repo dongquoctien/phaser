@@ -10,6 +10,56 @@ text fields, modals, scroll views, or z-index. You build them from GameObjects, 
 handful of non-obvious traps bite every time. These are the real bugs shipped + fixed in
 twdc-defense; bake them in from the start.
 
+For **pixel-art games UI/UX matters even more** — the graphics are simple, so the UI is
+what makes the game read as easy-to-play, professional, and "đã tay". Plan it (§0) AND
+avoid the implementation traps (§1+).
+
+---
+
+## 0. Plan the UI/UX — inventory + the 4 UX pillars (do this when designing the game)
+
+**UI (what's on screen)** vs **UX (how it feels)** — a pixel game needs both. When
+scaffolding/designing a game (pairs with `phaser-new-game` §0d asset plan), decide which
+of these screens the game needs and list them in the ASSET-PLAN so the UI art + layout
+are planned, not bolted on:
+
+- **HUD (in-play):** HP bar · mana/stamina · skill slots + cooldown · coin/gold ·
+  minimap · quest tracker · boss HP bar. Side-scroller convention: **HP top-left, skills
+  bottom, boss bar top-centre**, minimal + semi-transparent so it never hides gameplay.
+- **Main menu:** Start · Continue · Settings · Exit · save slots.
+- **Inventory:** equipment slots · item grid · drag/drop · tooltip · stats.
+- **Skill UI:** skill icon · cooldown sweep · combo · buff/debuff row.
+- **Dialogue:** NPC text box · portrait · choice selection · typewriter reveal.
+- **Shop / craft:** item list · price · buy/sell · craft recipe + materials.
+- **Pause / settings:** audio · keybind · graphics · language · controller.
+
+**The 4 UX pillars (this is what makes a pixel game feel good — enforce them):**
+1. **Combat feedback — "feel the hit".** Every hit needs: **hit-flash** (tint+FILL) +
+   **screen shake** (2–5px) + **hit sound** + **damage number** + a little **hit-stop** +
+   a **particle burst**. Without these, combat feels dead. (Magnitudes + Phaser-v4 how-to
+   live in the `game-design` skill's juice table — use them.)
+2. **Input feel — responsiveness beats graphics.** Low jump delay, responsive dash,
+   attack/animation cancel, **coyote time + jump buffer** (see `phaser-new-game` Player).
+   Read input every frame, not in `pointermove` (see §5 + perf-audit §6a).
+3. **Visual hierarchy — the player must instantly see, in order:** enemy → danger → skill
+   → HP → loot. Size/colour/placement should rank them; don't let HUD bury threats.
+4. **Readability — pixel art clutters fast.** Keep strong **contrast** (background vs
+   character), **outlines/selout**, and a **clear silhouette**; never let FX cover the
+   gameplay or let too many colours muddy the scene. (See `pixel-art` craft gates.)
+
+**UI style** (pick one, match the game's era/theme): retro-NES (simple, pixel font, few
+anims) · SNES-RPG (window panels, gradient, RPG icons) · modern-indie (minimal, clean,
+motion + nice FX) · dark-fantasy (ornate frames, muted palette). **A UI asset pack
+typically needs:** buttons · panels/frames · bars · icons; (RPG) inventory slot · skill
+icon · quest window; (combat) damage font · combo UI · boss HP bar; (FX) cursor glow ·
+hover · screen transition. **Pixel font** must be readable, correctly spaced, and never
+blurred (integer scale, nearest-neighbor) — draw icons as pixel-art per §8, never emoji.
+
+**Build order:** (1) wireframe menu/HUD/inventory → (2) pixel UI assets (panel/button/
+icon) → (3) UI animation (hover/popup/transition) → (4) UX polish (sound/feedback/juice/
+responsiveness). The strongest modern-indie combo: 32×32 pixel art + side-scroller +
+dynamic SFX + minimal modern pixel UI + strong combat feedback + fast responsive control.
+
 ---
 
 ## 1. Modal overlays MUST block input underneath (the click-through bug)

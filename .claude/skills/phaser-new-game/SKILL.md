@@ -277,6 +277,11 @@ can act on it. `games/arcane-knight/ASSET-PLAN.md` is the worked example — mat
    hit, hurt, death, pickup, level-clear, boss roar/defeat, menu blips; exploration +
    boss music), **with a NOTES column per sound** (length, tone, when it plays). Reuse
    the `phaser-audio` rules (dual-format `.m4a`+`.ogg`, throttle, iOS).
+2b. **UI/UX report** — list the screens the game needs (HUD, menu, inventory, skill,
+   dialogue, shop, pause) + the UI asset pack (buttons/panels/bars/icons/damage-font/
+   boss-bar) + a note on the 4 UX pillars (combat feedback, input feel, visual hierarchy,
+   readability). Pick a UI style matching the era/theme. Full guidance: **`phaser-ui-ux`
+   §0** — plan the UI here, then build it bug-free per that skill's §1+.
 3. **Image-generation prompts**, one per row, IN REPORT ORDER, ready to paste into
    ChatGPT/DALL·E/Gemini. **Every prompt must name the pinned art-direction axes**
    (archetype + art-style + camera/perspective + pixel-size + theme/biome + the exact
