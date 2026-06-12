@@ -32,6 +32,35 @@ export const Tex = {
   Parallax: 'parallax', // full cave background image
 } as const;
 
+// UI icon textures — pixelarticons (MIT), baked to 24px PNGs by
+// scripts/bake-icons.mjs into public/assets/icons/. White fill; tint per use.
+// NO color-emoji glyphs as icons (phaser-ui-ux §8).
+export const Icon = {
+  Menu: 'ic-menu',
+  Edit: 'ic-edit',
+  VolumeOn: 'ic-volume-on',
+  VolumeOff: 'ic-volume-off',
+  Trophy: 'ic-trophy',
+  Close: 'ic-close',
+  ArrowLeft: 'ic-arrow-left',
+  ArrowRight: 'ic-arrow-right',
+  ArrowUp: 'ic-arrow-up',
+} as const;
+export type IconKey = (typeof Icon)[keyof typeof Icon];
+
+// Maps icon texture key -> on-disk filename stem in public/assets/icons/.
+export const ICON_FILES: Record<IconKey, string> = {
+  [Icon.Menu]: 'menu',
+  [Icon.Edit]: 'edit',
+  [Icon.VolumeOn]: 'volume-on',
+  [Icon.VolumeOff]: 'volume-off',
+  [Icon.Trophy]: 'trophy',
+  [Icon.Close]: 'close',
+  [Icon.ArrowLeft]: 'arrow-left',
+  [Icon.ArrowRight]: 'arrow-right',
+  [Icon.ArrowUp]: 'arrow-up',
+};
+
 // Animation keys.
 export const Anim = {
   HeroIdle: 'hero-idle',

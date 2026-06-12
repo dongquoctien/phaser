@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, Tex, Anim, Reg, Ev, Audio as AK } from '../types/keys';
+import { SceneKeys, Tex, Anim, Reg, Ev, Audio as AK, Icon } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { LEVELS, TILE, type LevelData } from '../levels';
 import { Hero } from '../objects/Hero';
@@ -185,16 +185,17 @@ export class GameScene extends Phaser.Scene {
 
   private buildTouchControls(): void {
     const hud = this.add.container(0, 0).setScrollFactor(0).setDepth(1000);
-    const mk = (x: number, label: string, w = 52) => {
+    const mk = (x: number, iconKey: string, w = 52) => {
       const z = this.add.zone(x, GAME_HEIGHT - 30, w, 52).setOrigin(0.5).setScrollFactor(0).setInteractive();
       const g = this.add.rectangle(x, GAME_HEIGHT - 30, w, 52, 0xffffff, 0.12).setScrollFactor(0).setStrokeStyle(1, 0xffffff, 0.3);
-      const t = this.add.text(x, GAME_HEIGHT - 30, label, { fontFamily: 'monospace', fontSize: '14px', color: '#ffffff' }).setOrigin(0.5).setScrollFactor(0);
-      hud.add([g, t]);
+      // pixelarticons arrow texture (NOT an emoji glyph — §8)
+      const ic = this.add.image(x, GAME_HEIGHT - 30, iconKey).setDisplaySize(22, 22).setScrollFactor(0).setAlpha(0.85);
+      hud.add([g, ic]);
       return z;
     };
-    const lz = mk(26, '◀');
-    const rz = mk(84, '▶');
-    const jz = mk(GAME_WIDTH - 36, '⤒', 64);
+    const lz = mk(26, Icon.ArrowLeft);
+    const rz = mk(84, Icon.ArrowRight);
+    const jz = mk(GAME_WIDTH - 36, Icon.ArrowUp, 64);
     lz.on('pointerdown', () => (this.touchLeft = true));
     lz.on('pointerup', () => (this.touchLeft = false));
     lz.on('pointerout', () => (this.touchLeft = false));

@@ -1,0 +1,4 @@
+UI icons: pixelarticons by Gerrit Halfmann (https://pixelarticons.com,
+https://github.com/halfmage/pixelarticons) — MIT License (see LICENSE).
+Vendored the subset this game uses; baked to 24px PNGs via scripts/bake-icons.mjs
+into public/assets/icons/.

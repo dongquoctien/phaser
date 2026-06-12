@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Api, type LeaderboardEntry } from './Api';
 import { Storage } from './Storage';
+import { Icon } from '../types/keys';
 
 // Full-screen leaderboard overlay: a fetched top-N list (rank · name · stars ·
 // score) with loading / empty / offline states and the local player's row
@@ -15,12 +16,13 @@ export function showLeaderboard(scene: Phaser.Scene, onClose?: () => void): void
   const title = scene.add.text(cx, 22, 'LEADERBOARD', {
     fontFamily: 'monospace', fontSize: '20px', fontStyle: 'bold', color: '#ffe14d', stroke: '#05140c', strokeThickness: 4,
   }).setOrigin(0.5);
-  root.add([dim, title]);
+  // trophy pixel-icon left of the title (pixelarticons, not an emoji)
+  const trophy = scene.add.image(cx - title.width / 2 - 12, 22, Icon.Trophy).setDisplaySize(18, 18).setTint(0xffe14d);
+  root.add([dim, title, trophy]);
 
   const close = () => { root.destroy(); onClose?.(); };
-  const closeBtn = scene.add.text(GAME_WIDTH - 14, 18, '✕', {
-    fontFamily: 'monospace', fontSize: '18px', fontStyle: 'bold', color: '#ff7db0',
-  }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+  const closeBtn = scene.add.image(GAME_WIDTH - 14, 16, Icon.Close).setDisplaySize(16, 16).setTint(0xff7db0)
+    .setInteractive({ useHandCursor: true });
   closeBtn.on('pointerup', close);
   // tapping the dim backdrop closes too
   dim.on('pointerup', close);

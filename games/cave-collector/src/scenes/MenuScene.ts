@@ -7,6 +7,7 @@ import { Api } from '../systems/Api';
 import { Storage } from '../systems/Storage';
 import { showLeaderboard } from '../systems/LeaderboardPanel';
 import { showNicknamePrompt } from '../systems/NicknamePrompt';
+import { Icon } from '../types/keys';
 
 interface MenuData {
   won?: boolean;
@@ -92,7 +93,7 @@ export class MenuScene extends Phaser.Scene {
         .setOrigin(0.5).setDepth(5).setShadow(1, 1, '#000', 2);
     } else {
       this.add
-        .text(cx, py + panelH - 24, '★ Grab stars   ✦ Dodge bots   ▸ Reach the door', {
+        .text(cx, py + panelH - 24, '★ Grab stars   ✕ Dodge bots   ▸ Reach the door', {
           fontFamily: 'monospace', fontSize: '9px', color: '#9fe3ff',
         })
         .setOrigin(0.5).setDepth(5).setShadow(1, 1, '#000', 2);
@@ -137,12 +138,13 @@ export class MenuScene extends Phaser.Scene {
 
     // Corner buttons. They flip overlayOpen so the scene-level `start` can't fire
     // for taps that land on the open modal (stopPropagation alone won't do it).
-    this.addCornerButton(8, 8, '☰ RANKING', '#ffe14d', () => {
+    // Pixel-art icon textures (pixelarticons, NOT emoji glyphs — §8) left of each label.
+    this.addCornerButton(8, 9, Icon.Trophy, 'RANKING', '#ffe14d', 0xffe14d, () => {
       audio.play(AK.Select);
       this.overlayOpen = true;
       showLeaderboard(this, () => { this.overlayOpen = false; });
     });
-    this.addCornerButton(8, 24, '✎ ' + Storage.getNickname(), '#9fe3ff', () => {
+    this.addCornerButton(8, 25, Icon.Edit, Storage.getNickname(), '#9fe3ff', 0x9fe3ff, () => {
       audio.play(AK.Select);
       this.overlayOpen = true;
       showNicknamePrompt(this, { onDone: () => this.scene.restart(data) });
@@ -158,31 +160,33 @@ export class MenuScene extends Phaser.Scene {
     }
   }
 
-  /** A small left-aligned text button that won't trigger the scene's tap-to-start. */
-  private addCornerButton(x: number, y: number, text: string, color: string, onTap: () => void): void {
+  /** A small left-aligned button: pixel-icon texture + label; won't trigger tap-to-start. */
+  private addCornerButton(
+    x: number, y: number, iconKey: string, text: string, color: string, iconTint: number, onTap: () => void,
+  ): void {
+    // 24px icon texture displayed at 11px (integer-ish) and tinted to the label color.
+    const ic = this.add.image(x + 6, y + 6, iconKey).setDisplaySize(11, 11).setDepth(100).setTint(iconTint);
     const t = this.add
-      .text(x, y, text, { fontFamily: 'monospace', fontSize: '9px', fontStyle: 'bold', color })
-      .setOrigin(0, 0).setDepth(100).setShadow(1, 1, '#000', 2)
-      .setInteractive({ useHandCursor: true });
-    t.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, e: Phaser.Types.Input.EventData) => {
+      .text(x + 14, y, text, { fontFamily: 'monospace', fontSize: '9px', fontStyle: 'bold', color })
+      .setOrigin(0, 0).setDepth(100).setShadow(1, 1, '#000', 2);
+    const zone = this.add.zone(x, y, t.x + t.width - x + 2, 14).setOrigin(0, 0).setDepth(100).setInteractive({ useHandCursor: true });
+    zone.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, e: Phaser.Types.Input.EventData) => {
       e.stopPropagation();
       onTap();
     });
+    void ic;
   }
 
   private addMuteButton(audio: AudioSystem): void {
-    const label = () => (audio.muted ? '♪✕' : '♪');
-    const txt = this.add
-      .text(GAME_WIDTH - 8, 8, label(), { fontFamily: 'monospace', fontSize: '12px', fontStyle: 'bold', color: '#9fe3ff' })
-      .setOrigin(1, 0)
-      .setDepth(100)
-      .setShadow(1, 1, '#000', 2)
-      .setInteractive({ useHandCursor: true });
-    txt.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
+    const x = GAME_WIDTH - 12, y = 12;
+    const icon = this.add.image(x, y, audio.muted ? Icon.VolumeOff : Icon.VolumeOn)
+      .setDisplaySize(13, 13).setDepth(100).setTint(0x9fe3ff);
+    const zone = this.add.zone(GAME_WIDTH - 22, 2, 20, 20).setOrigin(0, 0).setDepth(100).setInteractive({ useHandCursor: true });
+    zone.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
       e.stopPropagation();
       audio.toggleMute();
       if (!audio.muted) audio.playMusic(AK.BgmMenu);
-      txt.setText(label());
+      icon.setTexture(audio.muted ? Icon.VolumeOff : Icon.VolumeOn);
     });
   }
 }

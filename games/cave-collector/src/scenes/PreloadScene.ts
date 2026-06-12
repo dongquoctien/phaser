@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { SceneKeys, Tex, Audio } from '../types/keys';
+import { SceneKeys, Tex, Audio, ICON_FILES, type IconKey } from '../types/keys';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { registerAnims } from '../systems/textures';
 
@@ -32,6 +32,10 @@ export class PreloadScene extends Phaser.Scene {
       this.load.atlas(key, `assets/${key}.png`, `assets/${key}.json`);
     }
     this.load.image(Tex.Parallax, 'assets/parallax.png');
+    // UI icons (pixelarticons, baked 24px) — keyed so code never uses emoji glyphs.
+    for (const [key, file] of Object.entries(ICON_FILES)) {
+      this.load.image(key as IconKey, `assets/icons/${file}.png`);
+    }
     for (const [key, file] of AUDIO) {
       // m4a FIRST (iOS can't decode Ogg → silent iPhone).
       this.load.audio(key, [`audio/${file}.m4a`, `audio/${file}.ogg`]);
