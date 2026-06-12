@@ -149,6 +149,23 @@ Research has two purposes (do both):
 > style, draw, then Playwright-verify on a real card. See `pixel-art` §0 and
 > "Adding a game cover / thumbnail".
 
+## 0c. Level / map authoring — data arrays by default
+
+The **default** way to author a level in this monorepo is a **plain data array in
+code** (e.g. `games/arcane-knight/src/levels.ts`: platforms, enemy spawns, hazards,
+exit). It's offline, diffable, has zero external dependencies, and is easy to verify —
+right for almost every game here.
+
+**Tiled is an OPTIONAL upgrade, only for map-heavy games** (large multi-screen worlds,
+many hand-painted layers — metroidvania, big RPG overworld) where a visual editor
+genuinely beats a data array. If a game is that, you MAY load Tiled `.tmj`/`.tsj` maps
+(`this.load.tilemapTiledJSON` → `this.make.tilemap`), and the **Tiled MCP** (free, open
+source) lets you read/place/fill tiles in those maps programmatically — but only when
+the user has **already connected it**; never assume it's configured, and never convert
+a simple game to Tiled just because the MCP exists. Tiled only *places* tiles — it does
+not draw them, so you still need a real tileset first (see §0b). Keep small/medium games
+on data arrays.
+
 ## 1. Steps
 
 1. **Ask the game name** (kebab-case) if not given. Path becomes `games/<name>/`.
