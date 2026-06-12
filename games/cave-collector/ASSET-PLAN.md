@@ -116,10 +116,11 @@ pulse + slight bob). Clean SPRITE SHEET, TRANSPARENT (or magenta #FF00FF), each 
 
 ### Prompt 03 — Shuriken hazard
 ```
-Pixel art hazard sprite sheet, 16-bit, SAME style. Subject: a sharp metal SHURIKEN
-(throwing star), cold steel with a glint. Animation: 4-frame full SPIN/rotation loop.
-TRANSPARENT (or magenta #FF00FF), each frame 24x24, uniform grid, equal padding, no
-text/labels/shadow. Crisp, no anti-aliasing, top-left light.
+Pixel art hazard sprite sheet, 16-bit, side-scroller, SAME style + top-left lighting as
+the hero/bot sheets. Subject: a sharp metal SHURIKEN (throwing star), cold steel with a
+glint. Animation: 4-frame full SPIN/rotation loop. TRANSPARENT (or magenta #FF00FF), each
+frame 24x24, uniform grid, equal padding, no text/labels/shadow. Crisp, no anti-aliasing,
+top-left light.
 ```
 
 ### Prompt 04 — Toxic-cave tileset
@@ -134,8 +135,9 @@ Crisp, no anti-aliasing, cohesive dark-rock + toxic-green palette, top-left ligh
 
 ### Prompt 05 — Blocks, door & decor
 ```
-Pixel art platformer props, 16-bit, SAME cave palette, TRANSPARENT (or magenta #FF00FF),
-each on its own cell in a uniform grid, no text:
+Pixel art side-scroller platformer props, 16-bit, SAME cave palette + top-left lighting,
+viewed from the side. TRANSPARENT (or magenta #FF00FF), each on its own cell in a uniform
+grid, no text:
 1) a glowing "?" QUESTION BLOCK to punch (16x16),
 2) the SAME block used/dimmed/cracked after a hit (16x16),
 3) a glowing cave EXIT DOOR, ancient stone arch with cyan light inside (32x48),
@@ -145,8 +147,9 @@ Crisp, no anti-aliasing, top-left light + self-glow on the door/crystals.
 
 ### Prompt 06 — Collectibles, FX & HUD
 ```
-Pixel art game collectibles, FX + UI icons, 16-bit, TRANSPARENT (or magenta #FF00FF),
-each on its own cell in a uniform grid, no text:
+Pixel art side-scroller game collectibles, FX + UI icons, 16-bit, SAME palette + top-left
+lighting, viewed from the side. TRANSPARENT (or magenta #FF00FF), each on its own cell in
+a uniform grid, no text:
 1) a glowing STAR collectible, 6-frame spin loop,
 2) a gold COIN, 4-frame spin loop,
 3) a 3-frame white/yellow HIT SPARK / poof burst,
