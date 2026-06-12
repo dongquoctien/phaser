@@ -166,6 +166,43 @@ a simple game to Tiled just because the MCP exists. Tiled only *places* tiles �
 not draw them, so you still need a real tileset first (see §0b). Keep small/medium games
 on data arrays.
 
+## 0d. Asset plan — a pro plans ALL art + audio up front
+
+You are a professional game developer: before writing gameplay, **decide what the game
+needs** — images, audio, and the loose narrative/theme — and **research the web** so the
+choices are genre-appropriate (see §0b research gate + the `game-design` skill for
+deconstructing a reference and naming the loop). Then write an **`ASSET-PLAN.md` in the
+game folder** so the work is explicit and the user can act on it. `games/arcane-knight/
+ASSET-PLAN.md` is the worked example — match its shape:
+
+1. **Image report** — a table of every sprite/tile/bg/FX/UI icon the game needs (heroes,
+   each enemy, boss, every tile skin per level, hazards, props, parallax backgrounds,
+   projectiles, HUD icons, logo), **with a NOTES column per asset** (frame count, facing,
+   size, colour/mood, animation states).
+2. **Audio report** — a table of every SFX + music track (footstep, jump, each attack,
+   hit, hurt, death, pickup, level-clear, boss roar/defeat, menu blips; exploration +
+   boss music), **with a NOTES column per sound** (length, tone, when it plays). Reuse
+   the `phaser-audio` rules (dual-format `.m4a`+`.ogg`, throttle, iOS).
+3. **Image-generation prompts**, one per row, IN REPORT ORDER, ready to paste into
+   ChatGPT/DALL·E/Gemini. Every sprite-sheet prompt MUST force a *cuttable* output:
+   **uniform grid, equal transparent padding, transparent (or solid magenta `#FF00FF`)
+   background, NO text/labels/palette swatches, no baked drop-shadow**, fixed cell size
+   (e.g. 32×32), the bit-era (16-bit SNES), side/top view + facing, and one animation per
+   row. Tell the user to **generate the first hero, lock the style, then say "same style
+   as the previous sheet"** in later prompts for cohesion; prefer **one sheet per
+   animation** (easier to re-roll + cut). (Pretty "concept sheets" with title+palette+
+   turnaround are NOT cuttable — that's the trap that made the first refs unusable.)
+4. **Audio-generation prompts**, one per row, in report order (for ElevenLabs SFX /
+   Suno-Udio music) — and note these double as search terms for free CC0 audio
+   (Kenney/freesound/OpenGameArt), which you should check FIRST before generating.
+5. **Extra recommendations** — free-asset-first, one shared palette across the cast,
+   where to drop the finished PNGs (`D:/Github/0assets/<game>/`) so they can be sliced
+   (`slice-spritesheet.mjs`) + pixelated (`pixelate.mjs`) and wired in.
+
+Do this BEFORE building gameplay for any non-trivial game, or at minimum when the user
+asks "what assets does this need" / "make prompts to generate art". The plan is also what
+keeps art cohesive and prevents the "vẽ quá xấu / mismatched" outcome.
+
 ## 1. Steps
 
 1. **Ask the game name** (kebab-case) if not given. Path becomes `games/<name>/`.
@@ -176,8 +213,12 @@ on data arrays.
    - `__DEV_PORT__` / `__PREVIEW_PORT__` → a unique port pair not used by another game (start at 5180/4180 and increment per game). Each game gets a **fixed `strictPort`** so dev servers in the monorepo never collide.
    - In `game.json`, optionally fill `description` and `tags` — the hub shows them on the game's card. Both are optional; an empty description/tags falls back to a title-only card.
 4. **Wire the workspace**: add `games/<name>` to the root `package.json` `workspaces` array (if using npm workspaces) and add `dev:<name>` / `build:<name>` / `preview:<name>` scripts. No hub edit needed — `scripts/build-all.mjs` auto-discovers every `games/*` with a `vite.config.mjs` and regenerates the hub (`dist/index.html`) + deploys it, so a new game appears on the landing page automatically.
-5. **Install** (`npm install` at root) only if deps changed.
-6. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
+5. **Plan the assets (non-trivial games): write `ASSET-PLAN.md`** — research the genre,
+   then report every image + every sound needed (with a notes column each) and the
+   copy-paste generation prompts, per **§0d**. Do this before/alongside building gameplay
+   so art stays cohesive and the user can generate what's missing.
+6. **Install** (`npm install` at root) only if deps changed.
+7. **Verify (Playwright) — the real "it works" gate, not optional.** Run the
    **`phaser-smoketest`** skill against the new game and report its full pass/fail
    table. A green run REQUIRES all of:
    - boots + canvas renders + console clean + FPS ≥ 55, **and**
