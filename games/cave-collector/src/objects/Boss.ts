@@ -82,7 +82,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.emit('fire'); // GameScene plays the laser SFX
     // beam shoots LEFT (toward the level / hero) from the boss muzzle.
     const muzzleX = this.x - this.displayWidth * 0.45; // right edge of the beam
-    const eyeY = this.y - this.displayHeight * 0.55;
+    // muzzle height measured from the attack frame's beam pixels (~0.65 up from the
+    // boss's feet) so the drawn beam lines up with the sprite's gun flash, not above it.
+    const eyeY = this.y - this.displayHeight * 0.65;
     const len = LASER_LEN;
     const thick = 10;
 
