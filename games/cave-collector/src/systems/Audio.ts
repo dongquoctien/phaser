@@ -27,11 +27,14 @@ export class AudioSystem {
   private musicKey?: AudioKey;
   private pageHidden = false;
   private teardown: Array<() => void> = [];
+  // Own source of truth for mute — Phaser's `sound.mute` getter can read stale
+  // right after setMute() in the same tick, which desynced the mute icon.
+  private isMuted = false;
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
-    const muted = (scene.registry.get(Reg.Muted) as boolean) ?? false;
-    scene.sound.setMute(muted);
+    this.isMuted = (scene.registry.get(Reg.Muted) as boolean) ?? false;
+    scene.sound.setMute(this.isMuted);
     this.installTabHandlers();
     scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.stopMusic();
@@ -91,7 +94,7 @@ export class AudioSystem {
 
   private playInternal(key: AudioKey, rate: number): void {
     if (this.pageHidden) return; // don't enqueue while backgrounded (anti-stacking)
-    if (this.scene.sound.mute) return;
+    if (this.isMuted) return;
     if (!this.scene.cache.audio.exists(key)) return;
     const cfg = SFX[key];
     if (!cfg) return;
@@ -127,12 +130,12 @@ export class AudioSystem {
   }
 
   toggleMute(): boolean {
-    const next = !this.scene.sound.mute;
-    this.scene.sound.setMute(next);
-    this.scene.registry.set(Reg.Muted, next);
-    localStorage.setItem(Reg.Muted, next ? '1' : '0');
-    return next;
+    this.isMuted = !this.isMuted;
+    this.scene.sound.setMute(this.isMuted);
+    this.scene.registry.set(Reg.Muted, this.isMuted);
+    localStorage.setItem(Reg.Muted, this.isMuted ? '1' : '0');
+    return this.isMuted;
   }
 
-  get muted(): boolean { return this.scene.sound.mute; }
+  get muted(): boolean { return this.isMuted; }
 }

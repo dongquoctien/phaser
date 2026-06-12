@@ -184,9 +184,11 @@ export class MenuScene extends Phaser.Scene {
     const zone = this.add.zone(GAME_WIDTH - 22, 2, 20, 20).setOrigin(0, 0).setDepth(100).setInteractive({ useHandCursor: true });
     zone.on('pointerdown', (_p: Phaser.Input.Pointer, _x: number, _y: number, e: Phaser.Types.Input.EventData) => {
       e.stopPropagation();
-      audio.toggleMute();
-      if (!audio.muted) audio.playMusic(AK.BgmMenu);
-      icon.setTexture(audio.muted ? Icon.VolumeOff : Icon.VolumeOn);
+      // Use toggleMute's RETURN value (the new muted state) — reading audio.muted
+      // back immediately is unreliable (Phaser's sound.mute getter can lag a tick).
+      const nowMuted = audio.toggleMute();
+      if (!nowMuted) audio.playMusic(AK.BgmMenu);
+      icon.setTexture(nowMuted ? Icon.VolumeOff : Icon.VolumeOn);
     });
   }
 }
