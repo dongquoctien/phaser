@@ -20,6 +20,13 @@ export function registerAnims(scene: Phaser.Scene): void {
 
   a.create({ key: Anim.RobotIdle, frames: a.generateFrameNames(Tex.Robot, { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
   a.create({ key: Anim.ShurikenSpin, frames: a.generateFrameNames(Tex.Shuriken, { start: 0, end: 3 }), frameRate: 18, repeat: -1 });
+  a.create({ key: Anim.SlimeHop, frames: a.generateFrameNames(Tex.Slime, { start: 0, end: 3 }), frameRate: 6, repeat: -1 });
+  a.create({ key: Anim.BatFlap, frames: a.generateFrameNames(Tex.Bat, { start: 0, end: 3 }), frameRate: 12, repeat: -1 });
+  a.create({ key: Anim.BeetleWalk, frames: a.generateFrameNames(Tex.Beetle, { start: 0, end: 3 }), frameRate: 8, repeat: -1 });
+  // Boss atlas: idle 0-3, windup 4-6, attack 7-9.
+  a.create({ key: Anim.BossIdle, frames: a.generateFrameNames(Tex.Boss, { start: 0, end: 3 }), frameRate: 5, repeat: -1 });
+  a.create({ key: Anim.BossWindup, frames: a.generateFrameNames(Tex.Boss, { start: 4, end: 6 }), frameRate: 6, repeat: 0 });
+  a.create({ key: Anim.BossAttack, frames: a.generateFrameNames(Tex.Boss, { start: 7, end: 9 }), frameRate: 8, repeat: 0 });
   a.create({ key: Anim.StarSpin, frames: a.generateFrameNames(Tex.Star, { start: 0, end: 5 }), frameRate: 10, repeat: -1 });
   a.create({ key: Anim.CoinSpin, frames: a.generateFrameNames(Tex.Coin, { start: 0, end: 3 }), frameRate: 12, repeat: -1 });
   a.create({ key: Anim.SparkBurst, frames: a.generateFrameNames(Tex.Spark, { start: 0, end: 2 }), frameRate: 18, repeat: 0 });

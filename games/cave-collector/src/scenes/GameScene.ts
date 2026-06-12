@@ -6,6 +6,10 @@ import { STORY_LEVELS, genEndlessLevel } from '../systems/levelGen';
 import { Hero } from '../objects/Hero';
 import { Shuriken } from '../objects/Shuriken';
 import { Robot } from '../objects/Robot';
+import { Slime } from '../objects/Slime';
+import { Beetle } from '../objects/Beetle';
+import { Bat } from '../objects/Bat';
+import { Boss } from '../objects/Boss';
 import { buildBackground } from '../systems/background';
 import { AudioSystem } from '../systems/Audio';
 import { Api } from '../systems/Api';
@@ -24,7 +28,11 @@ export class GameScene extends Phaser.Scene {
   private stars!: Phaser.Physics.Arcade.Group;
   private coins!: Phaser.Physics.Arcade.Group;
   private robots!: Phaser.Physics.Arcade.Group;
+  private slimes!: Phaser.Physics.Arcade.Group;
+  private beetles!: Phaser.Physics.Arcade.Group;
+  private bats!: Phaser.Physics.Arcade.Group;
   private shurikens!: Phaser.Physics.Arcade.Group;
+  private boss?: Boss;
   private door!: Phaser.Physics.Arcade.Image;
   private emitter!: Phaser.GameObjects.Particles.ParticleEmitter; // spark burst (frame 0)
   private dustEmitter!: Phaser.GameObjects.Particles.ParticleEmitter; // smoke puff (frame 2)
@@ -143,6 +151,25 @@ export class GameScene extends Phaser.Scene {
       if (robot) robot.spawn(r.x, r.y, this.platforms);
     }
 
+    // Slimes — slow ground hoppers (stompable).
+    this.slimes = this.physics.add.group({ classType: Slime, runChildUpdate: true });
+    for (const s of level.slimes ?? []) {
+      const sl = this.slimes.get(s.x, s.y) as Slime;
+      if (sl) sl.spawn(s.x, s.y, this.platforms);
+    }
+    // Beetles — spiked patrollers (NOT stompable).
+    this.beetles = this.physics.add.group({ classType: Beetle, runChildUpdate: true });
+    for (const b of level.beetles ?? []) {
+      const be = this.beetles.get(b.x, b.y) as Beetle;
+      if (be) be.spawn(b.x, b.y, this.platforms);
+    }
+    // Bats — flying sweep+bob hazards (alternative to shuriken).
+    this.bats = this.physics.add.group({ classType: Bat, runChildUpdate: true });
+    for (const b of level.bats ?? []) {
+      const bt = this.bats.get(b.x, b.y) as Bat;
+      if (bt) bt.launch(b.x, b.y, b.range, b.speed);
+    }
+
     // Shuriken hazards (pooled group).
     this.shurikens = this.physics.add.group({ classType: Shuriken, runChildUpdate: true });
     for (const s of level.shurikens) {
@@ -154,6 +181,21 @@ export class GameScene extends Phaser.Scene {
     this.door = this.physics.add.staticImage(level.exit.x, level.exit.y, Tex.Door);
     this.door.setScale(0.66).setOrigin(0.5, 1).refreshBody();
 
+    // BOSS — guards the Story finale's exit (last campaign level only). It hovers a
+    // few tiles before the door; stomp it down, then the door is yours.
+    const isFinale = this.mode === 'story' && this.levelIndex === STORY_LEVELS.length - 1;
+    if (isFinale) {
+      this.boss = new Boss(this);
+      this.boss.spawn(level.exit.x - 6 * TILE, level.exit.y - TILE);
+      this.boss.once('died', (bx: number, by: number) => {
+        this.emitter.emitParticleAt(bx, by - 20, 24);
+        this.cameras.main.shake(300, 0.012);
+        this.registry.inc(Reg.Score, COIN_POINTS * 20);
+        this.popText(bx, by - 30, 'BOSS DOWN!', '#ffd23f');
+        this.emitHud();
+      });
+    }
+
     // Hero.
     this.hero = new Hero(this, level.spawn.x, level.spawn.y);
     this.hero.on('landed', () => { this.dust(this.hero.x, this.hero.y); this.audio.play(AK.Land); });
@@ -163,14 +205,35 @@ export class GameScene extends Phaser.Scene {
     // Colliders.
     this.physics.add.collider(this.hero, this.platforms);
     this.physics.add.collider(this.robots, this.platforms);
+    this.physics.add.collider(this.slimes, this.platforms);
+    this.physics.add.collider(this.beetles, this.platforms);
     this.physics.add.collider(this.hero, this.blocks, this.onBlockHit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
 
     // Overlaps.
     this.physics.add.overlap(this.hero, this.stars, this.collectStar as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
     this.physics.add.overlap(this.hero, this.coins, this.collectCoin as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
-    this.physics.add.overlap(this.hero, this.robots, this.hitRobot as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    this.physics.add.overlap(this.hero, this.robots, this.hitGroundEnemy as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    this.physics.add.overlap(this.hero, this.slimes, this.hitGroundEnemy as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    this.physics.add.overlap(this.hero, this.beetles, this.hitGroundEnemy as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    this.physics.add.overlap(this.hero, this.bats, this.hitHazard as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
     this.physics.add.overlap(this.hero, this.shurikens, this.hitHazard as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    if (this.boss) {
+      this.physics.add.overlap(this.hero, this.boss, this.hitBoss as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+    }
     this.physics.add.overlap(this.hero, this.door, this.reachExit as Phaser.Types.Physics.Arcade.ArcadePhysicsCallback, undefined, this);
+  }
+
+  private hitBoss(hero: Hero, boss: Phaser.Physics.Arcade.Sprite): void {
+    if (hero.dead || hero.invuln > 0) return;
+    const b = boss as Boss;
+    const stomping = hero.body.velocity.y > 40 && hero.y < boss.y - boss.displayHeight * 0.5;
+    if (stomping) {
+      hero.bounce();
+      this.audio.play(AK.BotHit);
+      b.takeStomp(); // damages the boss; it dies after HP hits 0
+    } else {
+      this.damageHero(boss.x);
+    }
   }
 
   private bobble(obj: Phaser.GameObjects.Sprite): void {
@@ -299,20 +362,24 @@ export class GameScene extends Phaser.Scene {
     this.emitHud();
   }
 
-  private hitRobot(hero: Hero, robot: Phaser.Physics.Arcade.Sprite): void {
+  // Robots + slimes are stompable; beetles (spiked) are not — landing on one still
+  // hurts. The enemy carries `stompable` (Beetle = false); default true.
+  private hitGroundEnemy(hero: Hero, enemy: Phaser.Physics.Arcade.Sprite): void {
     if (hero.dead || hero.invuln > 0) return;
-    const stomping = hero.body.velocity.y > 40 && hero.y < robot.y - 6;
+    const stompable = (enemy as Phaser.Physics.Arcade.Sprite & { stompable?: boolean }).stompable !== false;
+    const stomping = stompable && hero.body.velocity.y > 40 && hero.y < enemy.y - 6;
     if (stomping) {
-      robot.destroy();
+      const isSlime = enemy.texture.key === Tex.Slime;
+      enemy.destroy();
       hero.bounce();
-      this.audio.play(AK.BotHit);
+      this.audio.play(isSlime ? AK.SlimeHit : AK.BotHit);
       this.registry.inc(Reg.Score, COIN_POINTS * 2);
       this.cameras.main.shake(100, 0.005);
-      this.emitter.emitParticleAt(robot.x, robot.y - 6, 10);
-      this.popText(robot.x, robot.y - 16, '+50', '#7fd6da');
+      this.emitter.emitParticleAt(enemy.x, enemy.y - 6, 10);
+      this.popText(enemy.x, enemy.y - 16, '+50', '#7fd6da');
       this.emitHud();
     } else {
-      this.damageHero(robot.x);
+      this.damageHero(enemy.x);
     }
   }
 
@@ -428,6 +495,14 @@ export class GameScene extends Phaser.Scene {
     this.prevTouchJump = this.touchJump;
 
     this.hero.control(left, right, jumpPressed, jumpHeld, deltaMs);
+
+    // Boss laser beam — a transient hurt-zone; check overlap with the hero while live.
+    const beam = this.boss?.beamZone;
+    if (beam && !this.hero.dead && this.hero.invuln <= 0) {
+      if (Phaser.Geom.Intersects.RectangleToRectangle(this.hero.getBounds(), beam.getBounds())) {
+        this.damageHero(this.hero.x < beam.x ? this.hero.x + 99 : this.hero.x - 99);
+      }
+    }
 
     // Fell into a pit (below the visible floor).
     if (!this.dead && !this.cleared && this.hero.y > this.deathLine) {

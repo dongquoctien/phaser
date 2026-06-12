@@ -74,7 +74,19 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
   const stars: Array<{ x: number; y: number }> = [];
   const coins: Array<{ x: number; y: number }> = [];
   const robots: Array<{ x: number; y: number }> = [];
+  const slimes: Array<{ x: number; y: number }> = [];
+  const beetles: Array<{ x: number; y: number }> = [];
+  const bats: Array<{ x: number; y: number; range: number; speed: number }> = [];
   const shurikens: Array<{ x: number; y: number; range: number; speed: number }> = [];
+
+  // ── Enemy budgeting (so a level is never overcrowded) ──
+  // Density ~1 enemy per 5 tiles, scaled by difficulty. Flying threats are the
+  // hardest to dodge, so a level uses ONLY ONE flying type (bat OR shuriken, picked
+  // per level) and keeps it sparse.
+  const groundBudget = Math.round((widthTiles / 5) * (0.5 + diff)); // total ground enemies
+  const flyBudget = Math.max(1, Math.round((widthTiles / 22) * (0.6 + diff))); // bats/shuriken
+  const useBats = r() < 0.5; // this level's single flying type
+  let ground = 0, fly = 0;
 
   // decorate each segment (skip the first/last so spawn + exit stay clean)
   segs.forEach((s, i) => {
@@ -83,24 +95,32 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
     const surfaceY = s.y * TILE; // top of the platform
     const roll = r();
 
-    // A ? block — placed ~3 tiles above the segment, i.e. within the hero's jump
-    // reach so it can be punched from the surface. (Higher than that = unreachable.)
+    // A ? block — placed ~3 tiles above the segment (within jump reach so it can be
+    // punched from the surface).
     if (roll < 0.35 + diff * 0.1) {
       blocks.push({ x: cxTile * TILE + 8, y: (s.y - 3) * TILE + 8 });
-      // the star it pops is spawned at runtime, ~1 tile above the block.
     }
-    // a robot patrolling a wide-enough segment
-    if (s.len >= 4 && r() < 0.3 + diff * 0.4) {
-      robots.push({ x: cxTile * TILE + 8, y: s.y * TILE });
+
+    // ── A ground enemy on this segment (within budget). Mix robot / slime / beetle;
+    //    beetles are rarer (un-stompable, more annoying) and only on later levels. ──
+    if (ground < groundBudget && s.len >= 3 && r() < 0.45 + diff * 0.2) {
+      ground++;
+      const kindRoll = r();
+      const x = cxTile * TILE + 8, y = s.y * TILE;
+      // beetles are un-stompable (more annoying), so keep them the minority and
+      // only on later levels; slimes are the easy filler, robots the staple.
+      if (kindRoll < 0.1 + diff * 0.15) beetles.push({ x, y });
+      else if (kindRoll < 0.55) slimes.push({ x, y });
+      else robots.push({ x, y });
     }
-    // A floating star to grab. A low one (~2 tiles up) is reachable straight off the
-    // segment; a HIGH one (~5 tiles) is paired with a small step-platform below it
-    // so the hero can hop up to reach it (no un-collectable floaters).
+
+    // A floating star. Low (~2 tiles) reachable off the segment; high (~5 tiles) gets
+    // a small step-platform below so the hero can hop up (no un-collectable floaters).
     const sr = r();
     if (sr < 0.35) {
       stars.push({ x: cxTile * TILE + 8, y: (s.y - 2) * TILE });
     } else if (sr < 0.6) {
-      const stepY = s.y - 3; // a jump-reachable step under the high star
+      const stepY = s.y - 3;
       platforms.push([cxTile - 1, stepY, 2]);
       stars.push({ x: cxTile * TILE + 8, y: (stepY - 2) * TILE });
     }
@@ -108,18 +128,16 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
     if (r() < 0.5) {
       for (let k = 0; k < 3; k++) coins.push({ x: (s.x + 1 + k) * TILE, y: surfaceY - 8 });
     }
-    // A sweeping shuriken over the gap before this segment. Shuriken are flying
-    // hazards (hard to dodge), so keep them sparser than the stompable robots:
-    // 20%→45% with difficulty, AND a hard cap of ~1 per 4 tiles of width so a wide
-    // late level never turns into a wall of blades.
-    const shCap = Math.ceil(widthTiles / 18) + 1;
-    if (shurikens.length < shCap && r() < 0.2 + diff * 0.25) {
-      shurikens.push({
-        x: (s.x - 2) * TILE,
-        y: (s.y - pick(r, 1, 3)) * TILE,
-        range: pick(r, 3, 5) * TILE,
-        speed: 70 + Math.round(diff * 50) + pick(r, 0, 20),
-      });
+
+    // ── A single flying threat over the gap before this segment (within budget). ──
+    if (fly < flyBudget && r() < 0.25 + diff * 0.2) {
+      fly++;
+      const fx = (s.x - 2) * TILE;
+      const fy = (s.y - pick(r, 1, 3)) * TILE;
+      const range = pick(r, 3, 5) * TILE;
+      const speed = 60 + Math.round(diff * 40) + pick(r, 0, 20);
+      if (useBats) bats.push({ x: fx, y: fy, range, speed });
+      else shurikens.push({ x: fx, y: fy, range, speed });
     }
   });
 
@@ -133,6 +151,9 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
     stars,
     coins,
     robots,
+    slimes,
+    beetles,
+    bats,
     shurikens,
     exit: { x: endX * TILE, y: FLOOR_Y * TILE },
   };

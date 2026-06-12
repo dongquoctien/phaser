@@ -17,6 +17,10 @@ export const Tex = {
   Hero: 'hero', // 48px atlas: idle0-3, run4-9, jump10-12, punch13-15
   Robot: 'bot', // 32px sentry, 4-frame hover
   Shuriken: 'shuriken', // 24px spinning hazard, 4 frames
+  Slime: 'slime', // 32px ground hopper, 4-frame
+  Bat: 'bat', // 32px flyer, 4-frame flap
+  Beetle: 'beetle', // 32px spiked crawler (un-stompable), 4-frame
+  Boss: 'boss', // 48px atlas: idle 0-3, windup 4-6, attack 7-9
   Block: 'block', // 16px ? item block
   BlockUsed: 'block-used', // 16px emptied block
   Star: 'star', // 16px collectible, 6-frame spin
@@ -69,6 +73,12 @@ export const Anim = {
   HeroPunch: 'hero-punch',
   ShurikenSpin: 'shuriken-spin',
   RobotIdle: 'robot-idle',
+  SlimeHop: 'slime-hop',
+  BatFlap: 'bat-flap',
+  BeetleWalk: 'beetle-walk',
+  BossIdle: 'boss-idle',
+  BossWindup: 'boss-windup',
+  BossAttack: 'boss-attack',
   StarSpin: 'star-spin',
   CoinSpin: 'coin-spin',
   SparkBurst: 'spark-burst',
@@ -88,6 +98,7 @@ export const Audio = {
   Coin: 'coin-sfx',
   Hurt: 'hurt',
   BotHit: 'bot-hit',
+  SlimeHit: 'slime-hit',
   LevelClear: 'level-clear',
   GameOver: 'game-over',
   Select: 'select',

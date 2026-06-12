@@ -317,4 +317,31 @@ console.log('Slicing g1 sheets ->', OUT);
   console.log('  parallax: copied full image -> parallax.png');
 }
 
+// 8. NEW ENEMIES (transparent re-cuts) — slime / bat / beetle (1 row × 4 each),
+//    boss (3 rows: idle×4, windup×3, attack×3). Keyed off alpha.
+{
+  ALPHA_ONLY = true;
+  const simple = [
+    ['Cave slime-trans.png', 'slime', 32],
+    ['Cave bat-trans.png', 'bat', 32],
+    ['Spike beetle-trans.png', 'beetle', 32],
+  ];
+  for (const [file, key, tile] of simple) {
+    const rows = sliceGrid(load(file), { minRowH: 60, minColW: 30, despeckle: true });
+    const frames = rows.flat();
+    writeAtlas(key, frames.slice(0, 4), tile);
+    console.log(`   ${key}: ${frames.length} frames`);
+  }
+  // Boss — pack all 3 anim rows into ONE 48px sheet (idle 0-3, windup 4-6, attack 7-9).
+  {
+    const rows = sliceGrid(load('Guardian boss-trans.png'), { minRowH: 60, minColW: 40, despeckle: true });
+    console.log('   boss row counts:', rows.map((r) => r.length).join(','), '(expect 4,3,3)');
+    const idle = (rows[0] ?? []).slice(0, 4);
+    const windup = (rows[1] ?? []).slice(0, 3);
+    const attack = (rows[2] ?? []).slice(0, 3);
+    writeAtlas('boss', [...idle, ...windup, ...attack], 48);
+  }
+  ALPHA_ONLY = false;
+}
+
 console.log('Done.');

@@ -8,6 +8,7 @@ const ATLASES: string[] = [
   Tex.Hero, Tex.Robot, Tex.Shuriken, Tex.Star, Tex.Coin, Tex.Spark, Tex.Heart,
   Tex.Block, Tex.BlockUsed, Tex.Door, Tex.Crystal, Tex.Mushroom,
   Tex.TileTop, Tex.TileFill, Tex.TilePlatform,
+  Tex.Slime, Tex.Bat, Tex.Beetle, Tex.Boss,
 ];
 
 // Audio key -> on-disk filename stem (some keys are suffixed to avoid clashing
@@ -17,7 +18,8 @@ const AUDIO: Array<[string, string]> = [
   [Audio.Footstep, 'footstep'], [Audio.Jump, 'jump'], [Audio.Land, 'land'],
   [Audio.Punch, 'punch'], [Audio.BlockPay, 'block-pay'],
   [Audio.Star, 'star'], [Audio.Coin, 'coin'], [Audio.Hurt, 'hurt'],
-  [Audio.BotHit, 'bot-hit'], [Audio.LevelClear, 'level-clear'],
+  [Audio.BotHit, 'bot-hit'], [Audio.SlimeHit, 'slime-hit'],
+  [Audio.LevelClear, 'level-clear'],
   [Audio.GameOver, 'game-over'], [Audio.Select, 'select'],
 ];
 

@@ -13,6 +13,7 @@ const SFX: Partial<Record<AudioKey, { volume: number; throttle: number }>> = {
   [A.Coin]: { volume: 0.4, throttle: 40 },
   [A.Hurt]: { volume: 0.5, throttle: 200 },
   [A.BotHit]: { volume: 0.5, throttle: 60 },
+  [A.SlimeHit]: { volume: 0.5, throttle: 60 },
   [A.LevelClear]: { volume: 0.6, throttle: 0 },
   [A.GameOver]: { volume: 0.6, throttle: 0 },
   [A.Select]: { volume: 0.5, throttle: 0 },
