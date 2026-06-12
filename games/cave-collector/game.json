@@ -1,6 +1,6 @@
 {
-  "title": "Cave Collector",
-  "description": "A flower-haired explorer runs and jumps through a glowing toxic cave — punch the ? blocks, grab every star, dodge the spinning shuriken and sentry-bots, and reach the exit door.",
+  "title": "Explorer Oreo",
+  "description": "Oreo, a flower-haired explorer, runs and jumps through a glowing toxic cave — punch the ? blocks, grab every star, stomp the patrolling bots, dodge the shuriken. A 10-level Story campaign plus an endless mode with an online leaderboard.",
   "category": "Platformer",
-  "tags": ["platformer", "pixel-art", "collect", "retro"]
+  "tags": ["platformer", "pixel-art", "endless", "leaderboard"]
 }

@@ -16,7 +16,7 @@ export const GAME_HEIGHT = 240;
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO, // WebGL with Canvas fallback
-  title: 'Cave Collector',
+  title: 'Explorer Oreo',
   parent: 'game',
   backgroundColor: '#142a2c',
 

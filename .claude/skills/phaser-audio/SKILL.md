@@ -107,6 +107,14 @@ working reference). Non-negotiables it encodes:
 - **Mute toggle persisted** in the game registry (survives scene restarts):
   `scene.sound.setMute(next); scene.registry.set(RegistryKeys.Muted, next);` and re-apply
   it in the helper's constructor on scene (re)entry.
+- **Keep your OWN `isMuted` field — don't read `scene.sound.mute` back in the same tick.**
+  Phaser's `sound.mute` getter does NOT reflect `setMute()` synchronously; reading it
+  immediately after returns the OLD value. If `toggleMute` computes `next = !sound.mute`
+  AND the mute icon re-reads `audio.muted` right after, both see the stale state → the icon
+  lags one tap and shows the inverted state (real bug). Fix: the helper owns
+  `private isMuted` as the source of truth — `toggleMute()` flips it, calls
+  `setMute(isMuted)`, persists it, and **returns the new value**; the `muted` getter and the
+  play-gate read the field; the UI uses the **return value** (not a re-read) to pick the icon.
 
 ## WebAudio autoplay unlock + iOS re-suspend
 - Phaser auto-unlocks the audio context on the **first pointer/key gesture**; check
@@ -202,6 +210,10 @@ is false, sounds actually fire during play (`game.sound.sounds.filter(s=>s.isPla
 > 0 over a window), concurrent count stays low (throttle working), mute toggles +
 persists (`registry.get('muted')`), and **0 console errors** (esp. no "not found in
 cache"). FPS unchanged by audio.
+- **Mute-icon sync:** from a fresh (unmuted) start, tap the mute button and assert the icon
+  matches the audio state ON THE SAME TAP (tap 1 → muted icon + audio muted; tap 2 →
+  unmuted icon + audio on). Catches the `sound.mute`-getter-lag bug — the icon must not be
+  one tap behind / inverted.
 - **iOS dual-format check**: confirm both files exist on disk (`public/audio/<key>.m4a`
   AND `.ogg`) and that `load.audio` lists m4a first. After a gesture, the context state
   should read `running` (not `suspended`). You can't run real Safari in MCP, but the
@@ -217,6 +229,9 @@ cache"). FPS unchanged by audio.
 - Playing a high-frequency SFX every event with no throttle (clip + perf).
 - Shipping a whole 100+ file pack (bloat) — pick a handful.
 - Audio of unknown license. Emoji mute icons.
+- Reading `scene.sound.mute` back right after `setMute()` (getter lags a tick → the mute
+  icon shows the old/inverted state). Keep an `isMuted` field; have `toggleMute` return the
+  new value and drive the icon off that.
 - Expecting sound before the first user gesture.
 
 Sources: Phaser 4 audio docs (docs.phaser.io/phaser/concepts/audio), Kenney CC0 audio

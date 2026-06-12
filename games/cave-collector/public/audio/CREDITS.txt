@@ -1,0 +1,12 @@
+Cave Collector — audio
+======================
+
+Music + SFX generated for this project (per ASSET-PLAN.md) and integrated from
+0assets/gif/g1/music. Transcoded to dual-format .ogg + .m4a (iOS-safe) via
+ffmpeg; loaded as [m4a, ogg] so iPhone/iPad aren't silent.
+
+Tracks:
+  bgm-menu     — menu theme (The Poisoned Seam, var. 1)
+  bgm-game     — gameplay theme (The Poisoned Seam, var. 2)
+  footstep, jump, land, punch, block-pay (? payout), star, coin, hurt,
+  bot-hit, level-clear, game-over, select

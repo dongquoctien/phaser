@@ -1,0 +1,19 @@
+# Cloudflare Worker config for the Explorer Oreo leaderboard backend.
+# Deploy with:  npx wrangler deploy   (from this server/ folder)
+name = "explorer-oreo-leaderboard"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# KV namespace for sessions + scores (binding `LB`). Created via:
+#   npx wrangler kv namespace create OREO_LB
+[[kv_namespaces]]
+binding = "LB"
+id = "971aa2873cc1419895efaebd0d8b2972"
+
+[vars]
+# Lock this down to the game's static origin in production (not "*").
+ALLOW_ORIGIN = "*"
+
+# SECRET — never commit a real value. Set it with:
+#   npx wrangler secret put LEADERBOARD_SECRET
+# (a long random string; only the Worker ever sees it)

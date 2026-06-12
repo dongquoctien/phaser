@@ -11,6 +11,8 @@ export default defineConfig(({ command }) =>
     base: process.env.GAME_BASE || './',
     define: {
       __DEV__: JSON.stringify(command === 'serve'),
+      // Build id stamped into leaderboard submissions (optional; set via env).
+      __BUILD_ID__: JSON.stringify(process.env.BUILD_ID || 'dev'),
     },
     server: { port: 5188, strictPort: true },
     preview: { port: 4188, strictPort: true },

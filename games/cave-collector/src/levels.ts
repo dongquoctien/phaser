@@ -18,8 +18,14 @@ export interface LevelData {
   stars: Array<{ x: number; y: number }>;
   // Coins — smaller, worth less (world px, center).
   coins: Array<{ x: number; y: number }>;
-  // Stationary sentry robots sitting on a surface (world px, bottom-center).
+  // Patrolling sentry robots sitting on a surface (world px, bottom-center).
   robots: Array<{ x: number; y: number }>;
+  // Slow ground slimes (bottom-center). Optional — hand levels may omit.
+  slimes?: Array<{ x: number; y: number }>;
+  // Spiked beetles — patrol, un-stompable (bottom-center). Optional.
+  beetles?: Array<{ x: number; y: number }>;
+  // Flying bats that sweep + bob (a flying hazard alternative to shuriken). Optional.
+  bats?: Array<{ x: number; y: number; range: number; speed: number }>;
   // Flying shuriken hazards that sweep horizontally between two x's at a y.
   shurikens: Array<{ x: number; y: number; range: number; speed: number }>;
   // Exit door (world px, bottom-center).
@@ -29,7 +35,9 @@ export interface LevelData {
 // Screen is 400x240 => 25 tiles wide visible, 15 tiles tall.
 const H = 15;
 
-export const LEVELS: LevelData[] = [
+// The two hand-authored opening levels. The full Story campaign appends 8 more
+// procedurally-seeded levels (see systems/levelGen.ts STORY_LEVELS) → 10 total.
+export const HAND_LEVELS: LevelData[] = [
   {
     name: 'Toxic Hollow',
     widthTiles: 56,

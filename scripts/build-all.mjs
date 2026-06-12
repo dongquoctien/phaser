@@ -105,6 +105,7 @@ function artOf(game, thumb) {
 const API_URL_ENV = {
   'twdc-defense': 'VITE_API_URL_TWDC',
   'whack-a-mole': 'VITE_API_URL_WAM',
+  'cave-collector': 'VITE_API_URL_OREO',
 };
 
 // ── 1. Build each game ─────────────────────────────────────────────────────────
