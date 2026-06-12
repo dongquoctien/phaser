@@ -10,12 +10,14 @@ const HP = 4;
 const CYCLE_MS = 2600;     // idle → telegraph → fire period
 const TELEGRAPH_MS = 800;  // wind-up before the beam
 const BEAM_MS = 350;       // how long the beam is live
+const LASER_LEN = 280;     // beam length in px (~17 tiles — reaches across the arena)
 
 export class Boss extends Phaser.Physics.Arcade.Sprite {
   declare body: Phaser.Physics.Arcade.Body;
   public hp = HP;
   public readonly stompable = true; // can be jumped on (that's how you damage it)
   private beam?: Phaser.GameObjects.Rectangle & { body: Phaser.Physics.Arcade.Body };
+  private beamCore?: Phaser.GameObjects.Rectangle;
   private timer?: Phaser.Time.TimerEvent;
   private hitCooldown = 0;
 
@@ -37,14 +39,20 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     this.hp = HP;
     this.play(Anim.BossIdle, true);
 
-    // a thin laser beam rectangle, reused; off until fired
-    const beam = this.scene.add.rectangle(0, 0, 4, 4, 0xff4d4d, 0.85)
+    // laser beam rectangle, reused; right edge anchored at the boss muzzle, grows left.
+    const beam = this.scene.add.rectangle(0, 0, 4, 4, 0xff4d4d, 0.9)
       .setOrigin(1, 0.5).setDepth(45).setVisible(false);
     this.scene.physics.add.existing(beam);
     const beamBody = beam.body as Phaser.Physics.Arcade.Body;
     beamBody.setAllowGravity(false);
     beamBody.enable = false;
     this.beam = beam as typeof this.beam;
+
+    // a brighter core line drawn over the beam so the laser reads as a hot bolt,
+    // not a flat red bar (same right-anchored origin so it tracks the beam exactly).
+    const core = this.scene.add.rectangle(0, 0, 4, 2, 0xffe0e0, 1)
+      .setOrigin(1, 0.5).setDepth(46).setVisible(false);
+    this.beamCore = core;
 
     // attack loop
     this.timer = this.scene.time.addEvent({ delay: CYCLE_MS, loop: true, callback: () => this.beginAttack() });
@@ -72,17 +80,28 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
     if (!this.active || !this.beam) return;
     this.play(Anim.BossAttack, true);
     this.emit('fire'); // GameScene plays the laser SFX
-    // beam shoots left (toward the level / hero) from the boss's eye height
+    // beam shoots LEFT (toward the level / hero) from the boss muzzle.
+    const muzzleX = this.x - this.displayWidth * 0.45; // right edge of the beam
     const eyeY = this.y - this.displayHeight * 0.55;
-    const len = 220;
-    this.beam.setPosition(this.x - this.displayWidth * 0.4, eyeY);
-    this.beam.setSize(len, 6);
-    (this.beam.body as Phaser.Physics.Arcade.Body).setSize(len, 6);
-    this.beam.body.reset(this.beam.x - len, eyeY - 3);
-    this.beam.setVisible(true);
-    this.beam.body.enable = true;
+    const len = LASER_LEN;
+    const thick = 10;
+
+    // glow body: right edge pinned at the muzzle (origin 1,0.5), so it stretches left.
+    this.beam.setPosition(muzzleX, eyeY).setSize(len, thick).setVisible(true);
+    this.beamCore?.setPosition(muzzleX, eyeY).setSize(len, 4).setVisible(true);
+
+    // sync the physics body to the (origin 1,0.5) rectangle's visual bounds. Setting
+    // body size + offset (NOT body.reset, which would yank the GameObject) keeps the
+    // hurt-zone exactly under the drawn beam: left = muzzle-len, top = eyeY-thick/2.
+    const body = this.beam.body as Phaser.Physics.Arcade.Body;
+    body.enable = true;
+    body.setSize(len, thick);
+    body.setOffset(0, 0); // origin (1,0.5): display top-left is already (x-width, y-h/2)
+    body.updateFromGameObject();
+
     this.scene.time.delayedCall(BEAM_MS, () => {
       if (this.beam) { this.beam.setVisible(false); this.beam.body.enable = false; }
+      this.beamCore?.setVisible(false);
       if (this.active) this.play(Anim.BossIdle, true);
     });
   }
@@ -100,7 +119,9 @@ export class Boss extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene?: boolean): void {
     this.timer?.remove();
     this.beam?.destroy();
+    this.beamCore?.destroy();
     this.beam = undefined;
+    this.beamCore = undefined;
     super.destroy(fromScene);
   }
 }
