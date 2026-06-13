@@ -1,40 +1,69 @@
 import Phaser from 'phaser';
 
 // A small fullscreen toggle button, reused on the Menu and the HUD. The icon is
-// drawn as pixel-art via Graphics (no emoji / runtime-SVG — phaser-ui-ux §8):
-//  - "enter" = four corner brackets pointing OUT  (⌜ ⌝ ⌞ ⌟ open)
-//  - "exit"  = four corner brackets pointing IN   (arrows folding inward)
+// drawn as SOLID pixel-art via Graphics (no emoji / runtime-SVG — phaser-ui-ux §8),
+// matching the reference: four chunky right-angle corner brackets.
+//  - "enter" = corners point OUTWARD (⌜ ⌝ ⌞ ⌟ open — expand)
+//  - "exit"  = corners point INWARD  (folding in — shrink)
 // Phaser drives the actual fullscreen via scale.startFullscreen/stopFullscreen,
 // which must be triggered from a user gesture (pointerdown) — handled here.
 
-const TINT = 0x9fe3ff;
+const COLOR = 0xffffff; // white, per the reference
 
-/** Draw the 4-corner fullscreen glyph into a container at (0,0), centred. */
+// Authored on a 16x16 pixel grid (matches the reference). '#' = white cell, '.' = empty.
+// ENTER: four corner brackets opening OUTWARD (⌜ ⌝ ⌞ ⌟ — expand).
+// EXIT : the same four brackets ROTATED 180° so they fold toward the corners (shrink).
+const CELL = 1.4; // px per grid cell → ~16*1.4 ≈ 22px glyph (matches other 24px icons)
+const GRID = 16;
+
+const ENTER_ROWS = [
+  '................',
+  '................',
+  '..####....####..',
+  '..####....####..',
+  '..##........##..',
+  '..##........##..',
+  '................',
+  '................',
+  '................',
+  '................',
+  '..##........##..',
+  '..##........##..',
+  '..####....####..',
+  '..####....####..',
+  '................',
+  '................',
+];
+const EXIT_ROWS = [
+  '................',
+  '................',
+  '..##........##..',
+  '..##........##..',
+  '..####....####..',
+  '..####....####..',
+  '................',
+  '................',
+  '................',
+  '................',
+  '..####....####..',
+  '..####....####..',
+  '..##........##..',
+  '..##........##..',
+  '................',
+  '................',
+];
+
+/** Draw the fullscreen glyph (centred at 0,0) from a 16x16 pixel bitmap. */
 function drawGlyph(scene: Phaser.Scene, exit: boolean): Phaser.GameObjects.Graphics {
   const g = scene.add.graphics();
-  g.lineStyle(1.5, TINT, 1);
-  const s = 5;   // arm length
-  const o = 5;   // offset from center to each corner
-  // corners: [cornerX, cornerY, dirX, dirY] — dir points toward the corner (outward)
-  const corners = [
-    [-o, -o, -1, -1], [o, -o, 1, -1], [-o, o, -1, 1], [o, o, 1, 1],
-  ];
-  for (const [cxp, cyp, dx, dy] of corners) {
-    if (!exit) {
-      // ENTER: bracket sits at the corner, arms run inward from the corner point.
-      g.beginPath();
-      g.moveTo(cxp, cyp); g.lineTo(cxp - dx * s, cyp);          // horizontal arm
-      g.moveTo(cxp, cyp); g.lineTo(cxp, cyp - dy * s);          // vertical arm
-      g.strokePath();
-    } else {
-      // EXIT: bracket sits inset, arms run outward toward the corner (folding in).
-      const ix = cxp - dx * s, iy = cyp - dy * s;
-      g.beginPath();
-      g.moveTo(ix, iy); g.lineTo(ix + dx * s, iy);
-      g.moveTo(ix, iy); g.lineTo(ix, iy + dy * s);
-      g.strokePath();
+  g.fillStyle(COLOR, 1);
+  const rows = exit ? EXIT_ROWS : ENTER_ROWS;
+  const o = -(GRID * CELL) / 2; // top-left so the grid is centred on (0,0)
+  rows.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      if (row[c] === '#') g.fillRect(o + c * CELL, o + r * CELL, CELL + 0.5, CELL + 0.5);
     }
-  }
+  });
   return g;
 }
 
