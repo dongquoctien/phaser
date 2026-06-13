@@ -79,11 +79,13 @@ export const HAND_LEVELS: LevelData[] = [
       { x: 29 * TILE + 8, y: 9 * TILE },
       { x: 48 * TILE, y: 13 * TILE },
     ],
-    shurikens: [
+    // Flying threats are bats now (cave-appropriate). shurikens left empty.
+    bats: [
       { x: 16 * TILE, y: 8 * TILE, range: 4 * TILE, speed: 70 },
       { x: 34 * TILE, y: 7 * TILE, range: 5 * TILE, speed: 90 },
       { x: 50 * TILE, y: 11 * TILE, range: 3 * TILE, speed: 80 },
     ],
+    shurikens: [],
     exit: { x: 53 * TILE, y: 13 * TILE },
   },
   {
@@ -100,7 +102,7 @@ export const HAND_LEVELS: LevelData[] = [
       [24, 9, 3],
       [30, 11, 3],
       [34, 13, 5],
-      [38, 9, 4],
+      [38, 11, 4], // lowered from y=9: a 2-tile climb off the y=13 floor (was 4 — unjumpable)
       [44, 12, 4],
       [48, 13, 12],
       [50, 8, 5],
@@ -109,7 +111,7 @@ export const HAND_LEVELS: LevelData[] = [
       { x: 7 * TILE + 8, y: 7 * TILE + 8 },
       { x: 12 * TILE + 8, y: 5 * TILE + 8 },
       { x: 25 * TILE + 8, y: 6 * TILE + 8 },
-      { x: 39 * TILE + 8, y: 6 * TILE + 8 },
+      { x: 39 * TILE + 8, y: 8 * TILE + 8 }, // lowered with its platform (y=11) so it stays punchable
     ],
     stars: [
       { x: 12 * TILE + 16, y: 6 * TILE },
@@ -130,12 +132,14 @@ export const HAND_LEVELS: LevelData[] = [
       { x: 39 * TILE + 8, y: 9 * TILE },
       { x: 52 * TILE, y: 13 * TILE },
     ],
-    shurikens: [
+    // Flying threats are bats now (cave-appropriate). shurikens left empty.
+    bats: [
       { x: 18 * TILE, y: 7 * TILE, range: 4 * TILE, speed: 85 },
       { x: 33 * TILE, y: 6 * TILE, range: 5 * TILE, speed: 100 },
       { x: 42 * TILE, y: 11 * TILE, range: 4 * TILE, speed: 95 },
       { x: 54 * TILE, y: 10 * TILE, range: 3 * TILE, speed: 90 },
     ],
+    shurikens: [],
     exit: { x: 57 * TILE, y: 13 * TILE },
   },
 ];

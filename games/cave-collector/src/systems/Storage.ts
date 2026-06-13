@@ -9,6 +9,7 @@ const K = {
   playerId: PREFIX + 'playerId',
   nickname: PREFIX + 'nickname',
   best: PREFIX + 'best',
+  storyCleared: PREFIX + 'storyCleared', // '1' once the 10-level Story is finished → unlocks Endless
 } as const;
 
 function safeGet(key: string): string | null {
@@ -62,5 +63,13 @@ export const Storage = {
     const prev = this.getBest();
     if (score > prev) { safeSet(K.best, String(score)); return score; }
     return prev;
+  },
+
+  /** True once the player has finished all 10 Story levels (unlocks Endless). */
+  isStoryCleared(): boolean {
+    return safeGet(K.storyCleared) === '1';
+  },
+  markStoryCleared(): void {
+    safeSet(K.storyCleared, '1');
   },
 };

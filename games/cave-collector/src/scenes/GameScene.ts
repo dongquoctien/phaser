@@ -179,8 +179,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Exit door — 48px frame at 0.66 (~32px, 2 tiles): a clear goal, not huge.
+    // depth 2 so it always reads ABOVE the floor tiles (all at depth 0) — never
+    // occluded by a tile/step drawn after it.
     this.door = this.physics.add.staticImage(level.exit.x, level.exit.y, Tex.Door);
-    this.door.setScale(0.66).setOrigin(0.5, 1).refreshBody();
+    this.door.setScale(0.66).setOrigin(0.5, 1).setDepth(2).refreshBody();
 
     // BOSS — guards the Story finale's exit (last campaign level only). It hovers in
     // an arena a good stretch before the door, and the door stays LOCKED until the
@@ -439,7 +441,10 @@ export class GameScene extends Phaser.Scene {
     // Endless never "wins" — clearing a stage just rolls into a harder one. Story
     // ends with a win screen after the last campaign level.
     const isLast = this.mode === 'story' && this.levelIndex >= STORY_LEVELS.length - 1;
-    if (isLast) this.submitRun('win', STORY_LEVELS.length);
+    if (isLast) {
+      this.submitRun('win', STORY_LEVELS.length);
+      Storage.markStoryCleared(); // unlocks the Endless mode in the menu
+    }
     this.time.delayedCall(700, () => {
       if (isLast) {
         this.scene.stop(SceneKeys.Hud);
