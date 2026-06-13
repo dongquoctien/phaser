@@ -10,6 +10,7 @@ const K = {
   nickname: PREFIX + 'nickname',
   best: PREFIX + 'best',
   storyCleared: PREFIX + 'storyCleared', // '1' once the 10-level Story is finished → unlocks Endless
+  tutorialSeen: PREFIX + 'tutorialSeen', // '1' once the How-to-Play has auto-shown on first run
 } as const;
 
 function safeGet(key: string): string | null {
@@ -71,5 +72,13 @@ export const Storage = {
   },
   markStoryCleared(): void {
     safeSet(K.storyCleared, '1');
+  },
+
+  /** True once the How-to-Play overlay has auto-shown (so it only auto-shows once). */
+  hasSeenTutorial(): boolean {
+    return safeGet(K.tutorialSeen) === '1';
+  },
+  markTutorialSeen(): void {
+    safeSet(K.tutorialSeen, '1');
   },
 };
