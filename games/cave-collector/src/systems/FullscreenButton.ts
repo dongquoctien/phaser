@@ -8,28 +8,31 @@ import Phaser from 'phaser';
 // Phaser drives the actual fullscreen via scale.startFullscreen/stopFullscreen,
 // which must be triggered from a user gesture (pointerdown) — handled here.
 
-const COLOR = 0xffffff; // white, per the reference
+const COLOR = 0x9fe3ff; // match the mute/volume icon tint (was white)
 
-// Authored on a 16x16 pixel grid (matches the reference). '#' = white cell, '.' = empty.
+// Authored on a 16x16 pixel grid (matches the reference). '#' = filled cell, '.' = empty.
 // ENTER: four corner brackets opening OUTWARD (⌜ ⌝ ⌞ ⌟ — expand).
 // EXIT : the same four brackets ROTATED 180° so they fold toward the corners (shrink).
-const CELL = 1.4; // px per grid cell → ~16*1.4 ≈ 22px glyph (matches other 24px icons)
+// Integer CELL → true pixel grid (no sub-pixel seams, so no +0.5 fudge needed). The
+// glyph is drawn at 16px then setScale()'d down on the container for crisp downscaling.
+const CELL = 1; // 1px per grid cell → 16px glyph; container scales it to taste
 const GRID = 16;
+const GLYPH_SCALE = 0.8; // a touch smaller than before
 
 const ENTER_ROWS = [
   '................',
   '................',
   '..####....####..',
-  '..####....####..',
-  '..##........##..',
-  '..##........##..',
+  '..#..........#..',
+  '..#..........#..',
   '................',
   '................',
   '................',
   '................',
-  '..##........##..',
-  '..##........##..',
-  '..####....####..',
+  '................',
+  '................',
+  '..#..........#..',
+  '..#..........#..',
   '..####....####..',
   '................',
   '................',
@@ -37,18 +40,18 @@ const ENTER_ROWS = [
 const EXIT_ROWS = [
   '................',
   '................',
-  '..##........##..',
-  '..##........##..',
-  '..####....####..',
+  '..#..........#..',
+  '..#..........#..',
   '..####....####..',
   '................',
   '................',
   '................',
   '................',
+  '................',
+  '................',
   '..####....####..',
-  '..####....####..',
-  '..##........##..',
-  '..##........##..',
+  '..#..........#..',
+  '..#..........#..',
   '................',
   '................',
 ];
@@ -61,9 +64,10 @@ function drawGlyph(scene: Phaser.Scene, exit: boolean): Phaser.GameObjects.Graph
   const o = -(GRID * CELL) / 2; // top-left so the grid is centred on (0,0)
   rows.forEach((row, r) => {
     for (let c = 0; c < row.length; c++) {
-      if (row[c] === '#') g.fillRect(o + c * CELL, o + r * CELL, CELL + 0.5, CELL + 0.5);
+      if (row[c] === '#') g.fillRect(o + c * CELL, o + r * CELL, CELL, CELL);
     }
   });
+  g.setScale(GLYPH_SCALE); // crisp integer-grid bitmap, scaled down a touch
   return g;
 }
 
