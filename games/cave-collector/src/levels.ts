@@ -100,7 +100,7 @@ export const HAND_LEVELS: LevelData[] = [
       [24, 9, 3],
       [30, 11, 3],
       [34, 13, 5],
-      [38, 9, 4],
+      [38, 11, 4], // lowered from y=9: a 2-tile climb off the y=13 floor (was 4 — unjumpable)
       [44, 12, 4],
       [48, 13, 12],
       [50, 8, 5],
@@ -109,7 +109,7 @@ export const HAND_LEVELS: LevelData[] = [
       { x: 7 * TILE + 8, y: 7 * TILE + 8 },
       { x: 12 * TILE + 8, y: 5 * TILE + 8 },
       { x: 25 * TILE + 8, y: 6 * TILE + 8 },
-      { x: 39 * TILE + 8, y: 6 * TILE + 8 },
+      { x: 39 * TILE + 8, y: 8 * TILE + 8 }, // lowered with its platform (y=11) so it stays punchable
     ],
     stars: [
       { x: 12 * TILE + 16, y: 6 * TILE },
