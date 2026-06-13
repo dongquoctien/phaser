@@ -441,7 +441,10 @@ export class GameScene extends Phaser.Scene {
     // Endless never "wins" — clearing a stage just rolls into a harder one. Story
     // ends with a win screen after the last campaign level.
     const isLast = this.mode === 'story' && this.levelIndex >= STORY_LEVELS.length - 1;
-    if (isLast) this.submitRun('win', STORY_LEVELS.length);
+    if (isLast) {
+      this.submitRun('win', STORY_LEVELS.length);
+      Storage.markStoryCleared(); // unlocks the Endless mode in the menu
+    }
     this.time.delayedCall(700, () => {
       if (isLast) {
         this.scene.stop(SceneKeys.Hud);

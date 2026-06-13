@@ -90,10 +90,15 @@ export class MenuScene extends Phaser.Scene {
       this.tweens.add({ targets: s, y: s.y - 5, duration: 900 + i * 220, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     });
 
-    // ----- mode buttons: STORY + ENDLESS (each its own framed, pulsing button) -----
+    // ----- play controls -----
+    // Endless is LOCKED until the player has cleared all 10 Story levels. Until then
+    // the menu shows a single "TAP TO PLAY" (→ Story); after that it shows the two
+    // STORY + ENDLESS buttons.
+    const endlessUnlocked = Storage.isStoryCleared();
     let started = false;
     const launch = (mode: 'story' | 'endless') => {
       if (started || this.overlayOpen) return;
+      if (mode === 'endless' && !endlessUnlocked) return; // safety
       started = true;
       audio.play(AK.Select);
       audio.stopMusic();
@@ -101,14 +106,28 @@ export class MenuScene extends Phaser.Scene {
     };
     const btnY = GAME_HEIGHT - 14;
     const again = data.won || data.gameOver;
-    this.addModeButton(cx - 78, btnY, again ? 'STORY AGAIN' : 'STORY', 0x7df0a8, () => launch('story'));
-    this.addModeButton(cx + 78, btnY, 'ENDLESS', 0xffd23f, () => launch('endless'));
-    // Desktop shortcuts: Space/Enter = Story, E = Endless.
-    this.input.keyboard?.on('keydown', (ev: KeyboardEvent) => {
-      if (this.overlayOpen) return;
-      if (ev.key === 'e' || ev.key === 'E') launch('endless');
-      else if (ev.key === ' ' || ev.key === 'Enter') launch('story');
-    });
+
+    if (endlessUnlocked) {
+      // both modes available
+      this.addModeButton(cx - 78, btnY, again ? 'STORY AGAIN' : 'STORY', 0x7df0a8, () => launch('story'));
+      this.addModeButton(cx + 78, btnY, 'ENDLESS', 0xffd23f, () => launch('endless'));
+      this.input.keyboard?.on('keydown', (ev: KeyboardEvent) => {
+        if (this.overlayOpen) return;
+        if (ev.key === 'e' || ev.key === 'E') launch('endless');
+        else if (ev.key === ' ' || ev.key === 'Enter') launch('story');
+      });
+    } else {
+      // single TAP TO PLAY (→ Story). A full-screen tap-zone (low depth, below the
+      // corner/overlay buttons) lets a tap ANYWHERE start, plus a pulsing label.
+      const tapZone = this.add.zone(cx, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT)
+        .setOrigin(0.5).setDepth(0).setInteractive({ useHandCursor: true });
+      tapZone.on('pointerdown', () => launch('story'));
+      this.addModeButton(cx, btnY, again ? 'TAP TO PLAY AGAIN' : 'TAP TO PLAY', 0x7df0a8, () => launch('story'));
+      this.input.keyboard?.on('keydown', (ev: KeyboardEvent) => {
+        if (this.overlayOpen) return;
+        if (ev.key === ' ' || ev.key === 'Enter') launch('story');
+      });
+    }
 
     this.addMuteButton(audio);
     // Fullscreen toggle, just left of the mute button (top-right).
