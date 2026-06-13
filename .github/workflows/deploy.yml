@@ -39,6 +39,7 @@ jobs:
           # that game's VITE_API_URL. Empty ⇒ that game builds offline.
           VITE_API_URL_TWDC: ${{ vars.VITE_API_URL_TWDC }}
           VITE_API_URL_WAM: ${{ vars.VITE_API_URL_WAM }}
+          VITE_API_URL_OREO: ${{ vars.VITE_API_URL_OREO }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
