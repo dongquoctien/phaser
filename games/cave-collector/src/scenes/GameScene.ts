@@ -179,8 +179,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     // Exit door — 48px frame at 0.66 (~32px, 2 tiles): a clear goal, not huge.
+    // depth 2 so it always reads ABOVE the floor tiles (all at depth 0) — never
+    // occluded by a tile/step drawn after it.
     this.door = this.physics.add.staticImage(level.exit.x, level.exit.y, Tex.Door);
-    this.door.setScale(0.66).setOrigin(0.5, 1).refreshBody();
+    this.door.setScale(0.66).setOrigin(0.5, 1).setDepth(2).refreshBody();
 
     // BOSS — guards the Story finale's exit (last campaign level only). It hovers in
     // an arena a good stretch before the door, and the door stays LOCKED until the

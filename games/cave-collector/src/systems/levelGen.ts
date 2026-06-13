@@ -42,7 +42,13 @@ function buildPath(r: () => number, widthTiles: number, diff: number): { segs: S
   segs.push({ x, y, len: firstLen });
   x += firstLen;
 
-  while (x < widthTiles - 8) {
+  // Reserve room at the right for the final landing floor (len 8) so the exit
+  // always fits inside widthTiles — otherwise the door spills past the world/camera
+  // bound and the player can never see or reach it.
+  const FINAL_LEN = 8;
+  const lastFloorStart = widthTiles - FINAL_LEN;
+
+  while (x < lastFloorStart - MAX_GAP) {
     // Gap before the next platform (bigger gaps as difficulty rises).
     const gap = pick(r, 1, Math.min(MAX_GAP, 1 + Math.round(diff * 2)));
     x += gap;
@@ -54,14 +60,18 @@ function buildPath(r: () => number, widthTiles: number, diff: number): { segs: S
     const minStep = gap >= 3 ? 0 : -1; // most we let it climb on a gap
     const step = pick(r, minStep, MAX_STEP);
     y = Math.max(8, Math.min(FLOOR_Y, y + step));
-    const len = pick(r, 3, 7);
+    // don't let a segment overrun the reserved final-floor zone
+    const maxLen = Math.max(3, lastFloorStart - MAX_GAP - x);
+    const len = Math.min(pick(r, 3, 7), maxLen);
     segs.push({ x, y, len });
     x += len;
   }
-  // final long landing floor + exit
-  const last = { x, y: FLOOR_Y, len: 8 };
+  // final long landing floor + exit — pinned to the reserved zone so it always
+  // sits flush inside the world width.
+  const last = { x: lastFloorStart, y: FLOOR_Y, len: FINAL_LEN };
   segs.push(last);
-  return { segs, endX: last.x + last.len - 3 };
+  // exit a couple tiles in from the right edge of the final floor (and of the world)
+  return { segs, endX: Math.min(last.x + last.len - 2, widthTiles - 2) };
 }
 
 /** Generate one full LevelData for the given seed + difficulty (0..1). */
