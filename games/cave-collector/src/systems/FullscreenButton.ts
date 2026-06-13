@@ -82,8 +82,15 @@ export interface FullscreenButtonOpts {
  * Adds a fullscreen toggle at (x,y). Returns a destroy() to clean up listeners.
  * The glyph swaps enter/exit as fullscreen state changes (incl. the browser's
  * own Esc / F11 exit, via the scale manager's events).
+ *
+ * NO-OP on platforms without the Fullscreen API — notably iPhone Safari, which
+ * has never supported requestFullscreen() on a canvas/element (only the <video>
+ * tag, via webkitEnterFullscreen). Showing a dead button there is worse than no
+ * button, so we just don't add one when scale.fullscreen.available is false.
  */
 export function addFullscreenButton(scene: Phaser.Scene, opts: FullscreenButtonOpts): () => void {
+  if (!scene.scale.fullscreen.available) return () => {}; // unsupported (e.g. iOS Safari)
+
   const depth = opts.depth ?? 100;
   const container = scene.add.container(opts.x, opts.y).setDepth(depth);
 
