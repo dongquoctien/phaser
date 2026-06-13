@@ -79,11 +79,13 @@ export const HAND_LEVELS: LevelData[] = [
       { x: 29 * TILE + 8, y: 9 * TILE },
       { x: 48 * TILE, y: 13 * TILE },
     ],
-    shurikens: [
+    // Flying threats are bats now (cave-appropriate). shurikens left empty.
+    bats: [
       { x: 16 * TILE, y: 8 * TILE, range: 4 * TILE, speed: 70 },
       { x: 34 * TILE, y: 7 * TILE, range: 5 * TILE, speed: 90 },
       { x: 50 * TILE, y: 11 * TILE, range: 3 * TILE, speed: 80 },
     ],
+    shurikens: [],
     exit: { x: 53 * TILE, y: 13 * TILE },
   },
   {
@@ -130,12 +132,14 @@ export const HAND_LEVELS: LevelData[] = [
       { x: 39 * TILE + 8, y: 9 * TILE },
       { x: 52 * TILE, y: 13 * TILE },
     ],
-    shurikens: [
+    // Flying threats are bats now (cave-appropriate). shurikens left empty.
+    bats: [
       { x: 18 * TILE, y: 7 * TILE, range: 4 * TILE, speed: 85 },
       { x: 33 * TILE, y: 6 * TILE, range: 5 * TILE, speed: 100 },
       { x: 42 * TILE, y: 11 * TILE, range: 4 * TILE, speed: 95 },
       { x: 54 * TILE, y: 10 * TILE, range: 3 * TILE, speed: 90 },
     ],
+    shurikens: [],
     exit: { x: 57 * TILE, y: 13 * TILE },
   },
 ];

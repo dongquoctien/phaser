@@ -91,11 +91,12 @@ export function genLevel(name: string, seed: number, widthTiles: number, diff: n
 
   // ── Enemy budgeting (so a level is never overcrowded) ──
   // Density ~1 enemy per 5 tiles, scaled by difficulty. Flying threats are the
-  // hardest to dodge, so a level uses ONLY ONE flying type (bat OR shuriken, picked
-  // per level) and keeps it sparse.
+  // hardest to dodge, so a level keeps them sparse. Bats are the only flying type
+  // now (cave-appropriate; shuriken kept in code but no longer spawned).
   const groundBudget = Math.round((widthTiles / 5) * (0.5 + diff)); // total ground enemies
-  const flyBudget = Math.max(1, Math.round((widthTiles / 22) * (0.6 + diff))); // bats/shuriken
-  const useBats = r() < 0.5; // this level's single flying type
+  const flyBudget = Math.max(1, Math.round((widthTiles / 22) * (0.6 + diff))); // bats
+  r(); // (still consume this PRNG value so existing seeded layouts don't shift)
+  const useBats = true; // always bats now (was: r() < 0.5 to pick bat OR shuriken)
   let ground = 0, fly = 0;
 
   // decorate each segment (skip the first/last so spawn + exit stay clean)
