@@ -7,6 +7,7 @@ import { Api } from '../systems/Api';
 import { Storage } from '../systems/Storage';
 import { showLeaderboard } from '../systems/LeaderboardPanel';
 import { showNicknamePrompt } from '../systems/NicknamePrompt';
+import { addFullscreenButton } from '../systems/FullscreenButton';
 import { Icon } from '../types/keys';
 
 interface MenuData {
@@ -110,6 +111,8 @@ export class MenuScene extends Phaser.Scene {
     });
 
     this.addMuteButton(audio);
+    // Fullscreen toggle, just left of the mute button (top-right).
+    addFullscreenButton(this, { x: GAME_WIDTH - 30, y: 12, depth: 100 });
 
     // Corner buttons. They flip overlayOpen so a tap on the open modal can't fire
     // the mode buttons. Pixel-art icon textures (pixelarticons — §8) left of each.

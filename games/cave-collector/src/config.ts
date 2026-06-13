@@ -9,9 +9,9 @@ import { HudScene } from './scenes/HudScene';
 // One source of truth for the game configuration.
 declare const __DEV__: boolean;
 
-// Internal resolution matches the source frames (GBA-ish 400x240), scaled up
-// with nearest-neighbor so the pixels stay crisp and square.
-export const GAME_WIDTH = 400;
+// Internal resolution: 426x240 = 16:9, scaled up with nearest-neighbor so the
+// pixels stay crisp and square. (Was 400x240 / 5:3; widened for 16:9 displays.)
+export const GAME_WIDTH = 426;
 export const GAME_HEIGHT = 240;
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {

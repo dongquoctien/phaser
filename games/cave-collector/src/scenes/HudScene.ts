@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { SceneKeys, Tex, Reg, Ev } from '../types/keys';
 import { GAME_WIDTH } from '../config';
+import { addFullscreenButton } from '../systems/FullscreenButton';
 
 // Overlay HUD, launched in parallel with GameScene. Renders the score, star
 // count and lives. Reads initial values from the registry and updates on the
@@ -32,6 +33,9 @@ export class HudScene extends Phaser.Scene {
 
     // Lives (top-right hearts).
     this.rebuildHearts((this.registry.get(Reg.Lives) as number) ?? 3);
+
+    // Fullscreen toggle, top-right second row (below the hearts).
+    addFullscreenButton(this, { x: GAME_WIDTH - 12, y: 30, depth: 1001 });
 
     this.scoreText.setText(String(this.registry.get(Reg.Score) ?? 0));
     this.starText.setText(String(this.registry.get(Reg.Stars) ?? 0));
