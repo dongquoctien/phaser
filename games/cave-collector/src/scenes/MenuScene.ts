@@ -7,6 +7,7 @@ import { Api } from '../systems/Api';
 import { Storage } from '../systems/Storage';
 import { showLeaderboard } from '../systems/LeaderboardPanel';
 import { showNicknamePrompt } from '../systems/NicknamePrompt';
+import { showHowToPlay } from '../systems/HowToPlay';
 import { addFullscreenButton } from '../systems/FullscreenButton';
 import { Icon } from '../types/keys';
 
@@ -132,6 +133,13 @@ export class MenuScene extends Phaser.Scene {
     this.addMuteButton(audio);
     // Fullscreen toggle, just left of the mute button (top-right).
     addFullscreenButton(this, { x: GAME_WIDTH - 30, y: 12, depth: 100 });
+    // Help "?" — opens HOW TO PLAY. Left of the fullscreen/mute cluster. (When
+    // fullscreen is unavailable, e.g. iOS, that slot is empty so it still reads fine.)
+    this.addHelpButton(GAME_WIDTH - 48, 12, () => {
+      audio.play(AK.Select);
+      this.overlayOpen = true;
+      showHowToPlay(this, () => { this.overlayOpen = false; });
+    });
 
     // Corner buttons. They flip overlayOpen so a tap on the open modal can't fire
     // the mode buttons. Pixel-art icon textures (pixelarticons — §8) left of each.
@@ -146,11 +154,40 @@ export class MenuScene extends Phaser.Scene {
       showNicknamePrompt(this, { onDone: () => this.scene.restart(data) });
     });
 
-    // First-ever launch: ask for a name once (non-blocking; cancel = random).
-    if (!Storage.hasNickname() && Api.enabled && !data.won && !data.gameOver) {
+    // First-run onboarding (only on a fresh menu, not the win/gameover return).
+    const fresh = !data.won && !data.gameOver;
+    const needName = fresh && !Storage.hasNickname() && Api.enabled;
+    const needTutorial = fresh && !Storage.hasSeenTutorial();
+    if (needTutorial) {
+      // Auto-show HOW TO PLAY once. After it closes, fall through to the name prompt
+      // if that's also a first-run need (so the two don't overlap).
+      Storage.markTutorialSeen();
+      this.overlayOpen = true;
+      this.time.delayedCall(200, () => showHowToPlay(this, () => {
+        this.overlayOpen = false;
+        if (needName) {
+          this.overlayOpen = true;
+          showNicknamePrompt(this, { force: true, onDone: () => this.scene.restart(data) });
+        }
+      }));
+    } else if (needName) {
+      // Returning player without a name yet — ask once (non-blocking; cancel = random).
       this.overlayOpen = true;
       this.time.delayedCall(200, () => showNicknamePrompt(this, { force: true, onDone: () => this.scene.restart(data) }));
     }
+  }
+
+  /** A small "?" help button (text glyph — crisp, not an emoji). */
+  private addHelpButton(x: number, y: number, onTap: () => void): void {
+    const t = this.add.text(x, y, '?', {
+      fontFamily: '"Pixelify Sans", monospace', fontSize: '15px', fontStyle: 'bold', color: '#ffe14d',
+    }).setOrigin(0.5).setDepth(100).setShadow(1, 1, '#000', 2);
+    const zone = this.add.zone(x, y, 18, 18).setOrigin(0.5).setDepth(100).setInteractive({ useHandCursor: true });
+    zone.on('pointerdown', (_p: Phaser.Input.Pointer, _lx: number, _ly: number, e: Phaser.Types.Input.EventData) => {
+      e.stopPropagation();
+      onTap();
+    });
+    void t;
   }
 
   /** A framed, pulsing mode button (its own hit-zone with stopPropagation). */
